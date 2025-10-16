@@ -18,36 +18,40 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
+const AppRoutes = () => (
+  <Routes>
+    <Route path="/login" element={<Login />} />
+    <Route path="/register" element={<Register />} />
+    
+    <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/kurser-poang" element={<Courses />} />
+      <Route path="/schema" element={<div className="text-center py-12">Schema - Under utveckling</div>} />
+      <Route path="/event" element={<div className="text-center py-12">Event - Under utveckling</div>} />
+      <Route path="/biljetter" element={<div className="text-center py-12">Biljetter - Under utveckling</div>} />
+      <Route path="/butik" element={<div className="text-center py-12">Butik - Under utveckling</div>} />
+      <Route path="/medlemmar" element={<div className="text-center py-12">Medlemmar - Under utveckling</div>} />
+      <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
+      <Route path="/betalningar" element={<div className="text-center py-12">Betalningar - Under utveckling</div>} />
+      <Route path="/rapporter" element={<div className="text-center py-12">Rapporter - Under utveckling</div>} />
+      <Route path="/admin" element={<div className="text-center py-12">Admin - Under utveckling</div>} />
+    </Route>
+    
+    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          
-          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/kurser-poang" element={<Courses />} />
-            <Route path="/schema" element={<div className="text-center py-12">Schema - Under utveckling</div>} />
-            <Route path="/event" element={<div className="text-center py-12">Event - Under utveckling</div>} />
-            <Route path="/biljetter" element={<div className="text-center py-12">Biljetter - Under utveckling</div>} />
-            <Route path="/butik" element={<div className="text-center py-12">Butik - Under utveckling</div>} />
-            <Route path="/medlemmar" element={<div className="text-center py-12">Medlemmar - Under utveckling</div>} />
-            <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
-            <Route path="/betalningar" element={<div className="text-center py-12">Betalningar - Under utveckling</div>} />
-            <Route path="/rapporter" element={<div className="text-center py-12">Rapporter - Under utveckling</div>} />
-            <Route path="/admin" element={<div className="text-center py-12">Admin - Under utveckling</div>} />
-          </Route>
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AppRoutes />
+      </TooltipProvider>
+    </QueryClientProvider>
+  </BrowserRouter>
 );
 
 export default App;
