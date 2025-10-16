@@ -2,11 +2,21 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { useAuthStore } from "./store/authStore";
+import Dashboard from "./pages/Dashboard";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Courses from "./pages/Courses";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuthStore();
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -15,7 +25,23 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/kurser-poang" element={<Courses />} />
+            <Route path="/schema" element={<div className="text-center py-12">Schema - Under utveckling</div>} />
+            <Route path="/event" element={<div className="text-center py-12">Event - Under utveckling</div>} />
+            <Route path="/biljetter" element={<div className="text-center py-12">Biljetter - Under utveckling</div>} />
+            <Route path="/butik" element={<div className="text-center py-12">Butik - Under utveckling</div>} />
+            <Route path="/medlemmar" element={<div className="text-center py-12">Medlemmar - Under utveckling</div>} />
+            <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
+            <Route path="/betalningar" element={<div className="text-center py-12">Betalningar - Under utveckling</div>} />
+            <Route path="/rapporter" element={<div className="text-center py-12">Rapporter - Under utveckling</div>} />
+            <Route path="/admin" element={<div className="text-center py-12">Admin - Under utveckling</div>} />
+          </Route>
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
