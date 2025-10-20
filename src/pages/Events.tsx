@@ -36,9 +36,9 @@ export default function EventsPage() {
   const [ticketTypesByEvent, setTicketTypesByEvent] = useState<Record<string, TicketType[]>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingEvent, setEditingEvent] = useState<EventType | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const [eventToDelete, setEventToDelete] = useState<EventType | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -70,11 +70,11 @@ export default function EventsPage() {
   const onSubmitEvent = async (data: EventFormData) => {
     try {
       if (editingEvent) {
-        const updated = await updateEvent(editingEvent.id, data as Partial<Event>);
+        const updated = await updateEvent(editingEvent.id, data as Partial<EventType>);
         setEvents(events.map(e => e.id === updated.id ? updated : e));
         toast.success('Eventet har uppdaterats!');
       } else {
-        const newEvent = await createEvent(data as Omit<Event, 'id'>);
+        const newEvent = await createEvent(data as Omit<EventType, 'id'>);
         setEvents([newEvent, ...events]);
         toast.success('Eventet har skapats!');
       }
@@ -86,7 +86,7 @@ export default function EventsPage() {
     }
   };
 
-  const handleEdit = (event: Event) => {
+  const handleEdit = (event: EventType) => {
     setEditingEvent(event);
     setValue('title', event.title);
     setValue('description', event.description || '');
@@ -97,7 +97,7 @@ export default function EventsPage() {
     setDialogOpen(true);
   };
 
-  const handleDeleteClick = (event: Event) => {
+  const handleDeleteClick = (event: EventType) => {
     setEventToDelete(event);
     setDeleteDialogOpen(true);
   };
