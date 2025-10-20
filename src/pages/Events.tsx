@@ -15,7 +15,7 @@ import { sv } from '@/locales/sv';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { Event, TicketType } from '@/types';
+import type { Event as EventType, TicketType } from '@/types';
 import { useNavigate } from 'react-router-dom';
 
 const eventSchema = z.object({
@@ -29,10 +29,10 @@ const eventSchema = z.object({
 
 type EventFormData = z.infer<typeof eventSchema>;
 
-export default function Event() {
+export default function EventsPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<EventType[]>([]);
   const [ticketTypesByEvent, setTicketTypesByEvent] = useState<Record<string, TicketType[]>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
