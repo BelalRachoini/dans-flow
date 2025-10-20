@@ -5,11 +5,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { useAuthStore } from "./store/authStore";
-import Dashboard from "./pages/Dashboard";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Courses from "./pages/Courses";
-import NotFound from "./pages/NotFound";
+import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Courses from './pages/Courses';
+import EventPage from './pages/Event';
+import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,7 @@ const AppRoutes = () => (
       <Route path="/" element={<Dashboard />} />
       <Route path="/kurser-poang" element={<Courses />} />
       <Route path="/schema" element={<div className="text-center py-12">Schema - Under utveckling</div>} />
-      <Route path="/event" element={<div className="text-center py-12">Event - Under utveckling</div>} />
+      <Route path="/event" element={<EventPage />} />
       <Route path="/biljetter" element={<div className="text-center py-12">Biljetter - Under utveckling</div>} />
       <Route path="/butik" element={<div className="text-center py-12">Butik - Under utveckling</div>} />
       <Route path="/medlemmar" element={<div className="text-center py-12">Medlemmar - Under utveckling</div>} />
