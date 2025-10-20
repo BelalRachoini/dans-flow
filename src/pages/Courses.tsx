@@ -3,13 +3,36 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, MapPin, User, Clock, Coins, ShoppingCart } from 'lucide-react';
-import { listCourses, listPointsTransactions } from '@/services/mockApi';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar, MapPin, User, Clock, Coins, ShoppingCart, Plus } from 'lucide-react';
+import { listCourses, listPointsTransactions, createCourse } from '@/services/mockApi';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
 import { toast } from 'sonner';
 import { sv } from '@/locales/sv';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import type { Course, PointsTransaction } from '@/types';
+
+const courseSchema = z.object({
+  title: z.string().min(1, 'Titel krävs').max(100),
+  style: z.enum(['Salsa', 'Bachata', 'Tango', 'Kizomba', 'Zouk', 'HipHop']),
+  totalLessons: z.number().min(1).max(100),
+  startDate: z.string().min(1, 'Startdatum krävs'),
+  endDate: z.string().min(1, 'Slutdatum krävs'),
+  dayOfWeek: z.number().min(0).max(6),
+  time: z.string().min(1, 'Tid krävs'),
+  location: z.string().min(1, 'Plats krävs'),
+  description: z.string().optional(),
+  priceSEK: z.number().min(0),
+});
+
+type CourseFormData = z.infer<typeof courseSchema>;
 
 export default function Courses() {
   const { user } = useAuthStore();
@@ -17,6 +40,16 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [transactions, setTransactions] = useState<PointsTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  
+  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<CourseFormData>({
+    resolver: zodResolver(courseSchema),
+    defaultValues: {
+      totalLessons: 12,
+      dayOfWeek: 1,
+      priceSEK: 0,
+    }
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -47,6 +80,28 @@ export default function Courses() {
     toast.success(`${course.title} tillagd i varukorg!`);
   };
 
+  const onSubmitCourse = async (data: CourseFormData) => {
+    try {
+      const newCourse = await createCourse(data as Omit<Course, 'id'>);
+      setCourses([...courses, newCourse]);
+      toast.success(sv.courses.createSuccess);
+      setDialogOpen(false);
+      reset();
+    } catch (error) {
+      toast.error('Något gick fel');
+    }
+  };
+
+  const weekdays = [
+    sv.courses.sunday,
+    sv.courses.monday,
+    sv.courses.tuesday,
+    sv.courses.wednesday,
+    sv.courses.thursday,
+    sv.courses.friday,
+    sv.courses.saturday,
+  ];
+
   const getStyleColor = (style: string) => {
     const colors: Record<string, string> = {
       Salsa: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -73,17 +128,130 @@ export default function Courses() {
             Köp kurser, samla poäng och delta i lektioner
           </p>
         </div>
-        <Card className="shadow-md">
-          <CardContent className="py-4 px-6">
-            <div className="flex items-center gap-3">
-              <Coins className="h-8 w-8 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Ditt saldo</p>
-                <p className="text-2xl font-bold text-primary">{user?.pointsBalance || 0} poäng</p>
+        <div className="flex items-center gap-4">
+          {user?.role === 'ADMIN' && (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="hero">
+                  <Plus className="mr-2" size={16} />
+                  {sv.courses.createCourse}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{sv.courses.createCourse}</DialogTitle>
+                  <DialogDescription>
+                    Skapa en ny kurs för dansskolan
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(onSubmitCourse)} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label htmlFor="title">{sv.courses.courseTitle}</Label>
+                      <Input id="title" {...register('title')} />
+                      {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="style">{sv.courses.style}</Label>
+                      <Select onValueChange={(value) => setValue('style', value as any)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Välj stil" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Salsa">Salsa</SelectItem>
+                          <SelectItem value="Bachata">Bachata</SelectItem>
+                          <SelectItem value="Tango">Tango</SelectItem>
+                          <SelectItem value="Kizomba">Kizomba</SelectItem>
+                          <SelectItem value="Zouk">Zouk</SelectItem>
+                          <SelectItem value="HipHop">Hip Hop</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.style && <p className="text-sm text-destructive mt-1">{errors.style.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="totalLessons">{sv.courses.totalLessons}</Label>
+                      <Input id="totalLessons" type="number" {...register('totalLessons', { valueAsNumber: true })} />
+                      {errors.totalLessons && <p className="text-sm text-destructive mt-1">{errors.totalLessons.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="startDate">{sv.courses.startDate}</Label>
+                      <Input id="startDate" type="date" {...register('startDate')} />
+                      {errors.startDate && <p className="text-sm text-destructive mt-1">{errors.startDate.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="endDate">{sv.courses.endDate}</Label>
+                      <Input id="endDate" type="date" {...register('endDate')} />
+                      {errors.endDate && <p className="text-sm text-destructive mt-1">{errors.endDate.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="dayOfWeek">{sv.courses.dayOfWeek}</Label>
+                      <Select onValueChange={(value) => setValue('dayOfWeek', parseInt(value))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Välj dag" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {weekdays.map((day, index) => (
+                            <SelectItem key={index} value={index.toString()}>{day}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.dayOfWeek && <p className="text-sm text-destructive mt-1">{errors.dayOfWeek.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="time">{sv.courses.time}</Label>
+                      <Input id="time" type="time" {...register('time')} />
+                      {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="location">{sv.courses.location}</Label>
+                      <Input id="location" {...register('location')} />
+                      {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="priceSEK">{sv.courses.price}</Label>
+                      <Input id="priceSEK" type="number" {...register('priceSEK', { valueAsNumber: true })} />
+                      {errors.priceSEK && <p className="text-sm text-destructive mt-1">{errors.priceSEK.message}</p>}
+                    </div>
+
+                    <div className="col-span-2">
+                      <Label htmlFor="description">{sv.courses.description}</Label>
+                      <Textarea id="description" {...register('description')} />
+                      {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                      {sv.common.cancel}
+                    </Button>
+                    <Button type="submit" variant="hero">
+                      {sv.courses.createCourse}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+          <Card className="shadow-md">
+            <CardContent className="py-4 px-6">
+              <div className="flex items-center gap-3">
+                <Coins className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Ditt saldo</p>
+                  <p className="text-2xl font-bold text-primary">{user?.pointsBalance || 0} poäng</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Tabs defaultValue="courses" className="w-full">
