@@ -161,43 +161,6 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
-
-      {/* Recent Payments - Clean Mobile List */}
-      {recentInvoices.length > 0 && (
-        <Card className="shadow-lg">
-          <CardHeader className="pb-4">
-            <CardTitle>Senaste betalningar</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentInvoices.slice(0, 3).map((invoice) => (
-                <div
-                  key={invoice.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
-                >
-                  <div className="flex-1 min-w-0 pr-3">
-                    <p className="font-medium text-sm truncate">{invoice.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(invoice.createdAt).toLocaleDateString('sv-SE')}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold">{invoice.amountSEK} kr</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {(user?.role === 'ADMIN' || user?.role === 'INSTRUKTOR') && (
-              <Link to="/betalningar" className="block mt-4">
-                <Button variant="ghost" className="w-full">
-                  Se alla betalningar
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
