@@ -12,6 +12,7 @@ import Courses from "@/pages/Courses";
 import CourseDetail from "@/pages/CourseDetail";
 import Schema from "@/pages/Schema";
 import Biljetter from "@/pages/Biljetter";
+import Medlemmar from "@/pages/Medlemmar";
 import EventsPage from "@/pages/Events";
 import NotFound from "@/pages/NotFound";
 
@@ -34,7 +35,7 @@ const AppRoutes = () => (
       <Route path="/schema" element={<Schema />} />
       <Route path="/event" element={<EventsPage />} />
       <Route path="/biljetter" element={<Biljetter />} />
-      <Route path="/medlemmar" element={<div className="text-center py-12">Medlemmar - Under utveckling</div>} />
+      <Route path="/medlemmar" element={<Medlemmar />} />
       <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
       <Route path="/betalningar" element={<div className="text-center py-12">Betalningar - Under utveckling</div>} />
       <Route path="/rapporter" element={<div className="text-center py-12">Rapporter - Under utveckling</div>} />
