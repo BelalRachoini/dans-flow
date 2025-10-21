@@ -14,6 +14,7 @@ import Schema from "@/pages/Schema";
 import Biljetter from "@/pages/Biljetter";
 import Medlemmar from "@/pages/Medlemmar";
 import Betalningar from "@/pages/Betalningar";
+import Admin from "@/pages/Admin";
 import EventsPage from "@/pages/Events";
 import NotFound from "@/pages/NotFound";
 
@@ -39,7 +40,7 @@ const AppRoutes = () => (
       <Route path="/medlemmar" element={<Medlemmar />} />
       <Route path="/betalningar" element={<Betalningar />} />
       <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
-      <Route path="/admin" element={<div className="text-center py-12">Admin - Under utveckling</div>} />
+      <Route path="/admin" element={<Admin />} />
     </Route>
     
     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
