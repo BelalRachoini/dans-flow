@@ -198,4 +198,12 @@ export const sv = {
     Zouk: 'Zouk',
     HipHop: 'HipHop',
   },
+
+  // Language
+  language: {
+    title: 'Språk',
+    swedish: 'Svenska',
+    english: 'Engelska',
+    spanish: 'Spanska',
+  },
 };

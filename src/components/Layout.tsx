@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet } from 'react-router-dom';
 import { 
   LayoutDashboard, BookOpen, Calendar, PartyPopper, Ticket, 
   ShoppingBag, Users, CreditCard, Repeat, BarChart3, Settings,
-  Menu, X, QrCode, UserCircle, LogOut, Bell
+  Menu, X, QrCode, UserCircle, LogOut, Bell, Languages
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -16,26 +16,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/store/authStore';
-import { sv } from '@/locales/sv';
-
-const navItems = [
-  { icon: LayoutDashboard, label: sv.nav.oversikt, path: '/', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
-  { icon: BookOpen, label: sv.nav.kurserPoang, path: '/kurser-poang', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
-  { icon: Calendar, label: sv.nav.schema, path: '/schema', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
-  { icon: PartyPopper, label: sv.nav.event, path: '/event', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
-  { icon: Ticket, label: sv.nav.biljetter, path: '/biljetter', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
-  { icon: ShoppingBag, label: sv.nav.butik, path: '/butik', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
-  { icon: Users, label: sv.nav.medlemmar, path: '/medlemmar', roles: ['ADMIN', 'INSTRUKTOR'] },
-  { icon: Repeat, label: sv.nav.prenumerationer, path: '/prenumerationer', roles: ['ADMIN', 'INSTRUKTOR'] },
-  { icon: CreditCard, label: sv.nav.betalningar, path: '/betalningar', roles: ['ADMIN', 'INSTRUKTOR'] },
-  { icon: BarChart3, label: sv.nav.rapporter, path: '/rapporter', roles: ['ADMIN', 'INSTRUKTOR'] },
-  { icon: Settings, label: sv.nav.admin, path: '/admin', roles: ['ADMIN'] },
-];
+import { useLanguageStore, type Language } from '@/store/languageStore';
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const { t, language, setLanguage } = useLanguageStore();
+
+  const navItems = [
+    { icon: LayoutDashboard, label: t.nav.oversikt, path: '/', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: BookOpen, label: t.nav.kurserPoang, path: '/kurser-poang', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: Calendar, label: t.nav.schema, path: '/schema', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: PartyPopper, label: t.nav.event, path: '/event', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: Ticket, label: t.nav.biljetter, path: '/biljetter', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: ShoppingBag, label: t.nav.butik, path: '/butik', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: Users, label: t.nav.medlemmar, path: '/medlemmar', roles: ['ADMIN', 'INSTRUKTOR'] },
+    { icon: Repeat, label: t.nav.prenumerationer, path: '/prenumerationer', roles: ['ADMIN', 'INSTRUKTOR'] },
+    { icon: CreditCard, label: t.nav.betalningar, path: '/betalningar', roles: ['ADMIN', 'INSTRUKTOR'] },
+    { icon: BarChart3, label: t.nav.rapporter, path: '/rapporter', roles: ['ADMIN', 'INSTRUKTOR'] },
+    { icon: Settings, label: t.nav.admin, path: '/admin', roles: ['ADMIN'] },
+  ];
 
   if (!user) return null;
 
@@ -102,7 +103,7 @@ export const Layout = () => {
                 </Avatar>
                 <div className="flex-1 overflow-hidden">
                   <p className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</p>
-                  <p className="text-xs text-sidebar-foreground/70">{sv.roles[user.role]}</p>
+                  <p className="text-xs text-sidebar-foreground/70">{t.roles[user.role]}</p>
                 </div>
               </div>
             </div>
@@ -125,8 +126,39 @@ export const Layout = () => {
               {/* Quick actions */}
               <Button variant="outline" size="sm">
                 <QrCode size={16} className="mr-2" />
-                Skanna QR
+                {t.qr.scan}
               </Button>
+
+              {/* Language selector */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Languages size={20} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover z-50">
+                  <DropdownMenuLabel>{t.language.title}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setLanguage('sv')}
+                    className={language === 'sv' ? 'bg-accent' : ''}
+                  >
+                    {t.language.swedish}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setLanguage('en')}
+                    className={language === 'en' ? 'bg-accent' : ''}
+                  >
+                    {t.language.english}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setLanguage('es')}
+                    className={language === 'es' ? 'bg-accent' : ''}
+                  >
+                    {t.language.spanish}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Notifications */}
               <Button variant="ghost" size="icon" className="relative">
@@ -146,7 +178,7 @@ export const Layout = () => {
                     {user.name}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium">{user.name}</p>
@@ -156,21 +188,21 @@ export const Layout = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <UserCircle className="mr-2 h-4 w-4" />
-                    Min profil
+                    {t.members.profile}
                   </DropdownMenuItem>
                   <DropdownMenuItem>
                     <Ticket className="mr-2 h-4 w-4" />
-                    Mina biljetter
+                    {t.tickets.myTickets}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
-                    <span className="mr-2 font-semibold text-primary">Poäng:</span>
+                    <span className="mr-2 font-semibold text-primary">{t.courses.pointsBalance}:</span>
                     {user.pointsBalance}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
-                    {sv.auth.logout}
+                    {t.auth.logout}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
