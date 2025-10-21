@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Courses from "@/pages/Courses";
+import CourseDetail from "@/pages/CourseDetail";
 import EventsPage from "@/pages/Events";
 import NotFound from "@/pages/NotFound";
 
@@ -27,6 +28,7 @@ const AppRoutes = () => (
     <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
       <Route path="/" element={<Dashboard />} />
       <Route path="/kurser-poang" element={<Courses />} />
+      <Route path="/kurser-poang/:id" element={<CourseDetail />} />
       <Route path="/schema" element={<div className="text-center py-12">Schema - Under utveckling</div>} />
       <Route path="/event" element={<EventsPage />} />
       <Route path="/biljetter" element={<div className="text-center py-12">Biljetter - Under utveckling</div>} />
