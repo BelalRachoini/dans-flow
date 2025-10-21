@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, BookOpen, Calendar, PartyPopper, Ticket, 
-  Users, CreditCard, Repeat, BarChart3, Settings,
+  Users, CreditCard, Repeat, Settings,
   Menu, X, QrCode, UserCircle, LogOut, Bell, Languages
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,6 @@ export const Layout = () => {
     { icon: Users, label: t.nav.medlemmar, path: '/medlemmar', roles: ['ADMIN', 'INSTRUKTOR'] },
     { icon: Repeat, label: t.nav.prenumerationer, path: '/prenumerationer', roles: ['ADMIN', 'INSTRUKTOR'] },
     { icon: CreditCard, label: t.nav.betalningar, path: '/betalningar', roles: ['ADMIN', 'INSTRUKTOR'] },
-    { icon: BarChart3, label: t.nav.rapporter, path: '/rapporter', roles: ['ADMIN', 'INSTRUKTOR'] },
     { icon: Settings, label: t.nav.admin, path: '/admin', roles: ['ADMIN'] },
   ];
 
