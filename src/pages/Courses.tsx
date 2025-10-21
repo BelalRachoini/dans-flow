@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, MapPin, User, Clock, Coins, ShoppingCart, Plus } from 'lucide-react';
+import { Calendar, MapPin, User, Clock, Coins, ShoppingCart, Plus, PartyPopper } from 'lucide-react';
 import { listCourses, listPointsTransactions, createCourse } from '@/services/mockApi';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore } from '@/store/cartStore';
@@ -118,7 +118,113 @@ export default function Courses() {
         <div className="flex items-center gap-4">
           {user?.role === 'ADMIN' && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-...
+              <DialogTrigger asChild>
+                <Button variant="hero">
+                  <Plus className="mr-2" size={16} />
+                  {sv.courses.createCourse}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{sv.courses.createCourse}</DialogTitle>
+                  <DialogDescription>
+                    Skapa en ny kurs för dansskolan
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit(onSubmitCourse)} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label htmlFor="title">{sv.courses.courseTitle}</Label>
+                      <Input id="title" {...register('title')} />
+                      {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="style">{sv.courses.style}</Label>
+                      <Select onValueChange={(value) => setValue('style', value as any)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Välj stil" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Salsa">Salsa</SelectItem>
+                          <SelectItem value="Bachata">Bachata</SelectItem>
+                          <SelectItem value="Tango">Tango</SelectItem>
+                          <SelectItem value="Kizomba">Kizomba</SelectItem>
+                          <SelectItem value="Zouk">Zouk</SelectItem>
+                          <SelectItem value="HipHop">Hip Hop</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.style && <p className="text-sm text-destructive mt-1">{errors.style.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="totalLessons">{sv.courses.totalLessons}</Label>
+                      <Input id="totalLessons" type="number" {...register('totalLessons', { valueAsNumber: true })} />
+                      {errors.totalLessons && <p className="text-sm text-destructive mt-1">{errors.totalLessons.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="startDate">{sv.courses.startDate}</Label>
+                      <Input id="startDate" type="date" {...register('startDate')} />
+                      {errors.startDate && <p className="text-sm text-destructive mt-1">{errors.startDate.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="endDate">{sv.courses.endDate}</Label>
+                      <Input id="endDate" type="date" {...register('endDate')} />
+                      {errors.endDate && <p className="text-sm text-destructive mt-1">{errors.endDate.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="dayOfWeek">{sv.courses.dayOfWeek}</Label>
+                      <Select onValueChange={(value) => setValue('dayOfWeek', parseInt(value))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Välj dag" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {weekdays.map((day, index) => (
+                            <SelectItem key={index} value={index.toString()}>{day}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.dayOfWeek && <p className="text-sm text-destructive mt-1">{errors.dayOfWeek.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="time">{sv.courses.time}</Label>
+                      <Input id="time" type="time" {...register('time')} />
+                      {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="location">{sv.courses.location}</Label>
+                      <Input id="location" {...register('location')} />
+                      {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="priceSEK">{sv.courses.price}</Label>
+                      <Input id="priceSEK" type="number" {...register('priceSEK', { valueAsNumber: true })} />
+                      {errors.priceSEK && <p className="text-sm text-destructive mt-1">{errors.priceSEK.message}</p>}
+                    </div>
+
+                    <div className="col-span-2">
+                      <Label htmlFor="description">{sv.courses.description}</Label>
+                      <Textarea id="description" {...register('description')} />
+                      {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                      {sv.common.cancel}
+                    </Button>
+                    <Button type="submit" variant="hero">
+                      {sv.courses.createCourse}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
             </Dialog>
           )}
         </div>
@@ -167,6 +273,31 @@ export default function Courses() {
           </Card>
         ))}
       </div>
+
+      {/* Events CTA Section */}
+      <Card className="gradient-primary text-white shadow-xl overflow-hidden">
+        <CardContent className="p-6 sm:p-8 md:p-12">
+          <div className="flex flex-col items-center text-center space-y-6">
+            <div className="space-y-3">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold">
+                Missa inte våra kommande event!
+              </h2>
+              <p className="text-white/90 text-base sm:text-lg max-w-2xl">
+                Från sociala danser till workshops och specialkvällar - upptäck alla spännande evenemang vi har att erbjuda.
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="lg"
+              className="bg-white text-primary hover:bg-white/90 hover:text-primary border-white shadow-lg"
+              onClick={() => navigate('/event')}
+            >
+              <PartyPopper className="mr-2 h-5 w-5" />
+              Se alla event
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
