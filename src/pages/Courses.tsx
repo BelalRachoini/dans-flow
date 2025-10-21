@@ -241,36 +241,38 @@ export default function Courses() {
         </div>
       </div>
 
-      {/* Courses Grid - 2 columns */}
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* Courses Grid - 2 columns on all screens */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
         {courses.map((course) => (
           <Card 
             key={course.id} 
-            className="shadow-md transition-smooth hover:shadow-lg cursor-pointer hover-scale"
+            className="shadow-md transition-smooth hover:shadow-lg cursor-pointer hover-scale flex flex-col"
             onClick={() => handleCourseClick(course.id)}
           >
-            <CardHeader>
-              <div className="flex items-start justify-between gap-2">
-                <CardTitle className="text-2xl">{course.title}</CardTitle>
-                <Badge className={getStyleColor(course.style)}>
+            <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 sm:pb-3">
+              <div className="space-y-2">
+                <Badge className={`${getStyleColor(course.style)} text-xs w-fit`}>
                   {sv.styles[course.style]}
                 </Badge>
+                <CardTitle className="text-base sm:text-lg md:text-xl line-clamp-2">
+                  {course.title}
+                </CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-3 sm:p-4 md:p-6 pt-0 flex-1 flex flex-col justify-between space-y-3">
               <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <span className="text-lg">{course.totalLessons} lektioner</span>
+                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm sm:text-base">{course.totalLessons} lektioner</span>
               </div>
-              <div className="pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pris</p>
-                    <p className="text-3xl font-bold">{course.priceSEK} kr</p>
+              <div className="pt-3 border-t mt-auto">
+                <div className="space-y-2">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xs text-muted-foreground">Pris:</span>
+                    <span className="text-lg sm:text-xl md:text-2xl font-bold">{course.priceSEK} kr</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Poäng</p>
-                    <p className="text-3xl font-bold text-primary">+{course.totalLessons}</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xs text-muted-foreground">Poäng:</span>
+                    <span className="text-lg sm:text-xl md:text-2xl font-bold text-primary">+{course.totalLessons}</span>
                   </div>
                 </div>
               </div>
