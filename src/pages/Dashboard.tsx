@@ -63,7 +63,7 @@ export default function Dashboard() {
       </Card>
 
       {/* Quick Stats - Clean Row */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Card className="shadow-md">
           <CardContent className="p-4 text-center">
             <Calendar className="h-6 w-6 text-secondary mx-auto mb-2" />
@@ -77,14 +77,6 @@ export default function Dashboard() {
             <PartyPopper className="h-6 w-6 text-accent mx-auto mb-2" />
             <p className="text-2xl font-bold">{events.length}</p>
             <p className="text-xs text-muted-foreground">Event</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-md">
-          <CardContent className="p-4 text-center">
-            <TrendingUp className="h-6 w-6 text-green-500 mx-auto mb-2" />
-            <p className="text-xl font-bold">{recentInvoices.reduce((sum, inv) => sum + inv.amountSEK, 0)}kr</p>
-            <p className="text-xs text-muted-foreground">Betalat</p>
           </CardContent>
         </Card>
       </div>
