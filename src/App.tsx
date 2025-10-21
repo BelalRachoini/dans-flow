@@ -33,7 +33,6 @@ const AppRoutes = () => (
       <Route path="/schema" element={<Schema />} />
       <Route path="/event" element={<EventsPage />} />
       <Route path="/biljetter" element={<div className="text-center py-12">Biljetter - Under utveckling</div>} />
-      <Route path="/butik" element={<div className="text-center py-12">Butik - Under utveckling</div>} />
       <Route path="/medlemmar" element={<div className="text-center py-12">Medlemmar - Under utveckling</div>} />
       <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
       <Route path="/betalningar" element={<div className="text-center py-12">Betalningar - Under utveckling</div>} />
