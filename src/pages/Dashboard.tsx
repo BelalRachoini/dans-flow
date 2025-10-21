@@ -215,15 +215,32 @@ export default function Dashboard() {
 
             {/* Progress Bar */}
             {nextTier ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Framsteg till {nextTier.name}</span>
-                  <span className="font-semibold text-primary">{pointsToNextLevel} poäng kvar</span>
+                  <span className="text-muted-foreground font-medium">Framsteg till {nextTier.name}</span>
+                  <span className="font-bold text-primary flex items-center gap-1">
+                    <TrendingUp className="h-4 w-4" />
+                    {pointsToNextLevel} poäng kvar
+                  </span>
                 </div>
-                <Progress value={progressPercentage} className="h-3" />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{userPoints} poäng</span>
-                  <span>{nextTier.pointsRequired} poäng</span>
+                <div className="relative">
+                  <Progress value={progressPercentage} className="h-4" />
+                  <div className="absolute -top-1 left-0 right-0 flex justify-between px-1 pointer-events-none">
+                    <div className={`h-6 w-6 rounded-full bg-background shadow-md flex items-center justify-center border-2 transition-smooth ${
+                      progressPercentage > 0 ? 'border-primary' : 'border-muted'
+                    }`}>
+                      <CurrentTierIcon className={`h-3 w-3 ${currentTier.color}`} />
+                    </div>
+                    <div className={`h-6 w-6 rounded-full bg-background shadow-md flex items-center justify-center border-2 transition-smooth ${
+                      progressPercentage >= 100 ? 'border-primary' : 'border-muted'
+                    }`}>
+                      {NextTierIcon && <NextTierIcon className={`h-3 w-3 ${nextTier.color}`} />}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span className="text-muted-foreground">{currentTier.name}</span>
+                  <span className={nextTier.color}>{nextTier.name}</span>
                 </div>
               </div>
             ) : (
