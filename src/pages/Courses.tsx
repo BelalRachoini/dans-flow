@@ -256,11 +256,6 @@ export default function Courses() {
                   alt={course.title}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-2 right-2">
-                  <Badge className={`${getStyleColor(course.style)} text-xs shadow-md`}>
-                    {sv.styles[course.style]}
-                  </Badge>
-                </div>
               </div>
             )}
             <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 sm:pb-3">
