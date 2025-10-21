@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, Outlet } from 'react-router-dom';
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, BookOpen, Calendar, PartyPopper, Ticket, 
   ShoppingBag, Users, CreditCard, Repeat, BarChart3, Settings,
@@ -21,6 +21,7 @@ import { useLanguageStore, type Language } from '@/store/languageStore';
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { t, language, setLanguage } = useLanguageStore();
 
@@ -48,14 +49,16 @@ export const Layout = () => {
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          role="button"
+          aria-label="Close sidebar"
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen transition-transform duration-300 w-64 gradient-dark border-r border-sidebar-border
+        className={`fixed left-0 top-0 z-50 h-screen transition-transform duration-300 w-64 gradient-dark border-r border-sidebar-border
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
       >
         <div className="flex h-full flex-col">
@@ -84,9 +87,16 @@ export const Layout = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={(e) => {
+                    setSidebarOpen(false);
+                    // If already on this path, force navigation
+                    if (location.pathname.startsWith(item.path)) {
+                      e.preventDefault();
+                      navigate(item.path);
+                    }
+                  }}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-smooth ${
-                    isActive
+                    isActive || location.pathname.startsWith(item.path)
                       ? 'bg-sidebar-accent text-primary shadow-sm'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   }`}
