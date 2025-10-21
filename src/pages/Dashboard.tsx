@@ -40,18 +40,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 pb-6 max-w-full overflow-x-hidden">
-      {/* Welcome Section - Clean Mobile Design */}
-      <div className="rounded-2xl gradient-primary p-6 text-white shadow-glow animate-fade-in">
-        <h1 className="text-2xl font-bold mb-1">
-          Hej, {user?.name?.split(' ')[0]}! 👋
-        </h1>
-        <p className="text-sm text-white/80">
-          {user?.role === 'ADMIN' && 'Hantera din dansskola'}
-          {user?.role === 'INSTRUKTOR' && 'Övervaka dina klasser'}
-          {user?.role === 'MEDLEM' && 'Din dansresa fortsätter'}
-        </p>
-      </div>
-
       {/* Points Card - Prominent on Mobile */}
       <Card className="shadow-lg hover-scale">
         <CardContent className="p-6">
