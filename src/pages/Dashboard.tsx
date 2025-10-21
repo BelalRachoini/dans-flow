@@ -162,41 +162,6 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions - Simple List on Mobile */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-muted-foreground px-1">Snabbåtgärder</h3>
-        <div className="grid gap-3">
-          <Link to="/biljetter">
-            <Button variant="outline" className="w-full justify-start h-14" size="lg">
-              <ShoppingBag className="mr-3 h-5 w-5" />
-              <span>Köp biljett</span>
-            </Button>
-          </Link>
-          <Link to="/schema">
-            <Button variant="outline" className="w-full justify-start h-14" size="lg">
-              <Calendar className="mr-3 h-5 w-5" />
-              <span>Se schema</span>
-            </Button>
-          </Link>
-          {user?.role === 'ADMIN' && (
-            <>
-              <Link to="/event">
-                <Button variant="outline" className="w-full justify-start h-14" size="lg">
-                  <PartyPopper className="mr-3 h-5 w-5" />
-                  <span>Skapa event</span>
-                </Button>
-              </Link>
-              <Link to="/medlemmar">
-                <Button variant="outline" className="w-full justify-start h-14" size="lg">
-                  <Users className="mr-3 h-5 w-5" />
-                  <span>Hantera medlemmar</span>
-                </Button>
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-
       {/* Recent Payments - Clean Mobile List */}
       {recentInvoices.length > 0 && (
         <Card className="shadow-lg">
