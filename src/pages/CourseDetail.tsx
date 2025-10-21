@@ -84,7 +84,17 @@ export default function CourseDetail() {
         Tillbaka till kurser
       </Button>
 
-      <Card className="shadow-lg">
+      <Card className="shadow-lg overflow-hidden">
+        {course.mediaUrl && (
+          <div className="relative w-full aspect-[21/9] overflow-hidden">
+            <img 
+              src={course.mediaUrl} 
+              alt={course.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+          </div>
+        )}
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>

@@ -246,18 +246,27 @@ export default function Courses() {
         {courses.map((course) => (
           <Card 
             key={course.id} 
-            className="shadow-md transition-smooth hover:shadow-lg cursor-pointer hover-scale flex flex-col"
+            className="shadow-md transition-smooth hover:shadow-lg cursor-pointer hover-scale flex flex-col overflow-hidden"
             onClick={() => handleCourseClick(course.id)}
           >
-            <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 sm:pb-3">
-              <div className="space-y-2">
-                <Badge className={`${getStyleColor(course.style)} text-xs w-fit`}>
-                  {sv.styles[course.style]}
-                </Badge>
-                <CardTitle className="text-base sm:text-lg md:text-xl line-clamp-2">
-                  {course.title}
-                </CardTitle>
+            {course.mediaUrl && (
+              <div className="relative w-full aspect-video overflow-hidden">
+                <img 
+                  src={course.mediaUrl} 
+                  alt={course.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-2 right-2">
+                  <Badge className={`${getStyleColor(course.style)} text-xs shadow-md`}>
+                    {sv.styles[course.style]}
+                  </Badge>
+                </div>
               </div>
+            )}
+            <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 sm:pb-3">
+              <CardTitle className="text-base sm:text-lg md:text-xl line-clamp-2">
+                {course.title}
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-3 sm:p-4 md:p-6 pt-0 flex-1 flex flex-col justify-between space-y-3">
               <div className="flex items-center gap-2">

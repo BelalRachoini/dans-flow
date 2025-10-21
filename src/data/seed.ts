@@ -59,6 +59,7 @@ export const seedCourses: Course[] = [
     location: 'Studio A',
     description: 'Perfekt för dig som är helt ny inom Salsa. Vi går igenom grundsteg och enkel partnerdans.',
     instructorId: 'user-2',
+    mediaUrl: '/src/assets/salsa-dance.jpg',
     priceSEK: 2400,
   },
   {
@@ -73,6 +74,7 @@ export const seedCourses: Course[] = [
     location: 'Studio B',
     description: 'För dig som kan grunderna och vill utvecklas vidare. Vi fokuserar på leads, follows och musikalitet.',
     instructorId: 'user-2',
+    mediaUrl: '/src/assets/bachata-dance.jpg',
     priceSEK: 2400,
   },
   {
@@ -87,6 +89,7 @@ export const seedCourses: Course[] = [
     location: 'Studio A',
     description: 'Upptäck Kizombans sensuella och flytande rörelser. Grundkurs för alla nivåer.',
     instructorId: 'user-2',
+    mediaUrl: '/src/assets/kizomba-dance.jpg',
     priceSEK: 2400,
   },
   {
@@ -101,6 +104,7 @@ export const seedCourses: Course[] = [
     location: 'Studio C',
     description: 'Energifylld HipHop-kurs för ungdomar. Lär dig senaste moves och hitta din egen stil.',
     instructorId: 'user-2',
+    mediaUrl: '/src/assets/hiphop-dance.jpg',
     priceSEK: 1800,
   },
 ];
