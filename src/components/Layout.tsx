@@ -19,7 +19,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore, type Language } from '@/store/languageStore';
 
 export const Layout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { t, language, setLanguage } = useLanguageStore();
@@ -45,27 +45,32 @@ export const Layout = () => {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } gradient-dark border-r border-sidebar-border`}
+        className={`fixed left-0 top-0 z-40 h-screen transition-transform duration-300 w-64 gradient-dark border-r border-sidebar-border
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-            {sidebarOpen && (
-              <Link to="/" className="text-xl font-bold text-sidebar-foreground">
-                Dansskolan
-              </Link>
-            )}
+            <Link to="/" className="text-xl font-bold text-sidebar-foreground">
+              Dansskolan
+            </Link>
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-sidebar-foreground hover:bg-sidebar-accent"
+              onClick={() => setSidebarOpen(false)}
+              className="text-sidebar-foreground hover:bg-sidebar-accent lg:hidden"
             >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              <X size={20} />
             </Button>
           </div>
 
@@ -79,6 +84,7 @@ export const Layout = () => {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-smooth ${
                     isActive
                       ? 'bg-sidebar-accent text-primary shadow-sm'
@@ -86,45 +92,51 @@ export const Layout = () => {
                   }`}
                 >
                   <Icon size={20} className="shrink-0" />
-                  {sidebarOpen && <span>{item.label}</span>}
+                  <span>{item.label}</span>
                 </Link>
               );
             })}
           </nav>
 
           {/* User section */}
-          {sidebarOpen && (
-            <div className="border-t border-sidebar-border p-4">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 overflow-hidden">
-                  <p className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</p>
-                  <p className="text-xs text-sidebar-foreground/70">{t.roles[user.role]}</p>
-                </div>
+          <div className="border-t border-sidebar-border p-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 overflow-hidden">
+                <p className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</p>
+                <p className="text-xs text-sidebar-foreground/70">{t.roles[user.role]}</p>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
+      <div className="flex-1 w-full lg:ml-64">
         {/* Header */}
         <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-          <div className="flex h-16 items-center justify-between px-6">
+          <div className="flex h-16 items-center justify-between px-4 lg:px-6">
             <div className="flex items-center gap-4">
-              <h1 className="text-lg font-semibold">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden"
+              >
+                <Menu size={20} />
+              </Button>
+              <h1 className="text-base lg:text-lg font-semibold truncate">
                 {visibleNavItems.find(item => item.path === location.pathname)?.label || 'Dansskolan'}
               </h1>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Quick actions */}
-              <Button variant="outline" size="sm">
+            <div className="flex items-center gap-2 lg:gap-3">
+              {/* Quick actions - Hidden on small mobile */}
+              <Button variant="outline" size="sm" className="hidden sm:flex">
                 <QrCode size={16} className="mr-2" />
                 {t.qr.scan}
               </Button>
@@ -132,7 +144,7 @@ export const Layout = () => {
               {/* Language selector */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" className="hidden sm:flex">
                     <Languages size={20} />
                   </Button>
                 </DropdownMenuTrigger>
@@ -161,7 +173,7 @@ export const Layout = () => {
               </DropdownMenu>
 
               {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative">
+              <Button variant="ghost" size="icon" className="relative hidden sm:flex">
                 <Bell size={20} />
                 <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-secondary"></span>
               </Button>
@@ -169,13 +181,13 @@ export const Layout = () => {
               {/* User menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-2">
+                  <Button variant="ghost" className="gap-2 px-2 lg:px-4">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
-                    {user.name}
+                    <span className="hidden lg:inline">{user.name}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
@@ -211,7 +223,7 @@ export const Layout = () => {
         </header>
 
         {/* Page content */}
-        <main className="p-3 sm:p-4 lg:p-6">
+        <main className="p-3 sm:p-4 lg:p-6 w-full overflow-x-hidden">
           <Outlet />
         </main>
       </div>

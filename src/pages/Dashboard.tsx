@@ -39,7 +39,7 @@ export default function Dashboard() {
   const todayCourse = courses[0];
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4 pb-6 max-w-full overflow-x-hidden">
       {/* Welcome Section - Clean Mobile Design */}
       <div className="rounded-2xl gradient-primary p-6 text-white shadow-glow animate-fade-in">
         <h1 className="text-2xl font-bold mb-1">
