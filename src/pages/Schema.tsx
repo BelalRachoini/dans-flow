@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  Clock, MapPin, Users
+  Clock, MapPin, Users, Ticket
 } from 'lucide-react';
 import { listCourses, listEvents } from '@/services/mockApi';
 import { useLanguageStore } from '@/store/languageStore';
@@ -29,6 +30,7 @@ type CalendarItem = {
 
 export default function Schema() {
   const { t } = useLanguageStore();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [courses, setCourses] = useState<Course[]>([]);
@@ -160,7 +162,13 @@ export default function Schema() {
             </div>
           ) : (
             items.map((item) => (
-              <Card key={item.id} className="shadow-md hover-scale overflow-hidden">
+              <Card 
+                key={item.id} 
+                className={`shadow-md overflow-hidden ${
+                  item.type === 'event' ? 'cursor-pointer hover-scale hover:shadow-lg' : ''
+                }`}
+                onClick={() => item.type === 'event' && navigate('/event')}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 text-center min-w-16">
@@ -183,6 +191,12 @@ export default function Schema() {
                           {item.location}
                         </div>
                       </div>
+                      {item.type === 'event' && (
+                        <Button variant="hero" size="sm" className="w-full mt-2">
+                          <Ticket className="h-4 w-4 mr-2" />
+                          Köp biljett
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -229,9 +243,18 @@ export default function Schema() {
                   return (
                     <div key={day.toString()} className="min-h-20">
                       {itemsAtThisTime.map((item) => (
-                        <Card key={item.id} className={`mb-1 border ${item.style ? getStyleColor(item.style) : 'bg-secondary/50'}`}>
+                        <Card 
+                          key={item.id} 
+                          className={`mb-1 border ${item.style ? getStyleColor(item.style) : 'bg-secondary/50'} ${
+                            item.type === 'event' ? 'cursor-pointer hover:shadow-md transition-smooth' : ''
+                          }`}
+                          onClick={() => item.type === 'event' && navigate('/event')}
+                        >
                           <CardContent className="p-2">
-                            <div className="text-xs font-bold truncate">{item.title}</div>
+                            <div className="text-xs font-bold truncate flex items-center gap-1">
+                              {item.type === 'event' && <Ticket className="h-3 w-3" />}
+                              {item.title}
+                            </div>
                             <div className="text-xs text-muted-foreground truncate">{item.location}</div>
                           </CardContent>
                         </Card>
@@ -301,10 +324,17 @@ export default function Schema() {
                           {items.slice(0, 2).map((item) => (
                             <div 
                               key={item.id} 
-                              className={`text-xs p-1 rounded truncate border ${
+                              className={`text-xs p-1 rounded truncate border flex items-center gap-1 ${
                                 item.style ? getStyleColor(item.style) : 'bg-secondary/50'
                               }`}
+                              onClick={(e) => {
+                                if (item.type === 'event') {
+                                  e.stopPropagation();
+                                  navigate('/event');
+                                }
+                              }}
                             >
+                              {item.type === 'event' && <Ticket className="h-3 w-3" />}
                               {item.startTime} {item.title}
                             </div>
                           ))}
