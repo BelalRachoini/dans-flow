@@ -9,13 +9,14 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { listCourses, listEvents, listInvoices } from '@/services/mockApi';
-import { sv } from '@/locales/sv';
-import type { Course, Event, Invoice } from '@/types';
+import { useLanguageStore } from '@/store/languageStore';
+import type { Course, Event as EventType, Invoice } from '@/types';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
+  const { t } = useLanguageStore();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<EventType[]>([]);
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
 
   useEffect(() => {
@@ -38,91 +39,93 @@ export default function Dashboard() {
   const todayCourse = courses[0];
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="rounded-lg gradient-primary p-8 text-white shadow-glow">
-        <h1 className="mb-2 text-3xl font-bold">{sv.dashboard.welcome}, {user?.name}!</h1>
-        <p className="text-lg text-white/90">
+    <div className="space-y-4 sm:space-y-6 pb-6">
+      {/* Welcome Section - Mobile First */}
+      <div className="rounded-xl gradient-primary p-4 sm:p-6 lg:p-8 text-white shadow-glow animate-fade-in">
+        <h1 className="mb-1 sm:mb-2 text-xl sm:text-2xl lg:text-3xl font-bold leading-tight">
+          {t.dashboard.welcome}, {user?.name?.split(' ')[0]}!
+        </h1>
+        <p className="text-sm sm:text-base lg:text-lg text-white/90">
           {user?.role === 'ADMIN' && 'Hantera din dansskola från en central plats'}
           {user?.role === 'INSTRUKTOR' && 'Övervaka dina klasser och elever'}
           {user?.role === 'MEDLEM' && 'Din dansresa fortsätter här'}
         </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="shadow-md transition-smooth hover:shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {sv.courses.pointsBalance}
+      {/* Quick Stats - Mobile First Grid */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <Card className="shadow-md transition-smooth hover:shadow-lg hover-scale">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              {t.courses.pointsBalance}
             </CardTitle>
-            <Coins className="h-5 w-5 text-primary" />
+            <Coins className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-primary">{user?.pointsBalance || 0}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {sv.courses.flexiblePoints}
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold text-primary">{user?.pointsBalance || 0}</div>
+            <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground line-clamp-1">
+              {t.courses.flexiblePoints}
             </p>
-            <Link to="/kurser-poang">
+            <Link to="/kurser-poang" className="hidden sm:block">
               <Button variant="link" className="mt-2 h-auto p-0 text-xs">
-                {sv.courses.buyPoints} <ArrowRight size={12} className="ml-1" />
+                {t.courses.buyPoints} <ArrowRight size={12} className="ml-1" />
               </Button>
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="shadow-md transition-smooth hover:shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="shadow-md transition-smooth hover:shadow-lg hover-scale">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
               Aktiva Kurser
             </CardTitle>
-            <Calendar className="h-5 w-5 text-secondary" />
+            <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{courses.length}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Tillgängliga just nu</p>
-            <Link to="/kurser-poang">
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold">{courses.length}</div>
+            <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground">Tillgängliga</p>
+            <Link to="/kurser-poang" className="hidden sm:block">
               <Button variant="link" className="mt-2 h-auto p-0 text-xs">
-                Se alla kurser <ArrowRight size={12} className="ml-1" />
+                Se alla <ArrowRight size={12} className="ml-1" />
               </Button>
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="shadow-md transition-smooth hover:shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Kommande Event
+        <Card className="shadow-md transition-smooth hover:shadow-lg hover-scale">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              Event
             </CardTitle>
-            <PartyPopper className="h-5 w-5 text-accent" />
+            <PartyPopper className="h-4 w-4 sm:h-5 sm:w-5 text-accent" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{events.length}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Planerade evenemang</p>
-            <Link to="/event">
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-2xl sm:text-3xl font-bold">{events.length}</div>
+            <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground">Planerade</p>
+            <Link to="/event" className="hidden sm:block">
               <Button variant="link" className="mt-2 h-auto p-0 text-xs">
-                Visa event <ArrowRight size={12} className="ml-1" />
+                Visa <ArrowRight size={12} className="ml-1" />
               </Button>
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="shadow-md transition-smooth hover:shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Totala Intäkter
+        <Card className="shadow-md transition-smooth hover:shadow-lg hover-scale">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              Intäkter
             </CardTitle>
-            <TrendingUp className="h-5 w-5 text-green-500" />
+            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-xl sm:text-3xl font-bold">
               {recentInvoices.reduce((sum, inv) => sum + inv.amountSEK, 0)} kr
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Denna månaden</p>
+            <p className="mt-1 text-[10px] sm:text-xs text-muted-foreground">Denna mån</p>
             {(user?.role === 'ADMIN' || user?.role === 'INSTRUKTOR') && (
-              <Link to="/betalningar">
+              <Link to="/betalningar" className="hidden sm:block">
                 <Button variant="link" className="mt-2 h-auto p-0 text-xs">
-                  Se betalningar <ArrowRight size={12} className="ml-1" />
+                  Se alla <ArrowRight size={12} className="ml-1" />
                 </Button>
               </Link>
             )}
@@ -130,79 +133,79 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Today's Schedule */}
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        {/* Today's Schedule - Mobile Optimized */}
         <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              {sv.dashboard.todaysSchedule}
+          <CardHeader className="pb-3 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              {t.dashboard.todaysSchedule}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {todayCourse ? (
-              <div className="rounded-lg border border-border p-4 transition-smooth hover:shadow-md">
+              <div className="rounded-lg border border-border p-3 sm:p-4 transition-smooth hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{todayCourse.title}</h3>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Badge variant="outline">{sv.styles[todayCourse.style]}</Badge>
-                      <Badge variant="secondary">{todayCourse.time}</Badge>
-                      <Badge variant="outline">{todayCourse.location}</Badge>
+                    <h3 className="font-semibold text-base sm:text-lg">{todayCourse.title}</h3>
+                    <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
+                      <Badge variant="outline" className="text-xs">{t.styles[todayCourse.style]}</Badge>
+                      <Badge variant="secondary" className="text-xs">{todayCourse.time}</Badge>
+                      <Badge variant="outline" className="text-xs">{todayCourse.location}</Badge>
                     </div>
-                    <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                    <p className="mt-2 text-xs sm:text-sm text-muted-foreground line-clamp-2">
                       {todayCourse.description}
                     </p>
                   </div>
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <Button size="sm" variant="hero">
-                    {sv.courses.checkIn}
+                <div className="mt-3 sm:mt-4 flex gap-2">
+                  <Button size="sm" variant="hero" className="flex-1 sm:flex-none">
+                    {t.courses.checkIn}
                   </Button>
-                  <Link to="/schema">
-                    <Button size="sm" variant="outline">
-                      {sv.courses.viewSchedule}
+                  <Link to="/schema" className="flex-1 sm:flex-none">
+                    <Button size="sm" variant="outline" className="w-full">
+                      {t.courses.viewSchedule}
                     </Button>
                   </Link>
                 </div>
               </div>
             ) : (
-              <p className="text-center text-muted-foreground py-8">
+              <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">
                 Inga klasser schemalagda idag
               </p>
             )}
           </CardContent>
         </Card>
 
-        {/* Upcoming Events */}
+        {/* Upcoming Events - Mobile Optimized */}
         <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PartyPopper className="h-5 w-5 text-secondary" />
+          <CardHeader className="pb-3 sm:pb-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <PartyPopper className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
               Kommande Event
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {upcomingEvent ? (
-              <div className="rounded-lg border border-border p-4 transition-smooth hover:shadow-md">
-                <h3 className="font-semibold text-lg">{upcomingEvent.title}</h3>
-                <div className="mt-2 flex gap-2">
-                  <Badge variant="secondary">{upcomingEvent.date}</Badge>
-                  <Badge variant="outline">{upcomingEvent.location}</Badge>
+              <div className="rounded-lg border border-border p-3 sm:p-4 transition-smooth hover:shadow-md">
+                <h3 className="font-semibold text-base sm:text-lg">{upcomingEvent.title}</h3>
+                <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
+                  <Badge variant="secondary" className="text-xs">{upcomingEvent.date}</Badge>
+                  <Badge variant="outline" className="text-xs">{upcomingEvent.location}</Badge>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                <p className="mt-2 text-xs sm:text-sm text-muted-foreground line-clamp-2">
                   {upcomingEvent.description}
                 </p>
-                <div className="mt-4">
-                  <Link to={`/event`}>
-                    <Button size="sm" variant="premium">
-                      {sv.tickets.buy}
+                <div className="mt-3 sm:mt-4">
+                  <Link to={`/event`} className="block">
+                    <Button size="sm" variant="default" className="w-full sm:w-auto">
+                      {t.tickets.buy}
                     </Button>
                   </Link>
                 </div>
               </div>
             ) : (
-              <p className="text-center text-muted-foreground py-8">
+              <p className="text-center text-muted-foreground py-6 sm:py-8 text-sm">
                 Inga kommande event
               </p>
             )}
@@ -210,67 +213,67 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Mobile Optimized */}
       <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>{sv.dashboard.quickActions}</CardTitle>
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="text-base sm:text-lg">{t.dashboard.quickActions}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {user?.role === 'ADMIN' && (
               <>
                 <Link to="/event" className="block">
-                  <Button variant="outline" className="w-full h-auto py-6 flex-col gap-2">
-                    <PartyPopper size={24} />
-                    {sv.events.createEvent}
+                  <Button variant="outline" className="w-full h-auto py-4 sm:py-6 flex-col gap-2 hover-scale">
+                    <PartyPopper size={20} className="sm:w-6 sm:h-6" />
+                    <span className="text-xs sm:text-sm">{t.events.createEvent}</span>
                   </Button>
                 </Link>
                 <Link to="/medlemmar" className="block">
-                  <Button variant="outline" className="w-full h-auto py-6 flex-col gap-2">
-                    <Users size={24} />
-                    {sv.members.addMember}
+                  <Button variant="outline" className="w-full h-auto py-4 sm:py-6 flex-col gap-2 hover-scale">
+                    <Users size={20} className="sm:w-6 sm:h-6" />
+                    <span className="text-xs sm:text-sm">{t.members.addMember}</span>
                   </Button>
                 </Link>
               </>
             )}
             <Link to="/biljetter" className="block">
-              <Button variant="outline" className="w-full h-auto py-6 flex-col gap-2">
-                <ShoppingBag size={24} />
-                {sv.tickets.buy}
+              <Button variant="outline" className="w-full h-auto py-4 sm:py-6 flex-col gap-2 hover-scale">
+                <ShoppingBag size={20} className="sm:w-6 sm:h-6" />
+                <span className="text-xs sm:text-sm">{t.tickets.buy}</span>
               </Button>
             </Link>
             <Link to="/kurser-poang" className="block">
-              <Button variant="outline" className="w-full h-auto py-6 flex-col gap-2">
-                <Coins size={24} />
-                {sv.courses.buyPoints}
+              <Button variant="outline" className="w-full h-auto py-4 sm:py-6 flex-col gap-2 hover-scale">
+                <Coins size={20} className="sm:w-6 sm:h-6" />
+                <span className="text-xs sm:text-sm">{t.courses.buyPoints}</span>
               </Button>
             </Link>
           </div>
         </CardContent>
       </Card>
 
-      {/* Recent Payments */}
+      {/* Recent Payments - Mobile Optimized */}
       {recentInvoices.length > 0 && (
         <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>{sv.dashboard.recentPayments}</CardTitle>
+          <CardHeader className="pb-3 sm:pb-6">
+            <CardTitle className="text-base sm:text-lg">{t.dashboard.recentPayments}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {recentInvoices.map((invoice) => (
                 <div
                   key={invoice.id}
                   className="flex items-center justify-between rounded-lg border border-border p-3 transition-smooth hover:shadow-sm"
                 >
-                  <div className="flex-1">
-                    <p className="font-medium">{invoice.description}</p>
-                    <p className="text-sm text-muted-foreground">
+                  <div className="flex-1 min-w-0 pr-3">
+                    <p className="font-medium text-sm sm:text-base truncate">{invoice.description}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {new Date(invoice.createdAt).toLocaleDateString('sv-SE')}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{invoice.amountSEK} kr</p>
-                    <Badge variant={invoice.paid ? 'default' : 'secondary'} className="mt-1">
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-semibold text-sm sm:text-base">{invoice.amountSEK} kr</p>
+                    <Badge variant={invoice.paid ? 'default' : 'secondary'} className="mt-1 text-xs">
                       {invoice.paid ? 'Betald' : 'Väntande'}
                     </Badge>
                   </div>
