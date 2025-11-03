@@ -14,16 +14,179 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      checkins: {
+        Row: {
+          device_info: string | null
+          id: string
+          location: string | null
+          scanned_at: string
+          scanned_by: string
+          ticket_id: string
+        }
+        Insert: {
+          device_info?: string | null
+          id?: string
+          location?: string | null
+          scanned_at?: string
+          scanned_by: string
+          ticket_id: string
+        }
+        Update: {
+          device_info?: string | null
+          id?: string
+          location?: string | null
+          scanned_at?: string
+          scanned_by?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkins_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkins_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          id: string
+          instructor_id: string | null
+          starts_at: string
+          title: string
+          venue: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          instructor_id?: string | null
+          starts_at: string
+          title: string
+          venue?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          instructor_id?: string | null
+          starts_at?: string
+          title?: string
+          venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tickets: {
+        Row: {
+          checked_in_count: number
+          course_id: string
+          id: string
+          max_checkins: number
+          member_id: string
+          order_id: string | null
+          purchased_at: string
+          qr_payload: string
+          status: string
+        }
+        Insert: {
+          checked_in_count?: number
+          course_id: string
+          id?: string
+          max_checkins?: number
+          member_id: string
+          order_id?: string | null
+          purchased_at?: string
+          qr_payload: string
+          status?: string
+        }
+        Update: {
+          checked_in_count?: number
+          course_id?: string
+          id?: string
+          max_checkins?: number
+          member_id?: string
+          order_id?: string | null
+          purchased_at?: string
+          qr_payload?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_in_with_qr: {
+        Args: { p_device_info?: string; p_location?: string; qr: string }
+        Returns: Json
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "instructor" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +313,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "instructor", "member"],
+    },
   },
 } as const

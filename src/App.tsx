@@ -12,6 +12,7 @@ import Courses from "@/pages/Courses";
 import CourseDetail from "@/pages/CourseDetail";
 import Schema from "@/pages/Schema";
 import Biljetter from "@/pages/Biljetter";
+import Scan from "@/pages/Scan";
 import Medlemmar from "@/pages/Medlemmar";
 import Betalningar from "@/pages/Betalningar";
 import Admin from "@/pages/Admin";
@@ -37,6 +38,7 @@ const AppRoutes = () => (
       <Route path="/schema" element={<Schema />} />
       <Route path="/event" element={<EventsPage />} />
       <Route path="/biljetter" element={<Biljetter />} />
+      <Route path="/scan" element={<Scan />} />
       <Route path="/medlemmar" element={<Medlemmar />} />
       <Route path="/betalningar" element={<Betalningar />} />
       <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
