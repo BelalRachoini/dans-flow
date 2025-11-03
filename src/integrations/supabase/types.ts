@@ -48,6 +48,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "checkins_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+          {
             foreignKeyName: "checkins_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
@@ -120,8 +127,29 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "courses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+          {
             foreignKeyName: "courses_instructor_id_fkey"
             columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+          {
+            foreignKeyName: "courses_primary_instructor_fkey"
+            columns: ["primary_instructor"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -130,8 +158,8 @@ export type Database = {
             foreignKeyName: "courses_primary_instructor_fkey"
             columns: ["primary_instructor"]
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
           },
         ]
       }
@@ -177,6 +205,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bookings_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
           },
         ]
       }
@@ -246,37 +281,202 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
+      member_notes: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          member_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          member_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+          {
+            foreignKeyName: "member_notes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_notes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          description: string | null
+          id: string
+          member_id: string
+          status: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          member_id: string
+          status: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          member_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
         ]
       }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
+          email: string | null
           full_name: string | null
           id: string
+          level: string | null
+          phone: string | null
+          points: number | null
           preferred_locale: string | null
           role: Database["public"]["Enums"]["app_role"]
+          status: string | null
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id: string
+          level?: string | null
+          phone?: string | null
+          points?: number | null
           preferred_locale?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          status?: string | null
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
+          level?: string | null
+          phone?: string | null
+          points?: number | null
           preferred_locale?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          status?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          id: string
+          member_id: string
+          plan: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          member_id: string
+          plan: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          member_id?: string
+          plan?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
       }
       tickets: {
         Row: {
@@ -327,13 +527,59 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tickets_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      v_member_checkins: {
+        Row: {
+          checkins_count: number | null
+          last_checkin_at: string | null
+          member_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
+      v_member_revenue: {
+        Row: {
+          member_id: string | null
+          revenue_cents: number | null
+          txn_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      admin_update_member: {
+        Args: {
+          new_level?: string
+          new_status?: string
+          points_delta?: number
+          target: string
+        }
+        Returns: Json
+      }
       check_in_with_qr: {
         Args: { p_device_info?: string; p_location?: string; qr: string }
         Returns: Json
