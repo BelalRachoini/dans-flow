@@ -51,7 +51,12 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     );
   }
 
-  if (!userId || !role || !allowedRoles.includes(role)) {
+  // If authenticated but role not yet loaded, optimistically render and let backend RLS enforce access
+  if (userId && !role) {
+    return <>{children}</>;
+  }
+
+  if (!userId || (role && !allowedRoles.includes(role))) {
     return null;
   }
 

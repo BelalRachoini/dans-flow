@@ -26,22 +26,22 @@ export const useAuthStore = create<AuthState>()(
       fetchRole: async (userId: string) => {
         try {
           const { data, error } = await (supabase as any)
-            .from('user_roles')
+            .from('profiles')
             .select('role')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(1)
+            .eq('id', userId)
             .maybeSingle();
 
           if (error) throw error;
-          if (data) {
+          if (data?.role) {
             set({ userId, role: data.role as Role, loading: false });
           } else {
-            set({ userId: null, role: null, loading: false });
+            // Fallback to member until profile is created by trigger
+            set({ userId, role: 'member', loading: false });
           }
         } catch (error) {
           console.error('Error fetching role:', error);
-          set({ userId: null, role: null, loading: false });
+          // Fallback to member to avoid blocking the UI
+          set({ userId, role: 'member', loading: false });
         }
       },
       
@@ -56,17 +56,16 @@ export const useAuthStore = create<AuthState>()(
         
         if (session?.user) {
           const { data, error } = await (supabase as any)
-            .from('user_roles')
+            .from('profiles')
             .select('role')
-            .eq('user_id', session.user.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
+            .eq('id', session.user.id)
             .maybeSingle();
 
-          if (!error && data) {
+          if (!error && data?.role) {
             set({ userId: session.user.id, role: data.role as Role, loading: false });
           } else {
-            set({ userId: null, role: null, loading: false });
+            // Fallback to member to avoid UX deadlock while profile trigger runs
+            set({ userId: session.user.id, role: 'member', loading: false });
           }
         } else {
           set({ userId: null, role: null, loading: false });

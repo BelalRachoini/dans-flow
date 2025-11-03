@@ -21,14 +21,12 @@ export default function Auth() {
 
   const getRoleRedirect = async (userId: string) => {
     const { data, error } = await (supabase as any)
-      .from('user_roles')
+      .from('profiles')
       .select('role')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('id', userId)
       .maybeSingle();
 
-    if (error || !data) return '/member';
+    if (error || !data?.role) return '/member';
     
     switch (data.role) {
       case 'admin': return '/admin';

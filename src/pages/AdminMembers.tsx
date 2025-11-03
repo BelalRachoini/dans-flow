@@ -61,36 +61,21 @@ export default function AdminMembers() {
 
   const fetchMembers = async () => {
     try {
-      // Fetch all profiles with their roles
+      // Fetch all profiles (role stored on profiles table)
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, full_name, created_at, role')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
 
-      // Fetch roles for all users
-      const { data: rolesData, error: rolesError } = await (supabase as any)
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      // Fetch emails from auth.users (via RPC or direct query if possible)
-      const { data: { users }, error: usersError } = await (supabase.auth.admin as any).listUsers();
-
-      const membersWithRoles = profilesData.map(profile => {
-        const userRole = rolesData?.find((r: any) => r.user_id === profile.id);
-        const authUser = users?.find((u: any) => u.id === profile.id);
-        
-        return {
-          id: profile.id,
-          full_name: profile.full_name || 'Okänd',
-          email: authUser?.email || 'Ingen e-post',
-          role: (userRole?.role as Role) || 'member',
-          created_at: profile.created_at
-        };
-      });
+      const membersWithRoles = (profilesData || []).map((profile: any) => ({
+        id: profile.id,
+        full_name: profile.full_name || 'Okänd',
+        email: '-',
+        role: profile.role as Role,
+        created_at: profile.created_at,
+      }));
 
       setMembers(membersWithRoles);
       setFilteredMembers(membersWithRoles);
@@ -123,24 +108,12 @@ export default function AdminMembers() {
     if (!selectedMember || !newRole) return;
 
     try {
-      const { error } = await (supabase as any).rpc('promote_user', {
-        target_user_id: selectedMember.id,
-        new_role: newRole,
-        reason: `Rolluppdatering via admin-gränssnitt`
-      });
-
-      if (error) throw error;
-
-      toast.success(`${selectedMember.full_name} har uppdaterats till ${getRoleLabel(newRole)}`);
-      
-      // Refresh members list
-      await fetchMembers();
-      
+      toast.info('Rolluppgradering kommer snart i denna demo.');
       setSelectedMember(null);
       setNewRole(null);
     } catch (error: any) {
       console.error('Error changing role:', error);
-      toast.error(error.message || 'Kunde inte ändra roll');
+      toast.error('Kunde inte ändra roll');
     }
   };
 
