@@ -35,7 +35,7 @@ const courseSchema = z.object({
   price: z.number().min(1),
   points: z.number().min(0),
   capacity: z.number().min(1),
-  primary_instructor: z.string().uuid().optional().or(z.literal('')),
+  primary_instructor: z.string().optional(),
   status: z.enum(['draft', 'published', 'archived']),
 });
 
@@ -173,7 +173,7 @@ export default function Courses() {
     setValue('price', course.price_cents / 100);
     setValue('points', course.points);
     setValue('capacity', course.capacity);
-    setValue('primary_instructor', course.primary_instructor || '');
+    setValue('primary_instructor', course.primary_instructor || undefined);
     setValue('status', course.status as 'draft' | 'published' | 'archived');
     setSheetOpen(true);
   };
@@ -287,12 +287,12 @@ export default function Courses() {
 
                 <div>
                   <Label htmlFor="primary_instructor">{t.course.instructor}</Label>
-                  <Select onValueChange={(value) => setValue('primary_instructor', value)} value={watch('primary_instructor')}>
+                  <Select onValueChange={(value) => setValue('primary_instructor', value === 'none' ? undefined : value)} value={watch('primary_instructor') || 'none'}>
                     <SelectTrigger>
                       <SelectValue placeholder="Välj instruktör" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Ingen</SelectItem>
+                      <SelectItem value="none">Ingen</SelectItem>
                       {instructors.map((instructor) => (
                         <SelectItem key={instructor.id} value={instructor.id}>
                           {instructor.full_name}
