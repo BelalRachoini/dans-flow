@@ -442,44 +442,6 @@ export default function Scan() {
           </Tabs>
         </CardContent>
       </Card>
-
-      {/* Recent Check-ins */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Senaste incheckningar (idag)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentCheckins.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Inga incheckningar ännu idag
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {recentCheckins.map((checkin) => (
-                <div 
-                  key={checkin.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                >
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <User className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">
-                      {checkin.tickets.profiles.full_name}
-                    </div>
-                    <div className="text-sm text-muted-foreground truncate">
-                      {checkin.tickets.courses.title}
-                    </div>
-                  </div>
-                  <div className="text-sm text-muted-foreground shrink-0">
-                    {formatTime(checkin.scanned_at)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
