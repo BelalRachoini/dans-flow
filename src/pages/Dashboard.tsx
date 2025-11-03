@@ -276,26 +276,6 @@ export default function Dashboard() {
           </Link>
         </CardContent>
       </Card>
-
-      {/* Quick Stats - Clean Row */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="shadow-md">
-          <CardContent className="p-4 text-center">
-            <Calendar className="h-6 w-6 text-secondary mx-auto mb-2" />
-            <p className="text-2xl font-bold">{courses.length}</p>
-            <p className="text-xs text-muted-foreground">Kurser</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="shadow-md">
-          <CardContent className="p-4 text-center">
-            <PartyPopper className="h-6 w-6 text-accent mx-auto mb-2" />
-            <p className="text-2xl font-bold">{events.length}</p>
-            <p className="text-xs text-muted-foreground">Event</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Today's Schedule - Full Width on Mobile */}
       <Card className="shadow-lg">
         <CardHeader className="pb-4">
