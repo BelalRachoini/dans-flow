@@ -111,6 +111,13 @@ export const en = {
     ticketTypes: 'Ticket types',
     generalAdmission: 'General',
     vip: 'VIP',
+    viewAttendees: 'View attendees',
+    attendees: 'Attendees',
+    attendeesList: 'Attendee list',
+    noAttendees: 'No attendees yet',
+    bookedAt: 'Booked',
+    paymentStatus: 'Payment status',
+    bookingStatus: 'Status',
     discount: {
       add: 'Add discount',
       type: 'Discount type',

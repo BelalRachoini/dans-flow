@@ -97,6 +97,51 @@ export type Database = {
           },
         ]
       }
+      event_bookings: {
+        Row: {
+          booked_at: string
+          created_at: string
+          event_id: string
+          id: string
+          member_id: string
+          payment_status: string
+          status: string
+        }
+        Insert: {
+          booked_at?: string
+          created_at?: string
+          event_id: string
+          id?: string
+          member_id: string
+          payment_status?: string
+          status?: string
+        }
+        Update: {
+          booked_at?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          member_id?: string
+          payment_status?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_bookings_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_bookings_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           capacity: number

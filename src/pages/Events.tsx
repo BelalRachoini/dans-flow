@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
-import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Ticket, Image as ImageIcon } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Ticket, Image as ImageIcon, Users } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
 import { toast } from 'sonner';
@@ -20,6 +21,9 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Event = Tables<'events'>;
+type EventBooking = Tables<'event_bookings'> & {
+  profiles: Tables<'profiles'>;
+};
 
 const eventSchema = z.object({
   title: z.string().min(4, 'Title must be at least 4 characters').max(120, 'Title must be less than 120 characters'),
@@ -47,6 +51,9 @@ export default function EventsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [attendeesDialogOpen, setAttendeesDialogOpen] = useState(false);
+  const [selectedEventAttendees, setSelectedEventAttendees] = useState<EventBooking[]>([]);
+  const [loadingAttendees, setLoadingAttendees] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -269,6 +276,46 @@ export default function EventsPage() {
       reset();
       setDiscountEnabled(false);
     }
+  };
+
+  const handleViewAttendees = async (eventId: string) => {
+    setLoadingAttendees(true);
+    setAttendeesDialogOpen(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('event_bookings')
+        .select(`
+          *,
+          profiles:member_id (
+            id,
+            full_name,
+            avatar_url,
+            role
+          )
+        `)
+        .eq('event_id', eventId)
+        .eq('status', 'confirmed')
+        .order('booked_at', { ascending: false });
+
+      if (error) throw error;
+      setSelectedEventAttendees(data as any || []);
+    } catch (error: any) {
+      console.error('Error loading attendees:', error);
+      toast.error(error.message || t.common.error);
+    } finally {
+      setLoadingAttendees(false);
+    }
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    return new Intl.DateTimeFormat(language, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(dateStr));
   };
 
   if (loading) {
@@ -542,14 +589,16 @@ export default function EventsPage() {
                 </CardContent>
                 
                 <CardFooter className="flex gap-2">
-                  {availableSeats > 0 && (
-                    <Button variant="hero" className="flex-1">
-                      <Ticket size={16} className="mr-2" />
-                      {t.events.buyTicket}
-                    </Button>
-                  )}
-                  {isAdmin && (
+                  {isAdmin ? (
                     <>
+                      <Button 
+                        variant="secondary" 
+                        className="flex-1"
+                        onClick={() => handleViewAttendees(event.id)}
+                      >
+                        <Users size={16} className="mr-2" />
+                        {t.events.viewAttendees}
+                      </Button>
                       <Button 
                         variant="outline" 
                         size="icon"
@@ -565,6 +614,13 @@ export default function EventsPage() {
                         <Trash2 size={16} />
                       </Button>
                     </>
+                  ) : (
+                    availableSeats > 0 && (
+                      <Button variant="hero" className="flex-1">
+                        <Ticket size={16} className="mr-2" />
+                        {t.events.buyTicket}
+                      </Button>
+                    )
                   )}
                 </CardFooter>
               </Card>
@@ -609,6 +665,59 @@ export default function EventsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Attendees Dialog */}
+      <Dialog open={attendeesDialogOpen} onOpenChange={setAttendeesDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {t.events.attendeesList}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedEventAttendees.length} {t.events.attendees.toLowerCase()}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingAttendees ? (
+            <div className="text-center py-8">{t.common.loading}</div>
+          ) : selectedEventAttendees.length > 0 ? (
+            <div className="space-y-3">
+              {selectedEventAttendees.map((booking) => (
+                <Card key={booking.id} className="shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-sm font-semibold text-primary">
+                            {booking.profiles?.full_name?.charAt(0) || '?'}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{booking.profiles?.full_name || 'Unknown'}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {t.events.bookedAt}: {formatDateTime(booking.booked_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={booking.payment_status === 'paid' ? 'default' : 'secondary'}>
+                          {booking.payment_status}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">{t.events.noAttendees}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

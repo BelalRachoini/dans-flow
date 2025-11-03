@@ -111,6 +111,13 @@ export const sv = {
     ticketTypes: 'Biljettyper',
     generalAdmission: 'Allmän',
     vip: 'VIP',
+    viewAttendees: 'Se deltagare',
+    attendees: 'Deltagare',
+    attendeesList: 'Deltagarlista',
+    noAttendees: 'Inga anmälda deltagare ännu',
+    bookedAt: 'Bokad',
+    paymentStatus: 'Betalningsstatus',
+    bookingStatus: 'Status',
     discount: {
       add: 'Lägg till rabatt',
       type: 'Rabatt-typ',
