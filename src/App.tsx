@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { RoleGuard } from "@/components/RoleGuard";
 import { useAuthStore } from "@/store/authStore";
+import { initializeLocale, useLanguageStore } from "@/store/languageStore";
 import { supabase } from "@/integrations/supabase/client";
 import Auth from "@/pages/Auth";
 import MemberDashboard from "@/pages/MemberDashboard";
@@ -28,8 +29,12 @@ const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const { initialize } = useAuthStore();
+  const { loadUserPreferredLocale } = useLanguageStore();
 
   useEffect(() => {
+    // Initialize locale from cookie
+    initializeLocale();
+    
     initialize();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -39,6 +44,8 @@ const AppRoutes = () => {
         useAuthStore.setState((s) => ({ ...s, userId: session.user!.id, loading: true }));
         setTimeout(() => {
           store.fetchRole(session.user!.id);
+          // Load user's preferred locale
+          loadUserPreferredLocale(session.user!.id);
         }, 0);
       } else {
         useAuthStore.setState({ userId: null, role: null, loading: false });
@@ -46,7 +53,7 @@ const AppRoutes = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [initialize]);
+  }, [initialize, loadUserPreferredLocale]);
 
   return (
     <Routes>

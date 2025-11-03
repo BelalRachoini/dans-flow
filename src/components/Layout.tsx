@@ -16,7 +16,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/store/authStore';
-import { useLanguageStore, type Language } from '@/store/languageStore';
+import { useLanguageStore } from '@/store/languageStore';
+import { LanguageMenu } from '@/components/LanguageMenu';
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -149,42 +150,16 @@ export const Layout = () => {
             </div>
 
             <div className="flex items-center gap-2 lg:gap-3">
-              {/* Quick actions - Hidden on small mobile */}
-              <Button variant="outline" size="sm" className="hidden sm:flex">
-                <QrCode size={16} className="mr-2" />
-                {t.qr.scan}
-              </Button>
+              {/* Language Menu */}
+              <LanguageMenu />
 
-              {/* Language selector */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="hidden sm:flex">
-                    <Languages size={20} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-popover z-50">
-                  <DropdownMenuLabel>{t.language.title}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => setLanguage('sv')}
-                    className={language === 'sv' ? 'bg-accent' : ''}
-                  >
-                    {t.language.swedish}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setLanguage('en')}
-                    className={language === 'en' ? 'bg-accent' : ''}
-                  >
-                    {t.language.english}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setLanguage('es')}
-                    className={language === 'es' ? 'bg-accent' : ''}
-                  >
-                    {t.language.spanish}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Quick actions - Hidden on small mobile */}
+              <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+                <Link to="/scan">
+                  <QrCode size={16} className="mr-2" />
+                  {t.qr.scan}
+                </Link>
+              </Button>
 
               {/* Notifications */}
               <Button variant="ghost" size="icon" className="relative hidden sm:flex">
