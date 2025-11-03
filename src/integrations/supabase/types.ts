@@ -97,6 +97,74 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          capacity: number
+          created_at: string
+          created_by: string
+          currency: string
+          description: string
+          discount_type: string
+          discount_value: number | null
+          end_at: string | null
+          id: string
+          image_url: string | null
+          price_cents: number
+          sold_count: number
+          start_at: string
+          status: string
+          title: string
+          updated_at: string
+          venue: string
+        }
+        Insert: {
+          capacity: number
+          created_at?: string
+          created_by: string
+          currency?: string
+          description: string
+          discount_type?: string
+          discount_value?: number | null
+          end_at?: string | null
+          id?: string
+          image_url?: string | null
+          price_cents: number
+          sold_count?: number
+          start_at: string
+          status?: string
+          title: string
+          updated_at?: string
+          venue: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          created_by?: string
+          currency?: string
+          description?: string
+          discount_type?: string
+          discount_value?: number | null
+          end_at?: string | null
+          id?: string
+          image_url?: string | null
+          price_cents?: number
+          sold_count?: number
+          start_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          venue?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -187,6 +255,7 @@ export type Database = {
         Args: { p_device_info?: string; p_location?: string; qr: string }
         Returns: Json
       }
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "instructor" | "member"

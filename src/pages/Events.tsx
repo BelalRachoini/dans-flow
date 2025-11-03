@@ -2,102 +2,241 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Ticket, Image as ImageIcon } from 'lucide-react';
-import { listEvents, createEvent, updateEvent, deleteEvent, listTicketTypes } from '@/services/mockApi';
 import { useAuthStore } from '@/store/authStore';
+import { useLanguageStore } from '@/store/languageStore';
 import { toast } from 'sonner';
-import { sv } from '@/locales/sv';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { Event as EventType, TicketType } from '@/types';
-import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type Event = Tables<'events'>;
 
 const eventSchema = z.object({
-  title: z.string().min(1, 'Titel krävs').max(100),
-  description: z.string().optional(),
-  date: z.string().min(1, 'Datum krävs'),
-  time: z.string().min(1, 'Tid krävs'),
-  location: z.string().min(1, 'Plats krävs'),
-  mediaUrl: z.string().optional(),
+  title: z.string().min(4, 'Title must be at least 4 characters').max(120, 'Title must be less than 120 characters'),
+  image_url: z.string().url('Must be a valid URL').startsWith('http', 'Must start with http or https').max(1000).optional().or(z.literal('')),
+  description: z.string().min(20, 'Description must be at least 20 characters').max(2000, 'Description must be less than 2000 characters'),
+  venue: z.string().min(2, 'Venue must be at least 2 characters').max(120, 'Venue must be less than 120 characters'),
+  date: z.string().min(1, 'Date is required'),
+  time: z.string().min(1, 'Time is required'),
+  price: z.number().min(1, 'Price must be at least 1 kr'),
+  capacity: z.number().int().min(1, 'Capacity must be at least 1'),
+  discount_enabled: z.boolean().default(false),
+  discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
+  discount_value: z.number().min(0).default(0),
 });
 
 type EventFormData = z.infer<typeof eventSchema>;
 
 export default function EventsPage() {
-  const { role } = useAuthStore();
-  const navigate = useNavigate();
-  const [events, setEvents] = useState<EventType[]>([]);
-  const [ticketTypesByEvent, setTicketTypesByEvent] = useState<Record<string, TicketType[]>>({});
+  const { role, userId } = useAuthStore();
+  const { t, language } = useLanguageStore();
+  const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<EventType | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<EventType | null>(null);
+  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const [discountEnabled, setDiscountEnabled] = useState(false);
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<EventFormData>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
+    defaultValues: {
+      discount_enabled: false,
+      discount_type: 'none',
+      discount_value: 0,
+    }
   });
 
   const isAdmin = role === 'admin';
+  const watchPrice = watch('price');
+  const watchDiscountType = watch('discount_type');
+  const watchDiscountValue = watch('discount_value');
 
   useEffect(() => {
-    loadData();
+    loadEvents();
   }, []);
 
-  const loadData = async () => {
+  const loadEvents = async () => {
     try {
-      const eventsData = await listEvents();
-      setEvents(eventsData);
-      
-      // Load ticket types for each event
-      const ticketTypesMap: Record<string, TicketType[]> = {};
-      for (const event of eventsData) {
-        const types = await listTicketTypes(event.id);
-        ticketTypesMap[event.id] = types;
-      }
-      setTicketTypesByEvent(ticketTypesMap);
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('start_at', { ascending: true });
+
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error loading events:', error);
+      toast.error(t.common.error);
     } finally {
       setLoading(false);
     }
   };
 
+  const calculateDisplayPrice = (event: Event) => {
+    const priceSEK = event.price_cents / 100;
+    if (event.discount_type === 'none') {
+      return { current: priceSEK, original: null, discountPercent: null };
+    }
+
+    let priceAfter = priceSEK;
+    if (event.discount_type === 'percent') {
+      priceAfter = priceSEK * (1 - event.discount_value / 100);
+    } else if (event.discount_type === 'amount') {
+      priceAfter = priceSEK - (event.discount_value / 100);
+    }
+
+    priceAfter = Math.max(priceAfter, 0.01);
+    const discountPercent = event.discount_type === 'percent' 
+      ? event.discount_value 
+      : Math.round((1 - priceAfter / priceSEK) * 100);
+
+    return { current: priceAfter, original: priceSEK, discountPercent };
+  };
+
+  const formatPrice = (amount: number) => {
+    return new Intl.NumberFormat(language, {
+      style: 'currency',
+      currency: 'SEK',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Intl.DateTimeFormat(language, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(new Date(dateStr));
+  };
+
+  const formatTime = (dateStr: string) => {
+    return new Intl.DateTimeFormat(language, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(dateStr));
+  };
+
+  const getEventStatus = (event: Event) => {
+    const eventDate = new Date(event.start_at);
+    const now = new Date();
+    
+    if (eventDate < now) {
+      return { label: t.events.ended, variant: 'secondary' as const };
+    }
+    if (event.sold_count >= event.capacity) {
+      return { label: t.events.soldOut, variant: 'destructive' as const };
+    }
+    return { label: t.events.upcoming, variant: 'default' as const };
+  };
+
   const onSubmitEvent = async (data: EventFormData) => {
+    if (!userId) return;
+
     try {
-      if (editingEvent) {
-        const updated = await updateEvent(editingEvent.id, data as Partial<EventType>);
-        setEvents(events.map(e => e.id === updated.id ? updated : e));
-        toast.success('Eventet har uppdaterats!');
-      } else {
-        const newEvent = await createEvent(data as Omit<EventType, 'id'>);
-        setEvents([newEvent, ...events]);
-        toast.success('Eventet har skapats!');
+      const dateTime = new Date(`${data.date}T${data.time}`);
+      const price_cents = Math.round(data.price * 100);
+      
+      let discount_type = 'none';
+      let discount_value = 0;
+
+      if (data.discount_enabled && data.discount_type !== 'none') {
+        discount_type = data.discount_type;
+        discount_value = data.discount_value;
+
+        // Validate discount
+        if (discount_type === 'percent' && (discount_value < 1 || discount_value > 90)) {
+          toast.error('Discount percent must be between 1 and 90');
+          return;
+        }
+        if (discount_type === 'amount') {
+          const discount_cents = Math.round(discount_value * 100);
+          if (discount_cents >= price_cents) {
+            toast.error('Discount amount must be less than price');
+            return;
+          }
+          discount_value = discount_cents;
+        }
       }
-      setDialogOpen(false);
+
+      const eventData = {
+        title: data.title,
+        image_url: data.image_url || null,
+        description: data.description,
+        venue: data.venue,
+        start_at: dateTime.toISOString(),
+        price_cents,
+        capacity: data.capacity,
+        discount_type,
+        discount_value,
+        created_by: userId,
+      };
+
+      if (editingEvent) {
+        const { error } = await supabase
+          .from('events')
+          .update(eventData)
+          .eq('id', editingEvent.id);
+
+        if (error) throw error;
+        toast.success(t.events.saved);
+      } else {
+        const { error } = await supabase
+          .from('events')
+          .insert([eventData]);
+
+        if (error) throw error;
+        toast.success(t.events.saved);
+      }
+
+      setDrawerOpen(false);
       setEditingEvent(null);
       reset();
-    } catch (error) {
-      toast.error('Något gick fel');
+      setDiscountEnabled(false);
+      loadEvents();
+    } catch (error: any) {
+      console.error('Error saving event:', error);
+      toast.error(error.message || t.common.error);
     }
   };
 
-  const handleEdit = (event: EventType) => {
+  const handleEdit = (event: Event) => {
     setEditingEvent(event);
+    const startDate = new Date(event.start_at);
+    const dateStr = startDate.toISOString().split('T')[0];
+    const timeStr = startDate.toTimeString().slice(0, 5);
+
     setValue('title', event.title);
-    setValue('description', event.description || '');
-    setValue('date', event.date);
-    setValue('time', event.time);
-    setValue('location', event.location);
-    setValue('mediaUrl', event.mediaUrl || '');
-    setDialogOpen(true);
+    setValue('description', event.description);
+    setValue('date', dateStr);
+    setValue('time', timeStr);
+    setValue('venue', event.venue);
+    setValue('image_url', event.image_url || '');
+    setValue('price', event.price_cents / 100);
+    setValue('capacity', event.capacity);
+    
+    const hasDiscount = event.discount_type !== 'none';
+    setDiscountEnabled(hasDiscount);
+    setValue('discount_enabled', hasDiscount);
+    setValue('discount_type', event.discount_type as any);
+    setValue('discount_value', event.discount_type === 'amount' ? event.discount_value / 100 : event.discount_value);
+    
+    setDrawerOpen(true);
   };
 
-  const handleDeleteClick = (event: EventType) => {
+  const handleDeleteClick = (event: Event) => {
     setEventToDelete(event);
     setDeleteDialogOpen(true);
   };
@@ -106,47 +245,34 @@ export default function EventsPage() {
     if (!eventToDelete) return;
     
     try {
-      await deleteEvent(eventToDelete.id);
-      setEvents(events.filter(e => e.id !== eventToDelete.id));
-      toast.success('Eventet har tagits bort!');
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventToDelete.id);
+
+      if (error) throw error;
+      
+      toast.success(t.events.deleted);
       setDeleteDialogOpen(false);
       setEventToDelete(null);
-    } catch (error) {
-      toast.error('Något gick fel');
+      loadEvents();
+    } catch (error: any) {
+      console.error('Error deleting event:', error);
+      toast.error(error.message || t.common.error);
     }
   };
 
-  const handleDialogClose = () => {
-    setDialogOpen(false);
-    setEditingEvent(null);
-    reset();
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('sv-SE', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  const getEventStatus = (dateStr: string) => {
-    const eventDate = new Date(dateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (eventDate < today) {
-      return { label: 'Avslutat', variant: 'secondary' as const };
-    } else if (eventDate.toDateString() === today.toDateString()) {
-      return { label: 'Idag', variant: 'default' as const };
-    } else {
-      return { label: 'Kommande', variant: 'default' as const };
+  const handleDrawerClose = (open: boolean) => {
+    setDrawerOpen(open);
+    if (!open) {
+      setEditingEvent(null);
+      reset();
+      setDiscountEnabled(false);
     }
   };
 
   if (loading) {
-    return <div className="text-center py-12">{sv.common.loading}</div>;
+    return <div className="text-center py-12">{t.common.loading}</div>;
   }
 
   return (
@@ -154,83 +280,174 @@ export default function EventsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{sv.events.title}</h1>
+          <h1 className="text-3xl font-bold">{t.events.title}</h1>
           <p className="mt-1 text-muted-foreground">
-            Upptäck kommande dansevent och köp biljetter
+            {t.events.upcoming} {t.events.title.toLowerCase()}
           </p>
         </div>
         {isAdmin && (
-          <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
+          <Drawer open={drawerOpen} onOpenChange={handleDrawerClose}>
+            <DrawerTrigger asChild>
               <Button variant="hero">
                 <Plus className="mr-2" size={16} />
-                {sv.events.createEvent}
+                {t.events.createEvent}
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingEvent ? sv.events.editEvent : sv.events.createEvent}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingEvent ? 'Uppdatera eventinformation' : 'Skapa ett nytt dansevent'}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit(onSubmitEvent)} className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Titel</Label>
-                  <Input id="title" {...register('title')} placeholder="T.ex. Salsa Night Party" />
-                  {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Beskrivning</Label>
-                  <Textarea 
-                    id="description" 
-                    {...register('description')} 
-                    placeholder="Beskriv eventet..."
-                    rows={4}
-                  />
-                  {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+            </DrawerTrigger>
+            <DrawerContent className="max-h-[90vh]">
+              <div className="overflow-y-auto max-w-2xl mx-auto w-full p-6">
+                <DrawerHeader>
+                  <DrawerTitle>
+                    {editingEvent ? t.events.editEvent : t.events.createEvent}
+                  </DrawerTitle>
+                  <DrawerDescription>
+                    {editingEvent ? 'Update event information' : 'Create a new dance event'}
+                  </DrawerDescription>
+                </DrawerHeader>
+                <form onSubmit={handleSubmit(onSubmitEvent)} className="space-y-4 mt-4">
                   <div>
-                    <Label htmlFor="date">Datum</Label>
-                    <Input id="date" type="date" {...register('date')} />
-                    {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+                    <Label htmlFor="title">{t.events.eventTitle}</Label>
+                    <Input id="title" {...register('title')} placeholder="E.g. Salsa Night Party" />
+                    {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
                   </div>
 
                   <div>
-                    <Label htmlFor="time">Tid</Label>
-                    <Input id="time" type="time" {...register('time')} />
-                    {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+                    <Label htmlFor="image_url">{t.events.imageUrl}</Label>
+                    <Input id="image_url" {...register('image_url')} placeholder="https://..." />
+                    {errors.image_url && <p className="text-sm text-destructive mt-1">{errors.image_url.message}</p>}
                   </div>
-                </div>
 
-                <div>
-                  <Label htmlFor="location">Plats</Label>
-                  <Input id="location" {...register('location')} placeholder="T.ex. Danspalatset Stockholm" />
-                  {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
-                </div>
+                  <div>
+                    <Label htmlFor="description">{t.events.description}</Label>
+                    <Textarea 
+                      id="description" 
+                      {...register('description')} 
+                      placeholder="Describe the event..."
+                      rows={4}
+                    />
+                    {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
+                  </div>
 
-                <div>
-                  <Label htmlFor="mediaUrl">Bild URL (valfritt)</Label>
-                  <Input id="mediaUrl" {...register('mediaUrl')} placeholder="https://..." />
-                  {errors.mediaUrl && <p className="text-sm text-destructive mt-1">{errors.mediaUrl.message}</p>}
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="date">{t.events.date}</Label>
+                      <Input id="date" type="date" {...register('date')} />
+                      {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+                    </div>
 
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={handleDialogClose}>
-                    {sv.common.cancel}
-                  </Button>
-                  <Button type="submit" variant="hero">
-                    {editingEvent ? 'Uppdatera' : sv.common.create}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                    <div>
+                      <Label htmlFor="time">{t.events.time}</Label>
+                      <Input id="time" type="time" {...register('time')} />
+                      {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="venue">{t.events.venue}</Label>
+                    <Input id="venue" {...register('venue')} placeholder="E.g. Danspalatset Stockholm" />
+                    {errors.venue && <p className="text-sm text-destructive mt-1">{errors.venue.message}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="price">{t.events.price} (kr)</Label>
+                      <Input 
+                        id="price" 
+                        type="number" 
+                        {...register('price', { valueAsNumber: true })} 
+                        placeholder="299"
+                      />
+                      {errors.price && <p className="text-sm text-destructive mt-1">{errors.price.message}</p>}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="capacity">{t.events.capacity}</Label>
+                      <Input 
+                        id="capacity" 
+                        type="number" 
+                        {...register('capacity', { valueAsNumber: true })} 
+                        placeholder="100"
+                      />
+                      {errors.capacity && <p className="text-sm text-destructive mt-1">{errors.capacity.message}</p>}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 border-t pt-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="discount-toggle">{t.events.discount.add}</Label>
+                      <Switch 
+                        id="discount-toggle"
+                        checked={discountEnabled}
+                        onCheckedChange={(checked) => {
+                          setDiscountEnabled(checked);
+                          setValue('discount_enabled', checked);
+                          if (!checked) {
+                            setValue('discount_type', 'none');
+                            setValue('discount_value', 0);
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {discountEnabled && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>{t.events.discount.type}</Label>
+                          <Select
+                            value={watchDiscountType}
+                            onValueChange={(value) => setValue('discount_type', value as any)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="percent">{t.events.discount.percent}</SelectItem>
+                              <SelectItem value="amount">{t.events.discount.amount}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label>{t.events.discount.value}</Label>
+                          <Input 
+                            type="number" 
+                            {...register('discount_value', { valueAsNumber: true })}
+                            placeholder={watchDiscountType === 'percent' ? '20' : '50'}
+                            max={watchDiscountType === 'percent' ? 90 : watchPrice - 1}
+                            min={1}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {discountEnabled && watchPrice && watchDiscountValue > 0 && (
+                      <div className="text-sm bg-muted p-3 rounded-md">
+                        <p className="font-medium mb-1">Price preview:</p>
+                        <p className="text-muted-foreground line-through">{formatPrice(watchPrice)}</p>
+                        <p className="text-lg font-bold text-primary">
+                          {formatPrice(
+                            watchDiscountType === 'percent' 
+                              ? watchPrice * (1 - watchDiscountValue / 100)
+                              : watchPrice - watchDiscountValue
+                          )}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <DrawerFooter className="px-0">
+                    <Button type="submit" variant="hero">
+                      {t.common.save}
+                    </Button>
+                    <DrawerClose asChild>
+                      <Button type="button" variant="outline">
+                        {t.common.cancel}
+                      </Button>
+                    </DrawerClose>
+                  </DrawerFooter>
+                </form>
+              </div>
+            </DrawerContent>
+          </Drawer>
         )}
       </div>
 
@@ -238,16 +455,16 @@ export default function EventsPage() {
       {events.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {events.map((event) => {
-            const status = getEventStatus(event.date);
-            const ticketTypes = ticketTypesByEvent[event.id] || [];
-            const hasTickets = ticketTypes.length > 0;
+            const status = getEventStatus(event);
+            const priceInfo = calculateDisplayPrice(event);
+            const availableSeats = event.capacity - event.sold_count;
 
             return (
               <Card key={event.id} className="shadow-md transition-smooth hover:shadow-lg flex flex-col overflow-hidden">
-                {event.mediaUrl && (
-                  <div className="relative h-48 bg-muted">
+                {event.image_url ? (
+                  <div className="relative h-48 bg-muted aspect-video">
                     <img 
-                      src={event.mediaUrl} 
+                      src={event.image_url} 
                       alt={event.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -255,8 +472,7 @@ export default function EventsPage() {
                       }}
                     />
                   </div>
-                )}
-                {!event.mediaUrl && (
+                ) : (
                   <div className="relative h-48 gradient-primary flex items-center justify-center">
                     <ImageIcon className="h-16 w-16 text-white/30" />
                   </div>
@@ -267,54 +483,69 @@ export default function EventsPage() {
                     <CardTitle className="text-xl">{event.title}</CardTitle>
                     <Badge variant={status.variant}>{status.label}</Badge>
                   </div>
-                  {event.description && (
-                    <CardDescription className="mt-2 line-clamp-2">
-                      {event.description}
-                    </CardDescription>
-                  )}
+                  <CardDescription className="mt-2 line-clamp-2">
+                    {event.description}
+                  </CardDescription>
                 </CardHeader>
                 
                 <CardContent className="flex-1 space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatDate(event.date)}</span>
+                    <span>{formatDate(event.start_at)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>{event.time}</span>
+                    <span>{formatTime(event.start_at)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{event.location}</span>
+                    <span>{event.venue}</span>
                   </div>
                   
-                  {hasTickets && (
-                    <div className="pt-2 border-t">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <Ticket className="h-4 w-4" />
-                        <span>Biljetter tillgängliga</span>
-                      </div>
-                      <div className="space-y-1">
-                        {ticketTypes.map(type => (
-                          <div key={type.id} className="flex justify-between text-sm">
-                            <span>{type.name}</span>
-                            <span className="font-semibold">{type.priceSEK} kr</span>
+                  <div className="pt-2 border-t">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        {priceInfo.original ? (
+                          <div>
+                            <span className="text-sm text-muted-foreground line-through">
+                              {formatPrice(priceInfo.original)}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl font-bold text-primary">
+                                {formatPrice(priceInfo.current)}
+                              </span>
+                              <Badge variant="destructive" className="text-xs">
+                                -{priceInfo.discountPercent}%
+                              </Badge>
+                            </div>
                           </div>
-                        ))}
+                        ) : (
+                          <span className="text-xl font-bold">
+                            {formatPrice(priceInfo.current)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-muted-foreground">
+                          {availableSeats > 0 ? (
+                            <span className="text-green-600">{t.events.ticketsAvailable}</span>
+                          ) : (
+                            <span className="text-destructive">{t.events.soldOut}</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {availableSeats}/{event.capacity} {t.events.capacity.toLowerCase()}
+                        </div>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </CardContent>
                 
                 <CardFooter className="flex gap-2">
-                  {hasTickets && (
-                    <Button 
-                      variant="hero" 
-                      className="flex-1"
-                      onClick={() => navigate('/biljetter', { state: { eventId: event.id } })}
-                    >
+                  {availableSeats > 0 && (
+                    <Button variant="hero" className="flex-1">
                       <Ticket size={16} className="mr-2" />
-                      Köp biljett
+                      {t.events.buyTicket}
                     </Button>
                   )}
                   {isAdmin && (
@@ -344,14 +575,14 @@ export default function EventsPage() {
         <Card className="shadow-md">
           <CardContent className="py-12 text-center">
             <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Inga event ännu</h3>
+            <h3 className="text-lg font-semibold mb-2">{t.events.noEvents}</h3>
             <p className="text-muted-foreground mb-4">
-              {isAdmin ? 'Skapa ditt första event för att komma igång' : 'Kom tillbaka senare för kommande event'}
+              {isAdmin ? 'Create your first event to get started' : 'Come back later for upcoming events'}
             </p>
             {isAdmin && (
-              <Button variant="hero" onClick={() => setDialogOpen(true)}>
+              <Button variant="hero" onClick={() => setDrawerOpen(true)}>
                 <Plus className="mr-2" size={16} />
-                {sv.events.createEvent}
+                {t.events.createEvent}
               </Button>
             )}
           </CardContent>
@@ -362,15 +593,18 @@ export default function EventsPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Är du säker?</AlertDialogTitle>
+            <AlertDialogTitle>{t.events.deleteEvent}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Detta kommer permanent ta bort eventet "{eventToDelete?.title}". Denna åtgärd kan inte ångras.
+              This will permanently delete the event "{eventToDelete?.title}". This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Ta bort
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t.common.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
