@@ -58,39 +58,77 @@ export type Database = {
       }
       courses: {
         Row: {
+          capacity: number
           created_at: string
+          created_by: string | null
           description: string | null
           ends_at: string | null
           id: string
+          image_url: string | null
           instructor_id: string | null
+          level: string
+          points: number
+          price_cents: number
+          primary_instructor: string | null
           starts_at: string
+          status: string
           title: string
           venue: string | null
         }
         Insert: {
+          capacity?: number
           created_at?: string
+          created_by?: string | null
           description?: string | null
           ends_at?: string | null
           id?: string
+          image_url?: string | null
           instructor_id?: string | null
+          level?: string
+          points?: number
+          price_cents?: number
+          primary_instructor?: string | null
           starts_at: string
+          status?: string
           title: string
           venue?: string | null
         }
         Update: {
+          capacity?: number
           created_at?: string
+          created_by?: string | null
           description?: string | null
           ends_at?: string | null
           id?: string
+          image_url?: string | null
           instructor_id?: string | null
+          level?: string
+          points?: number
+          price_cents?: number
+          primary_instructor?: string | null
           starts_at?: string
+          status?: string
           title?: string
           venue?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "courses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "courses_instructor_id_fkey"
             columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_primary_instructor_fkey"
+            columns: ["primary_instructor"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
