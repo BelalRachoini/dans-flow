@@ -32,10 +32,14 @@ const AppRoutes = () => {
   useEffect(() => {
     initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const store = useAuthStore.getState();
       if (session?.user) {
-        const store = useAuthStore.getState();
-        await store.fetchRole(session.user.id);
+        // Set user immediately and defer role fetch to avoid deadlocks
+        useAuthStore.setState((s) => ({ ...s, userId: session.user!.id, loading: true }));
+        setTimeout(() => {
+          store.fetchRole(session.user!.id);
+        }, 0);
       } else {
         useAuthStore.setState({ userId: null, role: null, loading: false });
       }
