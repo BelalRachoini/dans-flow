@@ -39,14 +39,14 @@ export default function Schema() {
     const loadData = async () => {
       try {
         const { data, error } = await supabase
-          .from('calendar_items')
+          .from('calendar_items' as any)
           .select('*')
           .gte('starts_at', startOfMonth(subWeeks(currentDate, 2)).toISOString())
           .lte('starts_at', endOfMonth(addWeeks(currentDate, 2)).toISOString());
 
         if (error) throw error;
         
-        const items: CalendarItem[] = (data || []).map(item => {
+        const items: CalendarItem[] = ((data as any[]) || []).map((item: any) => {
           const startDate = new Date(item.starts_at);
           const endDate = item.ends_at ? new Date(item.ends_at) : addDays(startDate, 0);
           return {
@@ -151,8 +151,8 @@ export default function Schema() {
                     <div className="flex-1 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="font-bold text-lg">{item.title}</h4>
-                        <Badge className={item.style ? getStyleColor(item.style) : 'bg-secondary'}>
-                          {item.type === 'course' ? item.style : 'Event'}
+                        <Badge className="bg-secondary">
+                          {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
                         </Badge>
                       </div>
                       {item.description && (
@@ -165,9 +165,15 @@ export default function Schema() {
                         </div>
                       </div>
                       {item.type === 'event' && (
-                        <Button variant="hero" size="sm" className="w-full mt-2">
+                        <Button variant="hero" size="sm" className="w-full mt-2" onClick={(e) => { e.stopPropagation(); }}>
                           <Ticket className="h-4 w-4 mr-2" />
                           Köp biljett
+                        </Button>
+                      )}
+                      {item.type === 'lesson' && (
+                        <Button variant="outline" size="sm" className="w-full mt-2" onClick={(e) => { e.stopPropagation(); }}>
+                          <BookOpen className="h-4 w-4 mr-2" />
+                          Lektion
                         </Button>
                       )}
                     </div>
@@ -222,7 +228,7 @@ export default function Schema() {
                       {itemsAtThisTime.map((item) => (
                         <Card 
                           key={item.id} 
-                          className={`mb-1 border ${item.style ? getStyleColor(item.style) : 'bg-secondary/50'} ${
+                          className={`mb-1 border ${item.type === 'lesson' ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-secondary/50'} ${
                             item.type === 'event' ? 'cursor-pointer hover:shadow-md transition-smooth' : ''
                           }`}
                           onClick={() => item.type === 'event' && navigate('/event')}
@@ -230,6 +236,7 @@ export default function Schema() {
                           <CardContent className="p-2">
                             <div className="text-xs font-bold truncate flex items-center gap-1">
                               {item.type === 'event' && <Ticket className="h-3 w-3" />}
+                              {item.type === 'lesson' && <BookOpen className="h-3 w-3" />}
                               {item.title}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">{item.location}</div>
@@ -302,7 +309,7 @@ export default function Schema() {
                             <div 
                               key={item.id} 
                               className={`text-xs p-1 rounded truncate border flex items-center gap-1 ${
-                                item.style ? getStyleColor(item.style) : 'bg-secondary/50'
+                                item.type === 'lesson' ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-secondary/50'
                               }`}
                               onClick={(e) => {
                                 if (item.type === 'event') {
@@ -312,6 +319,7 @@ export default function Schema() {
                               }}
                             >
                               {item.type === 'event' && <Ticket className="h-3 w-3" />}
+                              {item.type === 'lesson' && <BookOpen className="h-3 w-3" />}
                               {item.startTime} {item.title}
                             </div>
                           ))}

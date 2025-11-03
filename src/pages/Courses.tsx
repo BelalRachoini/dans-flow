@@ -81,23 +81,23 @@ export default function Courses() {
     try {
       // Load courses with lesson count
       const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
+        .from('courses' as any)
         .select('*')
         .order('created_at', { ascending: false });
 
       if (coursesError) throw coursesError;
 
       // Get lesson counts separately
-      const coursesWithCounts = await Promise.all((coursesData || []).map(async (course) => {
+      const coursesWithCounts = await Promise.all(((coursesData as any[]) || []).map(async (course: any) => {
         const { count } = await supabase
-          .from('course_lessons')
+          .from('course_lessons' as any)
           .select('*', { count: 'exact', head: true })
           .eq('course_id', course.id);
         
         return {
           ...course,
           lesson_count: count || 0
-        };
+        } as DbCourse;
       }));
 
       setCourses(coursesWithCounts);
@@ -139,7 +139,7 @@ export default function Courses() {
 
       if (editingCourse) {
         const { error } = await supabase
-          .from('courses')
+          .from('courses' as any)
           .update(courseData)
           .eq('id', editingCourse.id);
 
@@ -147,7 +147,7 @@ export default function Courses() {
         toast.success(t.course.saved);
       } else {
         const { error } = await supabase
-          .from('courses')
+          .from('courses' as any)
           .insert([courseData]);
 
         if (error) throw error;
@@ -181,7 +181,7 @@ export default function Courses() {
   const handleDelete = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('courses')
+        .from('courses' as any)
         .delete()
         .eq('id', id);
 
