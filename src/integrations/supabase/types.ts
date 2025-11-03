@@ -70,7 +70,7 @@ export type Database = {
           points: number
           price_cents: number
           primary_instructor: string | null
-          starts_at: string
+          starts_at: string | null
           status: string
           title: string
           venue: string | null
@@ -88,7 +88,7 @@ export type Database = {
           points?: number
           price_cents?: number
           primary_instructor?: string | null
-          starts_at: string
+          starts_at?: string | null
           status?: string
           title: string
           venue?: string | null
@@ -106,7 +106,7 @@ export type Database = {
           points?: number
           price_cents?: number
           primary_instructor?: string | null
-          starts_at?: string
+          starts_at?: string | null
           status?: string
           title?: string
           venue?: string | null
