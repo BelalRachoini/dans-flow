@@ -1,13 +1,18 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
+import { RoleGuard } from "@/components/RoleGuard";
 import { useAuthStore } from "@/store/authStore";
-import Dashboard from "@/pages/Dashboard";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
+import { supabase } from "@/integrations/supabase/client";
+import Auth from "@/pages/Auth";
+import MemberDashboard from "@/pages/MemberDashboard";
+import InstructorDashboard from "@/pages/InstructorDashboard";
+import AdminDashboard from "@/pages/AdminDashboard";
+import AdminMembers from "@/pages/AdminMembers";
 import Courses from "@/pages/Courses";
 import CourseDetail from "@/pages/CourseDetail";
 import Schema from "@/pages/Schema";
@@ -21,34 +26,68 @@ import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuthStore();
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
-};
+const AppRoutes = () => {
+  const { initialize } = useAuthStore();
 
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/login" element={<Login />} />
-    <Route path="/register" element={<Register />} />
-    
-    <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/kurser-poang" element={<Courses />} />
-      <Route path="/kurser-poang/:id" element={<CourseDetail />} />
-      <Route path="/schema" element={<Schema />} />
-      <Route path="/event" element={<EventsPage />} />
-      <Route path="/biljetter" element={<Biljetter />} />
-      <Route path="/scan" element={<Scan />} />
-      <Route path="/medlemmar" element={<Medlemmar />} />
-      <Route path="/betalningar" element={<Betalningar />} />
-      <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
-      <Route path="/admin" element={<Admin />} />
-    </Route>
-    
-    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-);
+  useEffect(() => {
+    initialize();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const store = useAuthStore.getState();
+        await store.fetchRole(session.user.id);
+      } else {
+        useAuthStore.setState({ userId: null, role: null, loading: false });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [initialize]);
+
+  return (
+    <Routes>
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/callback" element={<Auth />} />
+      
+      {/* Member Routes */}
+      <Route element={<RoleGuard allowedRoles={['member', 'instructor', 'admin']}><Layout /></RoleGuard>}>
+        <Route path="/member" element={<MemberDashboard />} />
+        <Route path="/kurser-poang" element={<Courses />} />
+        <Route path="/kurser-poang/:id" element={<CourseDetail />} />
+        <Route path="/schema" element={<Schema />} />
+        <Route path="/event" element={<EventsPage />} />
+        <Route path="/biljetter" element={<Biljetter />} />
+      </Route>
+
+      {/* Instructor Routes */}
+      <Route element={<RoleGuard allowedRoles={['instructor', 'admin']}><Layout /></RoleGuard>}>
+        <Route path="/instructor" element={<InstructorDashboard />} />
+        <Route path="/scan" element={<Scan />} />
+      </Route>
+
+      {/* Admin Routes */}
+      <Route element={<RoleGuard allowedRoles={['admin']}><Layout /></RoleGuard>}>
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/kurser-poang" element={<Courses />} />
+        <Route path="/admin/schema" element={<Schema />} />
+        <Route path="/admin/event" element={<EventsPage />} />
+        <Route path="/admin/medlemmar" element={<AdminMembers />} />
+        <Route path="/admin/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
+        <Route path="/admin/betalningar" element={<Betalningar />} />
+        <Route path="/admin/inställningar" element={<Admin />} />
+        <Route path="/medlemmar" element={<Medlemmar />} />
+        <Route path="/betalningar" element={<Betalningar />} />
+        <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
+      </Route>
+
+      {/* Redirect root to role-appropriate dashboard */}
+      <Route path="/" element={<Navigate to="/auth" replace />} />
+      
+      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <BrowserRouter>
