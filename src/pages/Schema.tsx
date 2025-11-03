@@ -7,9 +7,10 @@ import {
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
   Clock, MapPin, Users, Ticket
 } from 'lucide-react';
-import { listCourses, listEvents } from '@/services/mockApi';
+import { listCourses } from '@/services/mockApi';
+import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
-import type { Course, Event as EventType } from '@/types';
+import type { Course } from '@/types';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
 import { sv as svLocale } from 'date-fns/locale';
 import { sv } from '@/locales/sv';
@@ -28,24 +29,37 @@ type CalendarItem = {
   date: Date;
 };
 
+type DbEvent = {
+  id: string;
+  title: string;
+  description: string;
+  venue: string;
+  start_at: string;
+  end_at: string | null;
+};
+
 export default function Schema() {
   const { t } = useLanguageStore();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [courses, setCourses] = useState<Course[]>([]);
-  const [events, setEvents] = useState<EventType[]>([]);
+  const [events, setEvents] = useState<DbEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [coursesData, eventsData] = await Promise.all([
+        const [coursesData, { data: eventsData }] = await Promise.all([
           listCourses(),
-          listEvents(),
+          supabase
+            .from('events')
+            .select('id, title, description, venue, start_at, end_at')
+            .eq('status', 'published')
+            .order('start_at', { ascending: true }),
         ]);
         setCourses(coursesData);
-        setEvents(eventsData);
+        setEvents(eventsData || []);
       } finally {
         setLoading(false);
       }
@@ -83,19 +97,20 @@ export default function Schema() {
 
     // Add events for the given date
     events.forEach((event) => {
-      const eventDate = new Date(event.date);
+      const eventDate = new Date(event.start_at);
       if (isSameDay(eventDate, date)) {
-        const endTime = event.time.split(':');
-        const startHour = parseInt(endTime[0]);
-        const endTimeStr = `${(startHour + 3).toString().padStart(2, '0')}:00`;
+        const startTime = format(eventDate, 'HH:mm');
+        const endTime = event.end_at 
+          ? format(new Date(event.end_at), 'HH:mm')
+          : format(addDays(eventDate, 0).setHours(eventDate.getHours() + 3), 'HH:mm');
         
         items.push({
           id: event.id,
           title: event.title,
           type: 'event',
-          startTime: event.time,
-          endTime: endTimeStr,
-          location: event.location,
+          startTime,
+          endTime,
+          location: event.venue,
           description: event.description,
           date: eventDate,
         });
