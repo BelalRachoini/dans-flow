@@ -1,280 +1,409 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, MapPin, User, Clock, Coins, ShoppingCart, Plus, PartyPopper } from 'lucide-react';
-import { listCourses, listPointsTransactions, createCourse } from '@/services/mockApi';
+import { Calendar, Plus, PartyPopper, Edit, Trash2 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { useCartStore } from '@/store/cartStore';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { sv } from '@/locales/sv';
+import { useLanguageStore } from '@/store/languageStore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { Course, PointsTransaction } from '@/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const courseSchema = z.object({
-  title: z.string().min(1, 'Titel krävs').max(100),
-  style: z.enum(['Salsa', 'Bachata', 'Tango', 'Kizomba', 'Zouk', 'HipHop']),
-  totalLessons: z.number().min(1).max(100),
-  startDate: z.string().min(1, 'Startdatum krävs'),
-  endDate: z.string().min(1, 'Slutdatum krävs'),
-  dayOfWeek: z.number().min(0).max(6),
-  time: z.string().min(1, 'Tid krävs'),
-  location: z.string().min(1, 'Plats krävs'),
-  description: z.string().optional(),
-  priceSEK: z.number().min(0),
+  title: z.string().min(4).max(120),
+  image_url: z.string().url().optional().or(z.literal('')),
+  description: z.string().min(20).max(2000),
+  level: z.enum(['beginner', 'intermediate', 'advanced']),
+  price: z.number().min(1),
+  points: z.number().min(0),
+  capacity: z.number().min(1),
+  primary_instructor: z.string().uuid().optional().or(z.literal('')),
+  status: z.enum(['draft', 'published', 'archived']),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
 
+type DbCourse = {
+  id: string;
+  title: string;
+  image_url: string | null;
+  description: string;
+  level: string;
+  price_cents: number;
+  points: number;
+  capacity: number;
+  primary_instructor: string | null;
+  status: string;
+  lesson_count?: number;
+};
+
 export default function Courses() {
   const { role } = useAuthStore();
+  const { t } = useLanguageStore();
   const navigate = useNavigate();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<DbCourse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<CourseFormData>({
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<DbCourse | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
+  const [instructors, setInstructors] = useState<{ id: string; full_name: string }[]>([]);
+
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<CourseFormData>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
-      totalLessons: 12,
-      dayOfWeek: 1,
-      priceSEK: 0,
+      level: 'beginner',
+      status: 'published',
+      points: 0,
+      capacity: 20,
+      price: 1000,
     }
   });
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const coursesData = await listCourses();
-        setCourses(coursesData);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
-
-  const handleCourseClick = (courseId: string) => {
-    navigate(`/kurser-poang/${courseId}`);
-  };
-
-  const onSubmitCourse = async (data: CourseFormData) => {
+  const loadData = async () => {
     try {
-      const newCourse = await createCourse(data as Omit<Course, 'id'>);
-      setCourses([...courses, newCourse]);
-      toast.success(sv.courses.createSuccess);
-      setDialogOpen(false);
-      reset();
+      // Load courses with lesson count
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (coursesError) throw coursesError;
+
+      // Get lesson counts separately
+      const coursesWithCounts = await Promise.all((coursesData || []).map(async (course) => {
+        const { count } = await supabase
+          .from('course_lessons')
+          .select('*', { count: 'exact', head: true })
+          .eq('course_id', course.id);
+        
+        return {
+          ...course,
+          lesson_count: count || 0
+        };
+      }));
+
+      setCourses(coursesWithCounts);
+
+      // Load instructors for admin
+      if (role === 'admin') {
+        const { data: instructorsData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .eq('role', 'instructor');
+        setInstructors(instructorsData || []);
+      }
     } catch (error) {
-      toast.error('Något gick fel');
+      console.error('Error loading courses:', error);
+      toast.error('Kunde inte ladda kurser');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const weekdays = [
-    sv.courses.sunday,
-    sv.courses.monday,
-    sv.courses.tuesday,
-    sv.courses.wednesday,
-    sv.courses.thursday,
-    sv.courses.friday,
-    sv.courses.saturday,
-  ];
+  useEffect(() => {
+    loadData();
+  }, [role]);
 
-  const getStyleColor = (style: string) => {
-    const colors: Record<string, string> = {
-      Salsa: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-      Bachata: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-      Tango: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-      Kizomba: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-      Zouk: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-      HipHop: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  const onSubmit = async (data: CourseFormData) => {
+    try {
+      const courseData = {
+        title: data.title,
+        image_url: data.image_url || null,
+        description: data.description,
+        level: data.level,
+        price_cents: Math.round(data.price * 100),
+        points: data.points,
+        capacity: data.capacity,
+        primary_instructor: data.primary_instructor || null,
+        status: data.status,
+        created_by: (await supabase.auth.getUser()).data.user?.id,
+      };
+
+      if (editingCourse) {
+        const { error } = await supabase
+          .from('courses')
+          .update(courseData)
+          .eq('id', editingCourse.id);
+
+        if (error) throw error;
+        toast.success(t.course.saved);
+      } else {
+        const { error } = await supabase
+          .from('courses')
+          .insert([courseData]);
+
+        if (error) throw error;
+        toast.success(t.course.saved);
+      }
+
+      setSheetOpen(false);
+      reset();
+      setEditingCourse(null);
+      loadData();
+    } catch (error) {
+      console.error('Error saving course:', error);
+      toast.error('Kunde inte spara kurs');
+    }
+  };
+
+  const handleEdit = (course: DbCourse) => {
+    setEditingCourse(course);
+    setValue('title', course.title);
+    setValue('image_url', course.image_url || '');
+    setValue('description', course.description);
+    setValue('level', course.level as 'beginner' | 'intermediate' | 'advanced');
+    setValue('price', course.price_cents / 100);
+    setValue('points', course.points);
+    setValue('capacity', course.capacity);
+    setValue('primary_instructor', course.primary_instructor || '');
+    setValue('status', course.status as 'draft' | 'published' | 'archived');
+    setSheetOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success(t.course.deleted);
+      loadData();
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      toast.error('Kunde inte ta bort kurs');
+    }
+    setDeleteDialog(null);
+  };
+
+  const getLevelBadge = (level: string) => {
+    const labels = {
+      beginner: t.course.levelBeginner,
+      intermediate: t.course.levelIntermediate,
+      advanced: t.course.levelAdvanced,
     };
-    return colors[style] || 'bg-gray-100 text-gray-700';
+    return labels[level as keyof typeof labels] || level;
   };
 
   if (loading) {
-    return <div className="text-center py-12">{sv.common.loading}</div>;
+    return <div className="text-center py-12">{t.common.loading}</div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{sv.nav.kurserPoang}</h1>
+          <h1 className="text-3xl font-bold">{t.nav.kurserPoang}</h1>
           <p className="mt-1 text-muted-foreground">
             Köp kurser, samla poäng och delta i lektioner
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          {role === 'admin' && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="hero">
-                  <Plus className="mr-2" size={16} />
-                  {sv.courses.createCourse}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>{sv.courses.createCourse}</DialogTitle>
-                  <DialogDescription>
-                    Skapa en ny kurs för dansskolan
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit(onSubmitCourse)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <Label htmlFor="title">{sv.courses.courseTitle}</Label>
-                      <Input id="title" {...register('title')} />
-                      {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="style">{sv.courses.style}</Label>
-                      <Select onValueChange={(value) => setValue('style', value as any)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Välj stil" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Salsa">Salsa</SelectItem>
-                          <SelectItem value="Bachata">Bachata</SelectItem>
-                          <SelectItem value="Tango">Tango</SelectItem>
-                          <SelectItem value="Kizomba">Kizomba</SelectItem>
-                          <SelectItem value="Zouk">Zouk</SelectItem>
-                          <SelectItem value="HipHop">Hip Hop</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {errors.style && <p className="text-sm text-destructive mt-1">{errors.style.message}</p>}
-                    </div>
+        {role === 'admin' && (
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="hero" onClick={() => { reset(); setEditingCourse(null); }}>
+                <Plus className="mr-2" size={16} />
+                {t.course.create}
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>{editingCourse ? t.course.edit : t.course.create}</SheetTitle>
+                <SheetDescription>
+                  Fyll i kursinformation
+                </SheetDescription>
+              </SheetHeader>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+                <div>
+                  <Label htmlFor="title">{t.course.title}</Label>
+                  <Input id="title" {...register('title')} />
+                  {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
+                </div>
 
-                    <div>
-                      <Label htmlFor="totalLessons">{sv.courses.totalLessons}</Label>
-                      <Input id="totalLessons" type="number" {...register('totalLessons', { valueAsNumber: true })} />
-                      {errors.totalLessons && <p className="text-sm text-destructive mt-1">{errors.totalLessons.message}</p>}
-                    </div>
+                <div>
+                  <Label htmlFor="image_url">{t.course.imageUrl}</Label>
+                  <Input id="image_url" {...register('image_url')} placeholder="https://..." />
+                  {errors.image_url && <p className="text-sm text-destructive mt-1">{errors.image_url.message}</p>}
+                </div>
 
-                    <div>
-                      <Label htmlFor="startDate">{sv.courses.startDate}</Label>
-                      <Input id="startDate" type="date" {...register('startDate')} />
-                      {errors.startDate && <p className="text-sm text-destructive mt-1">{errors.startDate.message}</p>}
-                    </div>
+                <div>
+                  <Label htmlFor="description">{t.course.description}</Label>
+                  <Textarea id="description" {...register('description')} rows={4} />
+                  {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
+                </div>
 
-                    <div>
-                      <Label htmlFor="endDate">{sv.courses.endDate}</Label>
-                      <Input id="endDate" type="date" {...register('endDate')} />
-                      {errors.endDate && <p className="text-sm text-destructive mt-1">{errors.endDate.message}</p>}
-                    </div>
+                <div>
+                  <Label htmlFor="level">{t.course.level}</Label>
+                  <Select onValueChange={(value) => setValue('level', value as any)} value={watch('level')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="beginner">{t.course.levelBeginner}</SelectItem>
+                      <SelectItem value="intermediate">{t.course.levelIntermediate}</SelectItem>
+                      <SelectItem value="advanced">{t.course.levelAdvanced}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    <div>
-                      <Label htmlFor="dayOfWeek">{sv.courses.dayOfWeek}</Label>
-                      <Select onValueChange={(value) => setValue('dayOfWeek', parseInt(value))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Välj dag" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {weekdays.map((day, index) => (
-                            <SelectItem key={index} value={index.toString()}>{day}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {errors.dayOfWeek && <p className="text-sm text-destructive mt-1">{errors.dayOfWeek.message}</p>}
-                    </div>
-
-                    <div>
-                      <Label htmlFor="time">{sv.courses.time}</Label>
-                      <Input id="time" type="time" {...register('time')} />
-                      {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
-                    </div>
-
-                    <div>
-                      <Label htmlFor="location">{sv.courses.location}</Label>
-                      <Input id="location" {...register('location')} />
-                      {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
-                    </div>
-
-                    <div>
-                      <Label htmlFor="priceSEK">{sv.courses.price}</Label>
-                      <Input id="priceSEK" type="number" {...register('priceSEK', { valueAsNumber: true })} />
-                      {errors.priceSEK && <p className="text-sm text-destructive mt-1">{errors.priceSEK.message}</p>}
-                    </div>
-
-                    <div className="col-span-2">
-                      <Label htmlFor="description">{sv.courses.description}</Label>
-                      <Textarea id="description" {...register('description')} />
-                      {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="price">{t.course.price} (kr)</Label>
+                    <Input id="price" type="number" {...register('price', { valueAsNumber: true })} />
+                    {errors.price && <p className="text-sm text-destructive mt-1">{errors.price.message}</p>}
                   </div>
 
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                      {sv.common.cancel}
-                    </Button>
-                    <Button type="submit" variant="hero">
-                      {sv.courses.createCourse}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </div>
-
-      {/* Courses Grid - 2 columns on all screens */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
-        {courses.map((course) => (
-          <Card 
-            key={course.id} 
-            className="shadow-md transition-smooth hover:shadow-lg cursor-pointer hover-scale flex flex-col overflow-hidden"
-            onClick={() => handleCourseClick(course.id)}
-          >
-            {course.mediaUrl && (
-              <div className="relative w-full aspect-video overflow-hidden">
-                <img 
-                  src={course.mediaUrl} 
-                  alt={course.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-            <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 sm:pb-3">
-              <CardTitle className="text-base sm:text-lg md:text-xl line-clamp-2">
-                {course.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-4 md:p-6 pt-0 flex-1 flex flex-col justify-between space-y-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm sm:text-base">{course.totalLessons} lektioner</span>
-              </div>
-              <div className="pt-3 border-t mt-auto">
-                <div className="space-y-2">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xs text-muted-foreground">Pris:</span>
-                    <span className="text-lg sm:text-xl md:text-2xl font-bold">{course.priceSEK} kr</span>
-                  </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xs text-muted-foreground">Poäng:</span>
-                    <span className="text-lg sm:text-xl md:text-2xl font-bold text-primary">+{course.totalLessons}</span>
+                  <div>
+                    <Label htmlFor="points">{t.course.points}</Label>
+                    <Input id="points" type="number" {...register('points', { valueAsNumber: true })} />
+                    {errors.points && <p className="text-sm text-destructive mt-1">{errors.points.message}</p>}
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+
+                <div>
+                  <Label htmlFor="capacity">{t.course.capacity}</Label>
+                  <Input id="capacity" type="number" {...register('capacity', { valueAsNumber: true })} />
+                  {errors.capacity && <p className="text-sm text-destructive mt-1">{errors.capacity.message}</p>}
+                </div>
+
+                <div>
+                  <Label htmlFor="primary_instructor">{t.course.instructor}</Label>
+                  <Select onValueChange={(value) => setValue('primary_instructor', value)} value={watch('primary_instructor')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj instruktör" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Ingen</SelectItem>
+                      {instructors.map((instructor) => (
+                        <SelectItem key={instructor.id} value={instructor.id}>
+                          {instructor.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="status">{t.course.status}</Label>
+                  <Select onValueChange={(value) => setValue('status', value as any)} value={watch('status')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">{t.course.statusDraft}</SelectItem>
+                      <SelectItem value="published">{t.course.statusPublished}</SelectItem>
+                      <SelectItem value="archived">{t.course.statusArchived}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <SheetFooter>
+                  <Button type="button" variant="outline" onClick={() => { setSheetOpen(false); reset(); setEditingCourse(null); }}>
+                    {t.common.cancel}
+                  </Button>
+                  <Button type="submit" variant="hero">
+                    {t.common.save}
+                  </Button>
+                </SheetFooter>
+              </form>
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
-      {/* Events CTA Section */}
+      {courses.length === 0 ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <p className="text-muted-foreground">{t.course.empty}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+          {courses.map((course) => (
+            <Card
+              key={course.id}
+              className="shadow-md transition-smooth hover:shadow-lg cursor-pointer hover-scale flex flex-col overflow-hidden"
+              onClick={() => navigate(`/kurser-poang/${course.id}`)}
+            >
+              {course.image_url && (
+                <div className="relative w-full aspect-video overflow-hidden">
+                  <img
+                    src={course.image_url}
+                    alt={course.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 sm:pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base sm:text-lg md:text-xl line-clamp-2">
+                    {course.title}
+                  </CardTitle>
+                  {role === 'admin' && (
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); handleEdit(course); }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); setDeleteDialog(course.id); }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <Badge className="w-fit text-xs" variant="secondary">
+                  {getLevelBadge(course.level)}
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-3 sm:p-4 md:p-6 pt-0 flex-1 flex flex-col justify-between space-y-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm sm:text-base">{course.lesson_count || 0} lektioner</span>
+                </div>
+                <div className="pt-3 border-t mt-auto">
+                  <div className="space-y-2">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xs text-muted-foreground">Pris:</span>
+                      <span className="text-lg sm:text-xl md:text-2xl font-bold">{course.price_cents / 100} kr</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xs text-muted-foreground">Poäng:</span>
+                      <span className="text-lg sm:text-xl md:text-2xl font-bold text-primary">+{course.points}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       <Card className="gradient-primary text-white shadow-xl overflow-hidden">
         <CardContent className="p-6 sm:p-8 md:p-12">
           <div className="flex flex-col items-center text-center space-y-6">
@@ -286,8 +415,8 @@ export default function Courses() {
                 Från sociala danser till workshops och specialkvällar - upptäck alla spännande evenemang vi har att erbjuda.
               </p>
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="lg"
               className="bg-white text-primary hover:bg-white/90 hover:text-primary border-white shadow-lg"
               onClick={() => navigate('/event')}
@@ -298,6 +427,23 @@ export default function Courses() {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.course.delete}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Detta går inte att ångra. Kursen och alla dess lektioner kommer att tas bort permanent.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteDialog && handleDelete(deleteDialog)}>
+              {t.common.delete}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

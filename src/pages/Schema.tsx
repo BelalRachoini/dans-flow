@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  Clock, MapPin, Users, Ticket
+  Clock, MapPin, Users, Ticket, BookOpen
 } from 'lucide-react';
-import { listCourses } from '@/services/mockApi';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
-import type { Course } from '@/types';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
 import { sv as svLocale } from 'date-fns/locale';
 import { sv } from '@/locales/sv';
@@ -20,7 +18,7 @@ type ViewMode = 'day' | 'week' | 'month';
 type CalendarItem = {
   id: string;
   title: string;
-  type: 'course' | 'event';
+  type: 'lesson' | 'event';
   startTime: string;
   endTime: string;
   location: string;
@@ -29,95 +27,55 @@ type CalendarItem = {
   date: Date;
 };
 
-type DbEvent = {
-  id: string;
-  title: string;
-  description: string;
-  venue: string;
-  start_at: string;
-  end_at: string | null;
-};
-
 export default function Schema() {
   const { t } = useLanguageStore();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [events, setEvents] = useState<DbEvent[]>([]);
+  const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [coursesData, { data: eventsData }] = await Promise.all([
-          listCourses(),
-          supabase
-            .from('events')
-            .select('id, title, description, venue, start_at, end_at')
-            .eq('status', 'published')
-            .order('start_at', { ascending: true }),
-        ]);
-        setCourses(coursesData);
-        setEvents(eventsData || []);
+        const { data, error } = await supabase
+          .from('calendar_items')
+          .select('*')
+          .gte('starts_at', startOfMonth(subWeeks(currentDate, 2)).toISOString())
+          .lte('starts_at', endOfMonth(addWeeks(currentDate, 2)).toISOString());
+
+        if (error) throw error;
+        
+        const items: CalendarItem[] = (data || []).map(item => {
+          const startDate = new Date(item.starts_at);
+          const endDate = item.ends_at ? new Date(item.ends_at) : addDays(startDate, 0);
+          return {
+            id: item.id,
+            title: item.title,
+            type: item.kind as 'lesson' | 'event',
+            startTime: format(startDate, 'HH:mm'),
+            endTime: format(endDate, 'HH:mm'),
+            location: item.venue,
+            description: '',
+            date: startDate,
+          };
+        });
+        
+        setCalendarItems(items);
+      } catch (error) {
+        console.error('Error loading calendar:', error);
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, []);
+  }, [currentDate]);
 
   const getCalendarItems = (date: Date): CalendarItem[] => {
-    const items: CalendarItem[] = [];
-
-    // Add recurring course sessions for the given date
-    courses.forEach((course) => {
-      const courseDate = new Date(course.startDate);
-      const courseEndDate = new Date(course.endDate);
-      
-      if (date >= courseDate && date <= courseEndDate && date.getDay() === course.dayOfWeek) {
-        const endTime = course.time.split(':');
-        const startHour = parseInt(endTime[0]);
-        const endTimeStr = `${(startHour + 1).toString().padStart(2, '0')}:30`;
-        
-        items.push({
-          id: `${course.id}-${format(date, 'yyyy-MM-dd')}`,
-          title: course.title,
-          type: 'course',
-          startTime: course.time,
-          endTime: endTimeStr,
-          location: course.location,
-          style: course.style,
-          description: course.description,
-          date: date,
-        });
-      }
-    });
-
-    // Add events for the given date
-    events.forEach((event) => {
-      const eventDate = new Date(event.start_at);
-      if (isSameDay(eventDate, date)) {
-        const startTime = format(eventDate, 'HH:mm');
-        const endTime = event.end_at 
-          ? format(new Date(event.end_at), 'HH:mm')
-          : format(addDays(eventDate, 0).setHours(eventDate.getHours() + 3), 'HH:mm');
-        
-        items.push({
-          id: event.id,
-          title: event.title,
-          type: 'event',
-          startTime,
-          endTime,
-          location: event.venue,
-          description: event.description,
-          date: eventDate,
-        });
-      }
-    });
-
-    return items.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return calendarItems
+      .filter(item => isSameDay(item.date, date))
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
   };
 
   const getStyleColor = (style?: string) => {
