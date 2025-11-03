@@ -253,7 +253,11 @@ export default function Schema() {
                 <div className="text-sm font-medium text-muted-foreground py-2">{time}</div>
                 {days.map((day) => {
                   const items = getCalendarItems(day);
-                  const itemsAtThisTime = items.filter((item) => item.startTime === time);
+                  const slotHour = parseInt(time.split(':')[0]);
+                  const itemsAtThisTime = items.filter((item) => {
+                    const itemHour = parseInt(item.startTime.split(':')[0]);
+                    return itemHour === slotHour;
+                  });
                   
                   return (
                     <div key={day.toString()} className="min-h-20">
