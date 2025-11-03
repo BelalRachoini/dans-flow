@@ -20,21 +20,21 @@ export default function Auth() {
   const navigate = useNavigate();
 
   const getRoleRedirect = async (userId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) return '/';
+    if (error || !data) return '/member';
     
     switch (data.role) {
       case 'admin': return '/admin';
       case 'instructor': return '/instructor';
       case 'member': return '/member';
-      default: return '/';
+      default: return '/member';
     }
   };
 

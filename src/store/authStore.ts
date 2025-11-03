@@ -25,16 +25,20 @@ export const useAuthStore = create<AuthState>()(
       
       fetchRole: async (userId: string) => {
         try {
-          const { data, error } = await supabase
+          const { data, error } = await (supabase as any)
             .from('user_roles')
             .select('role')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           if (error) throw error;
-          set({ userId, role: data.role as Role, loading: false });
+          if (data) {
+            set({ userId, role: data.role as Role, loading: false });
+          } else {
+            set({ userId: null, role: null, loading: false });
+          }
         } catch (error) {
           console.error('Error fetching role:', error);
           set({ userId: null, role: null, loading: false });
@@ -51,13 +55,13 @@ export const useAuthStore = create<AuthState>()(
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          const { data, error } = await supabase
+          const { data, error } = await (supabase as any)
             .from('user_roles')
             .select('role')
             .eq('user_id', session.user.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           if (!error && data) {
             set({ userId: session.user.id, role: data.role as Role, loading: false });

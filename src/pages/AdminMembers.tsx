@@ -70,18 +70,18 @@ export default function AdminMembers() {
       if (profilesError) throw profilesError;
 
       // Fetch roles for all users
-      const { data: rolesData, error: rolesError } = await supabase
+      const { data: rolesData, error: rolesError } = await (supabase as any)
         .from('user_roles')
         .select('user_id, role');
 
       if (rolesError) throw rolesError;
 
       // Fetch emails from auth.users (via RPC or direct query if possible)
-      const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
+      const { data: { users }, error: usersError } = await (supabase.auth.admin as any).listUsers();
 
       const membersWithRoles = profilesData.map(profile => {
-        const userRole = rolesData.find(r => r.user_id === profile.id);
-        const authUser = users?.find(u => u.id === profile.id);
+        const userRole = rolesData?.find((r: any) => r.user_id === profile.id);
+        const authUser = users?.find((u: any) => u.id === profile.id);
         
         return {
           id: profile.id,
@@ -123,7 +123,7 @@ export default function AdminMembers() {
     if (!selectedMember || !newRole) return;
 
     try {
-      const { error } = await supabase.rpc('promote_user', {
+      const { error } = await (supabase as any).rpc('promote_user', {
         target_user_id: selectedMember.id,
         new_role: newRole,
         reason: `Rolluppdatering via admin-gränssnitt`
