@@ -87,14 +87,14 @@ const membershipTiers: MembershipTier[] = [
 ];
 
 export default function Dashboard() {
-  const { user } = useAuthStore();
+  const { userId } = useAuthStore();
   const { t } = useLanguageStore();
   const [courses, setCourses] = useState<Course[]>([]);
   const [events, setEvents] = useState<EventType[]>([]);
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const userPoints = user?.pointsBalance || 0;
+  const userPoints = 0; // TODO: fetch from database
 
   // Calculate current tier and progress
   const getCurrentTier = () => {
@@ -126,7 +126,7 @@ export default function Dashboard() {
       const [coursesData, eventsData, invoicesData] = await Promise.all([
         listCourses(),
         listEvents(),
-        listInvoices(user?.id),
+        listInvoices(userId),
       ]);
       
       setCourses(coursesData);
@@ -135,7 +135,7 @@ export default function Dashboard() {
     };
 
     loadData();
-  }, [user?.id]);
+  }, [userId]);
 
   const upcomingEvent = events[0];
   const todayCourse = courses[0];
@@ -261,7 +261,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Dina poäng</p>
-              <p className="text-4xl font-bold text-primary">{user?.pointsBalance || 0}</p>
+              <p className="text-4xl font-bold text-primary">{userPoints}</p>
               <p className="text-xs text-muted-foreground mt-1">Använd i valfri klass</p>
             </div>
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">

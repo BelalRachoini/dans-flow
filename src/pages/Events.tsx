@@ -30,7 +30,7 @@ const eventSchema = z.object({
 type EventFormData = z.infer<typeof eventSchema>;
 
 export default function EventsPage() {
-  const { user } = useAuthStore();
+  const { role } = useAuthStore();
   const navigate = useNavigate();
   const [events, setEvents] = useState<EventType[]>([]);
   const [ticketTypesByEvent, setTicketTypesByEvent] = useState<Record<string, TicketType[]>>({});
@@ -44,7 +44,7 @@ export default function EventsPage() {
     resolver: zodResolver(eventSchema),
   });
 
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = role === 'admin';
 
   useEffect(() => {
     loadData();

@@ -22,7 +22,7 @@ export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { userId, role, logout } = useAuthStore();
   const { t, language, setLanguage } = useLanguageStore();
 
   const navItems = [
@@ -37,10 +37,16 @@ export const Layout = () => {
     { icon: Settings, label: t.nav.admin, path: '/admin', roles: ['ADMIN'] },
   ];
 
-  if (!user) return null;
+  if (!userId || !role) return null;
 
-  const userInitials = user.name.split(' ').map(n => n[0]).join('').toUpperCase();
-  const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
+  const userInitials = 'U';
+  const roleUpper = role.toUpperCase() as 'ADMIN' | 'INSTRUKTOR' | 'MEDLEM';
+  const roleMap: Record<string, 'ADMIN' | 'INSTRUKTOR' | 'MEDLEM'> = {
+    'admin': 'ADMIN',
+    'instructor': 'INSTRUKTOR',
+    'member': 'MEDLEM'
+  };
+  const visibleNavItems = navItems.filter(item => item.roles.includes(roleMap[role]));
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -115,8 +121,8 @@ export const Layout = () => {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</p>
-                <p className="text-xs text-sidebar-foreground/70">{t.roles[user.role]}</p>
+                <p className="truncate text-sm font-medium text-sidebar-foreground">User</p>
+                <p className="text-xs text-sidebar-foreground/70">{t.roles[roleMap[role]]}</p>
               </div>
             </div>
           </div>
@@ -195,14 +201,14 @@ export const Layout = () => {
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="hidden lg:inline">{user.name}</span>
+                    <span className="hidden lg:inline">User</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                      <p className="text-sm font-medium">User</p>
+                      <p className="text-xs text-muted-foreground">user@example.com</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -217,7 +223,7 @@ export const Layout = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <span className="mr-2 font-semibold text-primary">{t.courses.pointsBalance}:</span>
-                    {user.pointsBalance}
+                    0
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout}>

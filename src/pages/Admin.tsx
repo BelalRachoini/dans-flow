@@ -57,7 +57,7 @@ type Instructor = User & {
 };
 
 export default function Admin() {
-  const { user } = useAuthStore();
+  const { role } = useAuthStore();
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -203,7 +203,7 @@ export default function Admin() {
     );
   });
 
-  if (user?.role !== 'ADMIN') {
+  if (role !== 'admin') {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Du har inte behörighet att se denna sida</p>

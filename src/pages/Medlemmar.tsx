@@ -63,7 +63,7 @@ const tierConfig = {
 };
 
 export default function Medlemmar() {
-  const { user } = useAuthStore();
+  const { role } = useAuthStore();
   const [members, setMembers] = useState<MemberWithRevenue[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -231,7 +231,7 @@ export default function Medlemmar() {
     });
   };
 
-  if (user?.role !== 'ADMIN') {
+  if (role !== 'admin') {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Du har inte behörighet att se denna sida</p>

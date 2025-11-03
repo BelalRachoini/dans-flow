@@ -35,7 +35,7 @@ const courseSchema = z.object({
 type CourseFormData = z.infer<typeof courseSchema>;
 
 export default function Courses() {
-  const { user } = useAuthStore();
+  const { role } = useAuthStore();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +116,7 @@ export default function Courses() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {user?.role === 'ADMIN' && (
+          {role === 'admin' && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="hero">

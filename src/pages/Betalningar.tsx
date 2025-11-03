@@ -71,7 +71,7 @@ const paymentSchema = z.object({
 type PaymentFormData = z.infer<typeof paymentSchema>;
 
 export default function Betalningar() {
-  const { user } = useAuthStore();
+  const { role } = useAuthStore();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -309,7 +309,7 @@ export default function Betalningar() {
     return labels[type];
   };
 
-  if (user?.role !== 'ADMIN' && user?.role !== 'INSTRUKTOR') {
+  if (role !== 'admin' && role !== 'instructor') {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Du har inte behörighet att se denna sida</p>
