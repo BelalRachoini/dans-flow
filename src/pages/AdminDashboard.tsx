@@ -10,7 +10,8 @@ import {
   Settings, 
   BookOpen,
   CalendarDays,
-  Plus
+  Plus,
+  QrCode
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -143,6 +144,12 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Button asChild variant="outline" className="h-auto py-4">
+              <Link to="/scan" className="flex flex-col items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                <span>Skanna QR</span>
+              </Link>
+            </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/kurser-poang" className="flex flex-col items-center gap-2">
                 <Plus className="h-5 w-5" />
