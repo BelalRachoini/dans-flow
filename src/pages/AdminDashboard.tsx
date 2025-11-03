@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   Calendar, 
   Music, 
@@ -11,7 +10,6 @@ import {
   Settings, 
   BookOpen,
   CalendarDays,
-  Info,
   Plus
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,15 +51,6 @@ export default function AdminDashboard() {
         <h1 className="text-3xl font-bold">Admin - Översikt</h1>
         <p className="text-muted-foreground">Fullständig kontroll över systemet</p>
       </div>
-
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertTitle>Hur behörigheter fungerar</AlertTitle>
-        <AlertDescription>
-          Som administratör har du full tillgång till alla funktioner: hantera kurser, event, medlemmar, 
-          roller, betalningar, prenumerationer och systeminstä llningar. Var försiktig med rollupgraderingar.
-        </AlertDescription>
-      </Alert>
 
       {/* Quick Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
