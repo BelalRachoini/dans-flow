@@ -277,21 +277,6 @@ export default function Scan() {
           Checka in medlemmar till kurser
         </p>
       </div>
-
-      {/* Info Box */}
-      <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="p-4 flex gap-3">
-          <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-          <div className="text-sm space-y-1">
-            <p className="font-semibold">Så här fungerar det:</p>
-            <p className="text-muted-foreground">
-              Använd kameran för att skanna medlemmars QR-koder eller ange koden manuellt. 
-              Systemet registrerar automatiskt incheckningen och uppdaterar biljettens status.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Scanner */}
       <Card>
         <CardHeader>
