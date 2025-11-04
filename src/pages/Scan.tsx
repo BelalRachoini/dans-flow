@@ -65,6 +65,15 @@ export default function Scan() {
   useEffect(() => {
     checkUserRole();
     loadRecentCheckins();
+
+    // Cleanup: stop camera/scanner when leaving the page to prevent random scans
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop();
+        scannerRef.current.destroy();
+        scannerRef.current = null;
+      }
+    };
   }, []);
 
   const checkUserRole = async () => {
@@ -187,11 +196,12 @@ export default function Scan() {
 
   const handleScan = async (qrPayload: string) => {
     if (processing) return;
+    if (!qrPayload || !qrPayload.trim()) return; // Ignore empty/noisy scans
     
     setProcessing(true);
     try {
       const { data, error } = await supabase.rpc('check_in_with_qr', {
-        qr: qrPayload,
+        qr: qrPayload.trim(),
         p_location: window.location.href,
         p_device_info: navigator.userAgent,
       });
