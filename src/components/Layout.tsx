@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, BookOpen, Calendar, PartyPopper, Ticket, 
   Users, CreditCard, Repeat, Settings,
-  Menu, X, QrCode, UserCircle, LogOut, Bell, Languages
+  Menu, X, QrCode, UserCircle, LogOut, Languages
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -166,12 +166,6 @@ export const Layout = () => {
                   <QrCode size={16} className="mr-2" />
                   {t.qr.scan}
                 </Link>
-              </Button>
-
-              {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative hidden sm:flex">
-                <Bell size={20} />
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-secondary"></span>
               </Button>
 
               {/* User menu */}
