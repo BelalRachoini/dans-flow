@@ -42,7 +42,6 @@ export const Layout = () => {
     { icon: Users, label: t.nav.medlemmar, path: '/medlemmar', roles: ['ADMIN', 'INSTRUKTOR'] },
     { icon: Repeat, label: t.nav.prenumerationer, path: '/prenumerationer', roles: ['ADMIN', 'INSTRUKTOR'] },
     { icon: CreditCard, label: t.nav.betalningar, path: '/betalningar', roles: ['ADMIN', 'INSTRUKTOR'] },
-    { icon: Settings, label: t.nav.admin, path: '/admin', roles: ['ADMIN'] },
   ];
 
   if (!userId || !role) return null;
