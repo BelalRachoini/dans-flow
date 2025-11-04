@@ -8,7 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Plus, PartyPopper, Edit, Trash2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -37,6 +41,8 @@ const courseSchema = z.object({
   capacity: z.number().min(1),
   primary_instructor: z.string().optional(),
   status: z.enum(['draft', 'published', 'archived']),
+  starts_at: z.date().optional(),
+  ends_at: z.date().optional(),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
@@ -134,6 +140,8 @@ export default function Courses() {
         capacity: data.capacity,
         primary_instructor: data.primary_instructor || null,
         status: data.status,
+        starts_at: data.starts_at?.toISOString() || null,
+        ends_at: data.ends_at?.toISOString() || null,
         created_by: (await supabase.auth.getUser()).data.user?.id,
       };
 
@@ -175,6 +183,8 @@ export default function Courses() {
     setValue('capacity', course.capacity);
     setValue('primary_instructor', course.primary_instructor || undefined);
     setValue('status', course.status as 'draft' | 'published' | 'archived');
+    setValue('starts_at', (course as any).starts_at ? new Date((course as any).starts_at) : undefined);
+    setValue('ends_at', (course as any).ends_at ? new Date((course as any).ends_at) : undefined);
     setSheetOpen(true);
   };
 
@@ -314,6 +324,142 @@ export default function Courses() {
                       <SelectItem value="archived">{t.course.statusArchived}</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div>
+                  <Label>Startdatum och tid</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !watch('starts_at') && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {watch('starts_at') ? format(watch('starts_at')!, "PPP HH:mm") : <span>Välj datum och tid</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={watch('starts_at')}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Preserve time if already set
+                            const currentTime = watch('starts_at');
+                            if (currentTime) {
+                              date.setHours(currentTime.getHours(), currentTime.getMinutes());
+                            }
+                            setValue('starts_at', date);
+                          }
+                        }}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                      <div className="p-3 border-t">
+                        <Label className="text-sm">Tid</Label>
+                        <div className="flex gap-2 mt-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="23"
+                            placeholder="HH"
+                            value={watch('starts_at')?.getHours() ?? ''}
+                            onChange={(e) => {
+                              const date = watch('starts_at') || new Date();
+                              date.setHours(parseInt(e.target.value) || 0);
+                              setValue('starts_at', new Date(date));
+                            }}
+                            className="w-20"
+                          />
+                          <span className="self-center">:</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="59"
+                            placeholder="MM"
+                            value={watch('starts_at')?.getMinutes() ?? ''}
+                            onChange={(e) => {
+                              const date = watch('starts_at') || new Date();
+                              date.setMinutes(parseInt(e.target.value) || 0);
+                              setValue('starts_at', new Date(date));
+                            }}
+                            className="w-20"
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <Label>Slutdatum och tid</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !watch('ends_at') && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {watch('ends_at') ? format(watch('ends_at')!, "PPP HH:mm") : <span>Välj datum och tid</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={watch('ends_at')}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Preserve time if already set
+                            const currentTime = watch('ends_at');
+                            if (currentTime) {
+                              date.setHours(currentTime.getHours(), currentTime.getMinutes());
+                            }
+                            setValue('ends_at', date);
+                          }
+                        }}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                      <div className="p-3 border-t">
+                        <Label className="text-sm">Tid</Label>
+                        <div className="flex gap-2 mt-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="23"
+                            placeholder="HH"
+                            value={watch('ends_at')?.getHours() ?? ''}
+                            onChange={(e) => {
+                              const date = watch('ends_at') || new Date();
+                              date.setHours(parseInt(e.target.value) || 0);
+                              setValue('ends_at', new Date(date));
+                            }}
+                            className="w-20"
+                          />
+                          <span className="self-center">:</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="59"
+                            placeholder="MM"
+                            value={watch('ends_at')?.getMinutes() ?? ''}
+                            onChange={(e) => {
+                              const date = watch('ends_at') || new Date();
+                              date.setMinutes(parseInt(e.target.value) || 0);
+                              setValue('ends_at', new Date(date));
+                            }}
+                            className="w-20"
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <SheetFooter>
