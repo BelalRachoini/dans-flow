@@ -205,6 +205,28 @@ export const en = {
     send: 'Send',
   },
 
+  // Admin Dashboard
+  adminDashboard: {
+    title: 'Admin - Overview',
+    subtitle: 'Complete control over the system',
+    coursesThisWeek: 'Courses this week',
+    eventsThisWeek: 'Events this week',
+    totalMembers: 'Total members',
+    activeTickets: 'Active tickets',
+    upcomingClasses: 'Upcoming classes & events',
+    nextWeek: 'Next week',
+    noUpcomingClasses: 'No upcoming classes',
+    quickActions: 'Quick Actions',
+    quickActionsDesc: 'Quick access to common administration tasks',
+    scanQR: 'Scan QR',
+    createCourse: 'Create course',
+    createEvent: 'Create event',
+    openSchedule: 'Open Schedule',
+    manageMembers: 'Manage members',
+    payments: 'Payments',
+    settings: 'Settings',
+  },
+
   // QR
   qr: {
     scan: 'Scan QR',

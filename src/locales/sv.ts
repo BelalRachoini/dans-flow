@@ -205,6 +205,28 @@ export const sv = {
     send: 'Skicka',
   },
 
+  // Admin Dashboard
+  adminDashboard: {
+    title: 'Admin - Översikt',
+    subtitle: 'Fullständig kontroll över systemet',
+    coursesThisWeek: 'Kurser denna vecka',
+    eventsThisWeek: 'Event denna vecka',
+    totalMembers: 'Totalt medlemmar',
+    activeTickets: 'Aktiva biljetter',
+    upcomingClasses: 'Kommande klasser & event',
+    nextWeek: 'Nästa veckan',
+    noUpcomingClasses: 'Inga kommande klasser',
+    quickActions: 'Snabbhantering',
+    quickActionsDesc: 'Snabb åtkomst till vanliga administrationsuppgifter',
+    scanQR: 'Skanna QR',
+    createCourse: 'Skapa kurs',
+    createEvent: 'Skapa event',
+    openSchedule: 'Öppna Schema',
+    manageMembers: 'Hantera medlemmar',
+    payments: 'Betalningar',
+    settings: 'Inställningar',
+  },
+
   // QR
   qr: {
     scan: 'Skanna QR',

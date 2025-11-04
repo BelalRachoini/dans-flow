@@ -14,8 +14,10 @@ import {
   QrCode
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguageStore } from '@/store/languageStore';
 
 export default function AdminDashboard() {
+  const { t } = useLanguageStore();
   const [upcomingCourses, setUpcomingCourses] = useState<any[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,15 +51,15 @@ export default function AdminDashboard() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Admin - Översikt</h1>
-        <p className="text-muted-foreground">Fullständig kontroll över systemet</p>
+        <h1 className="text-3xl font-bold">{t.adminDashboard.title}</h1>
+        <p className="text-muted-foreground">{t.adminDashboard.subtitle}</p>
       </div>
 
       {/* Quick Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Kurser denna vecka</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.adminDashboard.coursesThisWeek}</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -66,7 +68,7 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Event denna vecka</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.adminDashboard.eventsThisWeek}</CardTitle>
             <Music className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -75,7 +77,7 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Totalt medlemmar</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.adminDashboard.totalMembers}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -84,7 +86,7 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aktiva biljetter</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.adminDashboard.activeTickets}</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -98,9 +100,9 @@ export default function AdminDashboard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5" />
-            Kommande klasser & event
+            {t.adminDashboard.upcomingClasses}
           </CardTitle>
-          <CardDescription>Nästa veckan</CardDescription>
+          <CardDescription>{t.adminDashboard.nextWeek}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -130,7 +132,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Inga kommande klasser
+              {t.adminDashboard.noUpcomingClasses}
             </p>
           )}
         </CardContent>
@@ -139,51 +141,51 @@ export default function AdminDashboard() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Snabbhantering</CardTitle>
-          <CardDescription>Snabb åtkomst till vanliga administrationsuppgifter</CardDescription>
+          <CardTitle>{t.adminDashboard.quickActions}</CardTitle>
+          <CardDescription>{t.adminDashboard.quickActionsDesc}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/scan" className="flex flex-col items-center gap-2">
                 <QrCode className="h-5 w-5" />
-                <span>Skanna QR</span>
+                <span>{t.adminDashboard.scanQR}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/kurser-poang" className="flex flex-col items-center gap-2">
                 <Plus className="h-5 w-5" />
-                <span>Skapa kurs</span>
+                <span>{t.adminDashboard.createCourse}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/event" className="flex flex-col items-center gap-2">
                 <Music className="h-5 w-5" />
-                <span>Skapa event</span>
+                <span>{t.adminDashboard.createEvent}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/schema" className="flex flex-col items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                <span>Öppna Schema</span>
+                <span>{t.adminDashboard.openSchedule}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/medlemmar" className="flex flex-col items-center gap-2">
                 <Users className="h-5 w-5" />
-                <span>Hantera medlemmar</span>
+                <span>{t.adminDashboard.manageMembers}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/betalningar" className="flex flex-col items-center gap-2">
                 <CreditCard className="h-5 w-5" />
-                <span>Betalningar</span>
+                <span>{t.adminDashboard.payments}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin" className="flex flex-col items-center gap-2">
                 <Settings className="h-5 w-5" />
-                <span>Inställningar</span>
+                <span>{t.adminDashboard.settings}</span>
               </Link>
             </Button>
           </div>
