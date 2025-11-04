@@ -22,6 +22,7 @@ import Scan from "@/pages/Scan";
 import Medlemmar from "@/pages/Medlemmar";
 import MedlemmarCRM from "@/pages/MedlemmarCRM";
 import Betalningar from "@/pages/Betalningar";
+import Prenumerationer from "@/pages/Prenumerationer";
 import Admin from "@/pages/Admin";
 import EventsPage from "@/pages/Events";
 import NotFound from "@/pages/NotFound";
@@ -84,12 +85,12 @@ const AppRoutes = () => {
         <Route path="/admin/schema" element={<Schema />} />
         <Route path="/admin/event" element={<EventsPage />} />
         <Route path="/admin/medlemmar" element={<MedlemmarCRM />} />
-        <Route path="/admin/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
+        <Route path="/admin/prenumerationer" element={<Prenumerationer />} />
         <Route path="/admin/betalningar" element={<Betalningar />} />
         <Route path="/admin/inställningar" element={<Admin />} />
         <Route path="/medlemmar" element={<MedlemmarCRM />} />
         <Route path="/betalningar" element={<Betalningar />} />
-        <Route path="/prenumerationer" element={<div className="text-center py-12">Prenumerationer - Under utveckling</div>} />
+        <Route path="/prenumerationer" element={<Prenumerationer />} />
       </Route>
 
       {/* Redirect root to role-appropriate dashboard */}
