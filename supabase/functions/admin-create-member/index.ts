@@ -116,21 +116,26 @@ Deno.serve(async (req) => {
 
     const newUserId = created.user.id;
 
-    // Insert profile row (satisfies FK to auth.users)
-    const { error: profileError } = await adminClient.from('profiles').insert({
-      id: newUserId,
-      email,
-      full_name,
-      phone,
-      level,
-      role,
-      status: 'active',
-      points: 0,
-    });
+    // Upsert profile row (in case a signup trigger already inserted one)
+    const { error: profileError } = await adminClient
+      .from('profiles')
+      .upsert(
+        {
+          id: newUserId,
+          email,
+          full_name,
+          phone,
+          level,
+          role,
+          status: 'active',
+          points: 0,
+        },
+        { onConflict: 'id' }
+      );
 
     if (profileError) {
-      console.error('insert profile error:', profileError);
-      return new Response(JSON.stringify({ error: profileError.message || 'PROFILE_INSERT_FAILED' }), {
+      console.error('upsert profile error:', profileError);
+      return new Response(JSON.stringify({ error: profileError.message || 'PROFILE_UPSERT_FAILED' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
