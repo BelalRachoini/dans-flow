@@ -73,15 +73,6 @@ export default function MemberDashboard() {
         <p className="text-muted-foreground">Välkommen tillbaka! Här är din översikt.</p>
       </div>
 
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertTitle>Hur behörigheter fungerar</AlertTitle>
-        <AlertDescription>
-          Som medlem kan du se dina klasser, biljetter och händelser. Du kan köpa kurser och evenemang, 
-          samt visa QR-koder för incheckning. För att bli instruktör kontakta en administratör.
-        </AlertDescription>
-      </Alert>
-
       <div className="grid gap-6 md:grid-cols-2">
         {/* Today's Classes */}
         <Card>
