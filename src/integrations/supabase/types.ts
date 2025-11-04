@@ -63,6 +63,50 @@ export type Database = {
           },
         ]
       }
+      course_lessons: {
+        Row: {
+          course_id: string
+          created_at: string
+          ends_at: string | null
+          id: string
+          notes: string | null
+          starts_at: string
+          title: string | null
+          updated_at: string
+          venue: string | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          notes?: string | null
+          starts_at: string
+          title?: string | null
+          updated_at?: string
+          venue?: string | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          notes?: string | null
+          starts_at?: string
+          title?: string | null
+          updated_at?: string
+          venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_lessons_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           capacity: number

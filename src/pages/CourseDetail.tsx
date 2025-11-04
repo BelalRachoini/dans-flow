@@ -4,31 +4,55 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, MapPin, User, Clock, Coins, ShoppingCart, ArrowLeft } from 'lucide-react';
-import { listCourses } from '@/services/mockApi';
 import { useCartStore } from '@/store/cartStore';
 import { toast } from 'sonner';
 import { sv } from '@/locales/sv';
-import type { Course } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { sv as svLocale } from 'date-fns/locale';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
-  const [course, setCourse] = useState<Course | null>(null);
+  const [course, setCourse] = useState<any | null>(null);
+  const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadCourse = async () => {
       try {
-        const courses = await listCourses();
-        const foundCourse = courses.find((c) => c.id === id);
-        setCourse(foundCourse || null);
+        const { data: courseData, error: courseError } = await supabase
+          .from('courses')
+          .select(`
+            *,
+            profiles:primary_instructor(full_name)
+          `)
+          .eq('id', id)
+          .single();
+
+        if (courseError) throw courseError;
+        setCourse(courseData);
+
+        // Load lessons
+        const { data: lessonsData, error: lessonsError } = await supabase
+          .from('course_lessons')
+          .select('*')
+          .eq('course_id', id)
+          .order('starts_at', { ascending: true });
+
+        if (lessonsError) throw lessonsError;
+        setLessons(lessonsData || []);
+      } catch (error) {
+        console.error('Error loading course:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadCourse();
+    if (id) {
+      loadCourse();
+    }
   }, [id]);
 
   const handleBuyCourse = () => {
@@ -39,22 +63,19 @@ export default function CourseDetail() {
       type: 'course',
       itemId: course.id,
       name: course.title,
-      priceSEK: course.priceSEK,
+      priceSEK: course.price_cents / 100,
       quantity: 1,
     });
     toast.success(`${course.title} tillagd i varukorg!`);
   };
 
-  const getStyleColor = (style: string) => {
-    const colors: Record<string, string> = {
-      Salsa: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-      Bachata: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-      Tango: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-      Kizomba: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-      Zouk: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-      HipHop: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  const getLevelLabel = (level: string) => {
+    const labels: Record<string, string> = {
+      beginner: 'Nybörjare',
+      intermediate: 'Medel',
+      advanced: 'Avancerad',
     };
-    return colors[style] || 'bg-gray-100 text-gray-700';
+    return labels[level] || level;
   };
 
   if (loading) {
@@ -85,10 +106,10 @@ export default function CourseDetail() {
       </Button>
 
       <Card className="shadow-lg overflow-hidden">
-        {course.mediaUrl && (
+        {course.image_url && (
           <div className="relative w-full aspect-[21/9] overflow-hidden">
             <img 
-              src={course.mediaUrl} 
+              src={course.image_url} 
               alt={course.title}
               className="w-full h-full object-cover"
             />
@@ -99,8 +120,8 @@ export default function CourseDetail() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle className="text-4xl mb-2">{course.title}</CardTitle>
-              <Badge className={getStyleColor(course.style)} variant="secondary">
-                {sv.styles[course.style]}
+              <Badge variant="secondary">
+                {getLevelLabel(course.level)}
               </Badge>
             </div>
           </div>
@@ -117,38 +138,75 @@ export default function CourseDetail() {
               <Calendar className="h-6 w-6 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground">Antal lektioner</p>
-                <p className="text-xl font-semibold">{course.totalLessons} lektioner</p>
+                <p className="text-xl font-semibold">{lessons.length} lektioner</p>
               </div>
             </div>
             
             <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
               <Clock className="h-6 w-6 text-primary" />
               <div>
-                <p className="text-sm text-muted-foreground">Schema</p>
-                <p className="text-xl font-semibold">
-                  {['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'][course.dayOfWeek]} {course.time}
-                </p>
+                <p className="text-sm text-muted-foreground">Kapacitet</p>
+                <p className="text-xl font-semibold">{course.capacity} platser</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-              <MapPin className="h-6 w-6 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Plats</p>
-                <p className="text-xl font-semibold">{course.location}</p>
+            {course.venue && (
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
+                <MapPin className="h-6 w-6 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Plats</p>
+                  <p className="text-xl font-semibold">{course.venue}</p>
+                </div>
               </div>
-            </div>
+            )}
 
-            {course.instructorId && (
+            {course.profiles && (
               <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
                 <User className="h-6 w-6 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Instruktör</p>
-                  <p className="text-xl font-semibold">Instruktör tilldelad</p>
+                  <p className="text-xl font-semibold">{course.profiles.full_name}</p>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Lessons Schedule */}
+          {lessons.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Lektionsschema</h3>
+              <div className="space-y-2">
+                {lessons.map((lesson: any, index: number) => (
+                  <Card key={lesson.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="font-medium">
+                          {lesson.title || `Lektion ${index + 1}`}
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {format(new Date(lesson.starts_at), 'EEEE d MMM', { locale: svLocale })}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {format(new Date(lesson.starts_at), 'HH:mm')}
+                            {lesson.ends_at && ` - ${format(new Date(lesson.ends_at), 'HH:mm')}`}
+                          </span>
+                          {lesson.venue && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {lesson.venue}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Pricing & Points */}
           <Card className="gradient-primary text-white">
@@ -156,13 +214,13 @@ export default function CourseDetail() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white/80 mb-1">Pris</p>
-                  <p className="text-4xl font-bold">{course.priceSEK} kr</p>
+                  <p className="text-4xl font-bold">{course.price_cents / 100} kr</p>
                 </div>
                 <div className="text-right">
                   <p className="text-white/80 mb-1">Poäng du får</p>
                   <div className="flex items-center gap-2 justify-end">
                     <Coins className="h-8 w-8" />
-                    <p className="text-4xl font-bold">+{course.totalLessons}</p>
+                    <p className="text-4xl font-bold">+{course.points}</p>
                   </div>
                 </div>
               </div>
@@ -170,12 +228,15 @@ export default function CourseDetail() {
           </Card>
 
           {/* Course Period */}
-          <div className="p-4 rounded-lg border">
-            <p className="text-sm text-muted-foreground mb-2">Kursperiod</p>
-            <p className="text-lg font-medium">
-              {new Date(course.startDate).toLocaleDateString('sv-SE')} - {new Date(course.endDate).toLocaleDateString('sv-SE')}
-            </p>
-          </div>
+          {(course.starts_at || course.ends_at) && (
+            <div className="p-4 rounded-lg border">
+              <p className="text-sm text-muted-foreground mb-2">Kursperiod</p>
+              <p className="text-lg font-medium">
+                {course.starts_at && format(new Date(course.starts_at), 'PPP', { locale: svLocale })}
+                {course.ends_at && ` - ${format(new Date(course.ends_at), 'PPP', { locale: svLocale })}`}
+              </p>
+            </div>
+          )}
 
           {/* Info Banner */}
           <Card className="bg-muted/50 border-primary/20">

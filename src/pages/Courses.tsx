@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { CourseLessons } from '@/components/CourseLessons';
 import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -461,6 +462,12 @@ export default function Courses() {
                     </PopoverContent>
                   </Popover>
                 </div>
+
+                {editingCourse && (
+                  <div className="pt-4 border-t">
+                    <CourseLessons courseId={editingCourse.id} />
+                  </div>
+                )}
 
                 <SheetFooter>
                   <Button type="button" variant="outline" onClick={() => { setSheetOpen(false); reset(); setEditingCourse(null); }}>
