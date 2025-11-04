@@ -22,7 +22,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Mail, Phone, Award, DollarSign, ShoppingBag, Clock, X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Mail, Phone, Award, DollarSign, ShoppingBag, Clock, X, Edit, Trash2, UserCog, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface MemberDetailDrawerProps {
@@ -43,9 +62,24 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
   const { t } = useLanguageStore();
   const { userId } = useAuthStore();
   const queryClient = useQueryClient();
+  
+  // State
   const [newNote, setNewNote] = useState('');
   const [pointsDelta, setPointsDelta] = useState('');
   const [newLevel, setNewLevel] = useState('');
+  const [newRole, setNewRole] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [checkinDialogOpen, setCheckinDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+  });
+  const [checkinForm, setCheckinForm] = useState({
+    course_id: '',
+    note: '',
+  });
 
   // Fetch member profile
   const { data: profile } = useQuery({
@@ -60,6 +94,21 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
       return data;
     },
     enabled: open,
+  });
+
+  // Fetch courses for check-in
+  const { data: courses = [] } = useQuery({
+    queryKey: ['courses-for-checkin'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, title')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && checkinDialogOpen,
   });
 
   // Fetch revenue
@@ -160,7 +209,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     enabled: open,
   });
 
-  // Update member mutation
+  // Update member mutation (for level, points, status)
   const updateMemberMutation = useMutation({
     mutationFn: async (params: { new_level?: string; points_delta?: number; new_status?: string }) => {
       const { data, error } = await supabase.rpc('admin_update_member', {
@@ -181,6 +230,74 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     },
     onError: () => {
       toast.error(t.crm.error);
+    },
+  });
+
+  // Update member profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (params: { full_name?: string; email?: string; phone?: string; role?: string }) => {
+      const { data, error } = await supabase.rpc('admin_update_member_profile', {
+        target_user_id: memberId,
+        p_full_name: params.full_name || null,
+        p_email: params.email || null,
+        p_phone: params.phone || null,
+        p_role: params.role as any || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['member-profile', memberId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-members'] });
+      toast.success(t.crm.updated);
+      setEditDialogOpen(false);
+      setNewRole('');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || t.crm.error);
+    },
+  });
+
+  // Delete member mutation
+  const deleteMemberMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('admin_delete_member', {
+        target_user_id: memberId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-members'] });
+      toast.success('Member deleted successfully');
+      setDeleteDialogOpen(false);
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || t.crm.error);
+    },
+  });
+
+  // Manual check-in mutation
+  const manualCheckinMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('admin_manual_checkin', {
+        p_member_id: memberId,
+        p_course_id: checkinForm.course_id,
+        p_note: checkinForm.note || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['member-tickets', memberId] });
+      queryClient.invalidateQueries({ queryKey: ['member-checkins', memberId] });
+      toast.success('Check-in successful');
+      setCheckinDialogOpen(false);
+      setCheckinForm({ course_id: '', note: '' });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || t.crm.error);
     },
   });
 
@@ -220,334 +337,518 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
       .slice(0, 2);
   };
 
+  const handleEditClick = () => {
+    if (profile) {
+      setEditForm({
+        full_name: profile.full_name || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+      });
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleEditSubmit = () => {
+    updateProfileMutation.mutate(editForm);
+  };
+
+  const handleRoleChange = (role: string) => {
+    setNewRole(role);
+    updateProfileMutation.mutate({ role });
+  };
+
+  const handleCheckinSubmit = () => {
+    if (!checkinForm.course_id) {
+      toast.error('Please select a course');
+      return;
+    }
+    manualCheckinMutation.mutate();
+  };
+
   if (!profile) return null;
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="h-[90vh]">
-        <div className="mx-auto w-full max-w-4xl h-full flex flex-col">
-          <DrawerHeader className="border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarFallback>{getInitials(profile.full_name)}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <DrawerTitle className="text-2xl">{profile.full_name || '—'}</DrawerTitle>
-                  <DrawerDescription className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className={levelColors[profile.level as keyof typeof levelColors]}>
-                      {t.crm.level[profile.level as keyof typeof t.crm.level]}
-                    </Badge>
-                    {profile.email && (
-                      <a href={`mailto:${profile.email}`} className="flex items-center gap-1 text-sm hover:underline">
-                        <Mail className="h-3 w-3" />
-                        {profile.email}
-                      </a>
-                    )}
-                    {profile.phone && (
-                      <a href={`tel:${profile.phone}`} className="flex items-center gap-1 text-sm hover:underline">
-                        <Phone className="h-3 w-3" />
-                        {profile.phone}
-                      </a>
-                    )}
-                  </DrawerDescription>
+    <>
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="h-[90vh]">
+          <div className="mx-auto w-full max-w-4xl h-full flex flex-col">
+            <DrawerHeader className="border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarFallback>{getInitials(profile.full_name)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <DrawerTitle className="text-2xl">{profile.full_name || '—'}</DrawerTitle>
+                    <DrawerDescription className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className={levelColors[profile.level as keyof typeof levelColors]}>
+                        {t.crm.level[profile.level as keyof typeof t.crm.level]}
+                      </Badge>
+                      <Badge variant="outline">
+                        {profile.role}
+                      </Badge>
+                      {profile.email && (
+                        <a href={`mailto:${profile.email}`} className="flex items-center gap-1 text-sm hover:underline">
+                          <Mail className="h-3 w-3" />
+                          {profile.email}
+                        </a>
+                      )}
+                      {profile.phone && (
+                        <a href={`tel:${profile.phone}`} className="flex items-center gap-1 text-sm hover:underline">
+                          <Phone className="h-3 w-3" />
+                          {profile.phone}
+                        </a>
+                      )}
+                    </DrawerDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleEditClick}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    {t.crm.actions.edit}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {t.crm.actions.delete}
+                  </Button>
+                  <DrawerClose asChild>
+                    <Button variant="ghost" size="icon">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </DrawerClose>
                 </div>
               </div>
-              <DrawerClose asChild>
-                <Button variant="ghost" size="icon">
-                  <X className="h-4 w-4" />
-                </Button>
-              </DrawerClose>
-            </div>
-          </DrawerHeader>
+            </DrawerHeader>
 
-          <div className="flex-1 overflow-y-auto p-6">
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="overview">{t.crm.drawer.overview}</TabsTrigger>
-                <TabsTrigger value="purchases">{t.crm.drawer.purchases}</TabsTrigger>
-                <TabsTrigger value="tickets">{t.crm.drawer.tickets}</TabsTrigger>
-                <TabsTrigger value="subs">{t.crm.drawer.subs}</TabsTrigger>
-                <TabsTrigger value="notes">{t.crm.drawer.notes}</TabsTrigger>
-              </TabsList>
+            <div className="flex-1 overflow-y-auto p-6">
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full grid-cols-5">
+                  <TabsTrigger value="overview">{t.crm.drawer.overview}</TabsTrigger>
+                  <TabsTrigger value="purchases">{t.crm.drawer.purchases}</TabsTrigger>
+                  <TabsTrigger value="tickets">{t.crm.drawer.tickets}</TabsTrigger>
+                  <TabsTrigger value="subs">{t.crm.drawer.subs}</TabsTrigger>
+                  <TabsTrigger value="notes">{t.crm.drawer.notes}</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="overview" className="space-y-4">
-                {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <TabsContent value="overview" className="space-y-4">
+                  {/* Stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{t.crm.points}</CardTitle>
+                        <Award className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{profile.points || 0}</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{t.crm.total}</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(revenue?.revenue_cents || 0)}</div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{t.crm.purchases}</CardTitle>
+                        <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{revenue?.txn_count || 0}</div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{t.crm.lastActivity}</CardTitle>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-sm">
+                          {checkinStats?.last_checkin_at
+                            ? format(new Date(checkinStats.last_checkin_at), 'yyyy-MM-dd')
+                            : '—'}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Quick actions */}
                   <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{t.crm.points}</CardTitle>
-                      <Award className="h-4 w-4 text-muted-foreground" />
+                    <CardHeader>
+                      <CardTitle>{t.dashboard.quickActions}</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{profile.points || 0}</div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{t.crm.total}</CardTitle>
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{formatCurrency(revenue?.revenue_cents || 0)}</div>
-                    </CardContent>
-                  </Card>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Change level */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">{t.crm.actions.changeLevel}</label>
+                          <div className="flex gap-2">
+                            <Select value={newLevel} onValueChange={setNewLevel}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t.crm.selectLevel} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="bronze">{t.crm.level.bronze}</SelectItem>
+                                <SelectItem value="silver">{t.crm.level.silver}</SelectItem>
+                                <SelectItem value="gold">{t.crm.level.gold}</SelectItem>
+                                <SelectItem value="platinum">{t.crm.level.platinum}</SelectItem>
+                                <SelectItem value="vip">{t.crm.level.vip}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              onClick={() => updateMemberMutation.mutate({ new_level: newLevel })}
+                              disabled={!newLevel || updateMemberMutation.isPending}
+                            >
+                              {t.common.save}
+                            </Button>
+                          </div>
+                        </div>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{t.crm.purchases}</CardTitle>
-                      <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{revenue?.txn_count || 0}</div>
-                    </CardContent>
-                  </Card>
+                        {/* Adjust points */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">{t.crm.actions.adjustPoints}</label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              placeholder={t.crm.enterPoints}
+                              value={pointsDelta}
+                              onChange={(e) => setPointsDelta(e.target.value)}
+                            />
+                            <Button
+                              onClick={() =>
+                                updateMemberMutation.mutate({ points_delta: parseInt(pointsDelta) })
+                              }
+                              disabled={!pointsDelta || updateMemberMutation.isPending}
+                            >
+                              {t.common.save}
+                            </Button>
+                          </div>
+                        </div>
 
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{t.crm.lastActivity}</CardTitle>
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-sm">
-                        {checkinStats?.last_checkin_at
-                          ? format(new Date(checkinStats.last_checkin_at), 'yyyy-MM-dd')
-                          : '—'}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Quick actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t.dashboard.quickActions}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Change level */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">{t.crm.actions.changeLevel}</label>
-                        <div className="flex gap-2">
-                          <Select value={newLevel} onValueChange={setNewLevel}>
+                        {/* Change role */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">{t.crm.actions.changeRole}</label>
+                          <Select value={newRole || profile.role} onValueChange={handleRoleChange}>
                             <SelectTrigger>
-                              <SelectValue placeholder={t.crm.selectLevel} />
+                              <SelectValue placeholder={t.crm.selectRole} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="bronze">{t.crm.level.bronze}</SelectItem>
-                              <SelectItem value="silver">{t.crm.level.silver}</SelectItem>
-                              <SelectItem value="gold">{t.crm.level.gold}</SelectItem>
-                              <SelectItem value="platinum">{t.crm.level.platinum}</SelectItem>
-                              <SelectItem value="vip">{t.crm.level.vip}</SelectItem>
+                              <SelectItem value="member">{t.roles.MEDLEM}</SelectItem>
+                              <SelectItem value="instructor">{t.roles.INSTRUKTOR}</SelectItem>
+                              <SelectItem value="admin">{t.roles.ADMIN}</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        {/* Manual check-in */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">{t.crm.actions.manualCheckin}</label>
                           <Button
-                            onClick={() => updateMemberMutation.mutate({ new_level: newLevel })}
-                            disabled={!newLevel || updateMemberMutation.isPending}
+                            variant="outline"
+                            onClick={() => setCheckinDialogOpen(true)}
+                            className="w-full"
                           >
-                            {t.common.save}
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            {t.crm.actions.manualCheckin}
                           </Button>
                         </div>
                       </div>
 
-                      {/* Adjust points */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">{t.crm.actions.adjustPoints}</label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="number"
-                            placeholder={t.crm.enterPoints}
-                            value={pointsDelta}
-                            onChange={(e) => setPointsDelta(e.target.value)}
-                          />
-                          <Button
-                            onClick={() =>
-                              updateMemberMutation.mutate({ points_delta: parseInt(pointsDelta) })
-                            }
-                            disabled={!pointsDelta || updateMemberMutation.isPending}
-                          >
-                            {t.common.save}
-                          </Button>
-                        </div>
+                      {/* Toggle status */}
+                      <div>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            updateMemberMutation.mutate({
+                              new_status: profile.status === 'active' ? 'inactive' : 'active',
+                            })
+                          }
+                          disabled={updateMemberMutation.isPending}
+                        >
+                          {profile.status === 'active'
+                            ? t.crm.actions.disable
+                            : t.crm.actions.enable}
+                        </Button>
                       </div>
-                    </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-                    {/* Toggle status */}
-                    <div>
+                <TabsContent value="purchases">
+                  <Card>
+                    <CardContent className="pt-6">
+                      {payments.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t.events.date}</TableHead>
+                              <TableHead>{t.course.description}</TableHead>
+                              <TableHead className="text-right">{t.courses.price}</TableHead>
+                              <TableHead>{t.events.paymentStatus}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {payments.map((payment) => (
+                              <TableRow key={payment.id}>
+                                <TableCell>{format(new Date(payment.created_at), 'yyyy-MM-dd')}</TableCell>
+                                <TableCell>{payment.description || '—'}</TableCell>
+                                <TableCell className="text-right">
+                                  {formatCurrency(payment.amount_cents)}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={payment.status === 'succeeded' ? 'default' : 'secondary'}
+                                  >
+                                    {payment.status}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="tickets">
+                  <Card>
+                    <CardContent className="pt-6">
+                      {tickets.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t.courses.title}</TableHead>
+                              <TableHead>{t.qr.checkedIn}</TableHead>
+                              <TableHead>{t.events.date}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {tickets.map((ticket: any) => (
+                              <TableRow key={ticket.id}>
+                                <TableCell>{ticket.course?.title || '—'}</TableCell>
+                                <TableCell>
+                                  {ticket.checked_in_count} / {ticket.max_checkins}
+                                </TableCell>
+                                <TableCell>
+                                  {format(new Date(ticket.purchased_at), 'yyyy-MM-dd')}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="subs">
+                  <Card>
+                    <CardContent className="pt-6">
+                      {subscriptions.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t.memberships.plans}</TableHead>
+                              <TableHead>{t.events.bookingStatus}</TableHead>
+                              <TableHead>{t.memberships.nextBilling}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {subscriptions.map((sub) => (
+                              <TableRow key={sub.id}>
+                                <TableCell>{sub.plan}</TableCell>
+                                <TableCell>
+                                  <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
+                                    {sub.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {sub.current_period_end
+                                    ? format(new Date(sub.current_period_end), 'yyyy-MM-dd')
+                                    : '—'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="notes" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{t.crm.addNote}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Textarea
+                        placeholder={t.crm.noteBody}
+                        value={newNote}
+                        onChange={(e) => setNewNote(e.target.value)}
+                      />
                       <Button
-                        variant="outline"
-                        onClick={() =>
-                          updateMemberMutation.mutate({
-                            new_status: profile.status === 'active' ? 'inactive' : 'active',
-                          })
-                        }
-                        disabled={updateMemberMutation.isPending}
+                        onClick={() => addNoteMutation.mutate(newNote)}
+                        disabled={!newNote.trim() || addNoteMutation.isPending}
                       >
-                        {profile.status === 'active'
-                          ? t.crm.actions.disable
-                          : t.crm.actions.enable}
+                        {t.common.save}
                       </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                    </CardContent>
+                  </Card>
 
-              <TabsContent value="purchases">
-                <Card>
-                  <CardContent className="pt-6">
-                    {payments.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>{t.events.date}</TableHead>
-                            <TableHead>{t.course.description}</TableHead>
-                            <TableHead className="text-right">{t.courses.price}</TableHead>
-                            <TableHead>{t.events.paymentStatus}</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {payments.map((payment) => (
-                            <TableRow key={payment.id}>
-                              <TableCell>{format(new Date(payment.created_at), 'yyyy-MM-dd')}</TableCell>
-                              <TableCell>{payment.description || '—'}</TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency(payment.amount_cents)}
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={payment.status === 'succeeded' ? 'default' : 'secondary'}
-                                >
-                                  {payment.status}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="tickets">
-                <Card>
-                  <CardContent className="pt-6">
-                    {tickets.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>{t.courses.title}</TableHead>
-                            <TableHead>{t.qr.checkedIn}</TableHead>
-                            <TableHead>{t.events.date}</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {tickets.map((ticket: any) => (
-                            <TableRow key={ticket.id}>
-                              <TableCell>{ticket.course?.title || '—'}</TableCell>
-                              <TableCell>
-                                {ticket.checked_in_count} / {ticket.max_checkins}
-                              </TableCell>
-                              <TableCell>
-                                {format(new Date(ticket.purchased_at), 'yyyy-MM-dd')}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="subs">
-                <Card>
-                  <CardContent className="pt-6">
-                    {subscriptions.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>{t.memberships.plans}</TableHead>
-                            <TableHead>{t.events.bookingStatus}</TableHead>
-                            <TableHead>{t.memberships.nextBilling}</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {subscriptions.map((sub) => (
-                            <TableRow key={sub.id}>
-                              <TableCell>{sub.plan}</TableCell>
-                              <TableCell>
-                                <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
-                                  {sub.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {sub.current_period_end
-                                  ? format(new Date(sub.current_period_end), 'yyyy-MM-dd')
-                                  : '—'}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="notes" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t.crm.addNote}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Textarea
-                      placeholder={t.crm.noteBody}
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                    />
-                    <Button
-                      onClick={() => addNoteMutation.mutate(newNote)}
-                      disabled={!newNote.trim() || addNoteMutation.isPending}
-                    >
-                      {t.common.save}
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="pt-6">
-                    {notes.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">{t.crm.noNotes}</p>
-                    ) : (
-                      <div className="space-y-4">
-                        {notes.map((note: any) => (
-                          <div key={note.id} className="border-b pb-4 last:border-0">
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="font-medium">{note.author?.full_name || '—'}</span>
-                              <span className="text-sm text-muted-foreground">
-                                {format(new Date(note.created_at), 'yyyy-MM-dd HH:mm')}
-                              </span>
+                  <Card>
+                    <CardContent className="pt-6">
+                      {notes.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">{t.crm.noNotes}</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {notes.map((note: any) => (
+                            <div key={note.id} className="border-b pb-4 last:border-0">
+                              <div className="flex justify-between items-start mb-2">
+                                <span className="font-medium">{note.author?.full_name || '—'}</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {format(new Date(note.created_at), 'yyyy-MM-dd HH:mm')}
+                                </span>
+                              </div>
+                              <p className="text-sm">{note.body}</p>
                             </div>
-                            <p className="text-sm">{note.body}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
-        </div>
-      </DrawerContent>
-    </Drawer>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.crm.editMember}</DialogTitle>
+            <DialogDescription>
+              Update member profile information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>{t.crm.fullName}</Label>
+              <Input
+                value={editForm.full_name}
+                onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>{t.crm.email}</Label>
+              <Input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>{t.crm.phone}</Label>
+              <Input
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button onClick={handleEditSubmit} disabled={updateProfileMutation.isPending}>
+              {t.common.save}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Check-in Dialog */}
+      <Dialog open={checkinDialogOpen} onOpenChange={setCheckinDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.crm.actions.manualCheckin}</DialogTitle>
+            <DialogDescription>
+              Check in member to a course manually
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>{t.crm.selectCourse}</Label>
+              <Select
+                value={checkinForm.course_id}
+                onValueChange={(value) => setCheckinForm({ ...checkinForm, course_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t.crm.selectCourse} />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>{t.crm.checkinNote}</Label>
+              <Textarea
+                value={checkinForm.note}
+                onChange={(e) => setCheckinForm({ ...checkinForm, note: e.target.value })}
+                placeholder={t.crm.noteBody}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCheckinDialogOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button onClick={handleCheckinSubmit} disabled={manualCheckinMutation.isPending}>
+              {t.crm.actions.manualCheckin}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.crm.confirmDelete}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t.crm.deleteWarning}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMemberMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t.crm.actions.delete}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

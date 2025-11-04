@@ -571,12 +571,41 @@ export type Database = {
       }
     }
     Functions: {
+      admin_create_member: {
+        Args: {
+          p_email: string
+          p_full_name: string
+          p_level?: string
+          p_password: string
+          p_phone?: string
+          p_role?: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: Json
+      }
+      admin_delete_member: { Args: { target_user_id: string }; Returns: Json }
+      admin_manual_checkin: {
+        Args: { p_course_id: string; p_member_id: string; p_note?: string }
+        Returns: Json
+      }
       admin_update_member: {
         Args: {
           new_level?: string
           new_status?: string
           points_delta?: number
           target: string
+        }
+        Returns: Json
+      }
+      admin_update_member_profile: {
+        Args: {
+          p_email?: string
+          p_full_name?: string
+          p_level?: string
+          p_phone?: string
+          p_points?: number
+          p_role?: Database["public"]["Enums"]["app_role"]
+          p_status?: string
+          target_user_id: string
         }
         Returns: Json
       }
