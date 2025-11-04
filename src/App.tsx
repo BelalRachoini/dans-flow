@@ -23,7 +23,6 @@ import Medlemmar from "@/pages/Medlemmar";
 import MedlemmarCRM from "@/pages/MedlemmarCRM";
 import Betalningar from "@/pages/Betalningar";
 import Prenumerationer from "@/pages/Prenumerationer";
-import Admin from "@/pages/Admin";
 import EventsPage from "@/pages/Events";
 import NotFound from "@/pages/NotFound";
 
@@ -87,7 +86,6 @@ const AppRoutes = () => {
         <Route path="/admin/medlemmar" element={<MedlemmarCRM />} />
         <Route path="/admin/prenumerationer" element={<Prenumerationer />} />
         <Route path="/admin/betalningar" element={<Betalningar />} />
-        <Route path="/admin/inställningar" element={<Admin />} />
         <Route path="/medlemmar" element={<MedlemmarCRM />} />
         <Route path="/betalningar" element={<Betalningar />} />
         <Route path="/prenumerationer" element={<Prenumerationer />} />
