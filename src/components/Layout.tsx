@@ -160,14 +160,6 @@ export const Layout = () => {
               {/* Language Menu */}
               <LanguageMenu />
 
-              {/* Quick actions - Hidden on small mobile */}
-              <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
-                <Link to="/scan">
-                  <QrCode size={16} className="mr-2" />
-                  {t.qr.scan}
-                </Link>
-              </Button>
-
               {/* User menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
