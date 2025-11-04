@@ -35,14 +35,34 @@ interface TicketWithCourse {
   };
 }
 
+interface EventTicket {
+  id: string;
+  member_id: string;
+  event_id: string;
+  booked_at: string;
+  status: string;
+  qr_payload: string;
+  payment_status: string;
+  events: {
+    id: string;
+    title: string;
+    start_at: string;
+    end_at: string | null;
+    venue: string;
+    description: string;
+  };
+}
+
+type AllTickets = (TicketWithCourse & { type: 'course' }) | (EventTicket & { type: 'event' });
+
 export default function Biljetter() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [tickets, setTickets] = useState<TicketWithCourse[]>([]);
+  const [tickets, setTickets] = useState<AllTickets[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedTicket, setSelectedTicket] = useState<TicketWithCourse | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<AllTickets | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const qrCanvasRef = useRef<{ [key: string]: string }>({});
 
@@ -60,7 +80,8 @@ export default function Biljetter() {
         return;
       }
 
-      const { data, error } = await supabase
+      // Load course tickets
+      const { data: courseTickets, error: courseError } = await supabase
         .from('tickets')
         .select(`
           *,
@@ -76,15 +97,38 @@ export default function Biljetter() {
         .eq('member_id', user.id)
         .order('purchased_at', { ascending: false });
 
-      if (error) throw error;
+      if (courseError) throw courseError;
 
-      setTickets(data as TicketWithCourse[] || []);
+      // Load event tickets
+      const { data: eventTickets, error: eventError } = await supabase
+        .from('event_bookings')
+        .select(`
+          *,
+          events (
+            id,
+            title,
+            start_at,
+            end_at,
+            venue,
+            description
+          )
+        `)
+        .eq('member_id', user.id)
+        .order('booked_at', { ascending: false });
+
+      if (eventError) throw eventError;
+
+      // Combine and type tickets
+      const allTickets: AllTickets[] = [
+        ...(courseTickets || []).map(t => ({ ...t, type: 'course' as const })),
+        ...(eventTickets || []).map(t => ({ ...t, type: 'event' as const }))
+      ];
+
+      setTickets(allTickets);
 
       // Pre-generate QR codes for all tickets
-      if (data) {
-        for (const ticket of data) {
-          generateQRCode(ticket.qr_payload);
-        }
+      for (const ticket of allTickets) {
+        generateQRCode(ticket.qr_payload);
       }
     } catch (error: any) {
       toast({
@@ -115,7 +159,7 @@ export default function Biljetter() {
     }
   };
 
-  const openQRModal = async (ticket: TicketWithCourse) => {
+  const openQRModal = async (ticket: AllTickets) => {
     setSelectedTicket(ticket);
     try {
       const dataUrl = await QRCodeLib.toDataURL(ticket.qr_payload, {
@@ -168,7 +212,10 @@ export default function Biljetter() {
   };
 
   const filteredTickets = tickets.filter((ticket) => {
-    const matchesSearch = ticket.courses.title
+    const title = ticket.type === 'course' 
+      ? ticket.courses.title 
+      : ticket.events.title;
+    const matchesSearch = title
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
@@ -305,17 +352,26 @@ export default function Biljetter() {
       <div className="grid gap-6 md:grid-cols-2">
         {filteredTickets.map((ticket) => {
           const statusBadge = getStatusBadge(ticket.status);
+          const isCourseTicket = ticket.type === 'course';
+          const title = isCourseTicket ? ticket.courses.title : ticket.events.title;
+          const startDate = isCourseTicket ? ticket.courses.starts_at : ticket.events.start_at;
+          const venue = isCourseTicket ? ticket.courses.venue : ticket.events.venue;
           
           return (
             <Card key={ticket.id} className="shadow-md overflow-hidden">
               <div className="gradient-primary p-4 text-white">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 flex-1 min-w-0">
-                    <h3 className="text-xl font-bold truncate">{ticket.courses.title}</h3>
+                    <h3 className="text-xl font-bold truncate">{title}</h3>
                     <div className="flex items-center gap-2 text-sm text-white/90">
                       <Calendar className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{formatDate(ticket.courses.starts_at)}</span>
+                      <span className="truncate">{formatDate(startDate)}</span>
                     </div>
+                    {!isCourseTicket && (
+                      <Badge variant="secondary" className="text-xs">
+                        Event
+                      </Badge>
+                    )}
                   </div>
                   <Badge 
                     variant={statusBadge.variant}
@@ -330,18 +386,18 @@ export default function Biljetter() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{formatTime(ticket.courses.starts_at)}</span>
+                    <span>{formatTime(startDate)}</span>
                   </div>
-                  {ticket.courses.venue && (
+                  {venue && (
                     <div className="flex items-center gap-2 text-sm">
                       <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="truncate">{ticket.courses.venue}</span>
+                      <span className="truncate">{venue}</span>
                     </div>
                   )}
                 </div>
 
                 {/* QR Code Preview */}
-                {ticket.status === 'valid' && qrCanvasRef.current[ticket.qr_payload] && (
+                {(ticket.status === 'valid' || ticket.status === 'confirmed') && qrCanvasRef.current[ticket.qr_payload] && (
                   <div className="pt-4 border-t">
                     <div className="bg-white p-3 rounded-lg border inline-block mx-auto block w-full text-center">
                       <img 
@@ -353,16 +409,18 @@ export default function Biljetter() {
                   </div>
                 )}
 
-                <div className="pt-2 border-t">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="text-muted-foreground">Incheckningar</div>
-                    <div className="font-semibold">
-                      {ticket.checked_in_count} / {ticket.max_checkins}
+                {isCourseTicket && (
+                  <div className="pt-2 border-t">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="text-muted-foreground">Incheckningar</div>
+                      <div className="font-semibold">
+                        {ticket.checked_in_count} / {ticket.max_checkins}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {ticket.status === 'valid' && (
+                {(ticket.status === 'valid' || ticket.status === 'confirmed') && (
                   <Button 
                     className="w-full" 
                     variant="outline"
@@ -404,9 +462,15 @@ export default function Biljetter() {
           {selectedTicket && (
             <div className="space-y-4">
               <div className="text-center">
-                <h3 className="font-bold text-lg mb-2">{selectedTicket.courses.title}</h3>
+                <h3 className="font-bold text-lg mb-2">
+                  {selectedTicket.type === 'course' 
+                    ? selectedTicket.courses.title 
+                    : selectedTicket.events.title}
+                </h3>
                 <p className="text-sm text-muted-foreground">
-                  {formatDate(selectedTicket.courses.starts_at)} • {formatTime(selectedTicket.courses.starts_at)}
+                  {selectedTicket.type === 'course'
+                    ? `${formatDate(selectedTicket.courses.starts_at)} • ${formatTime(selectedTicket.courses.starts_at)}`
+                    : `${formatDate(selectedTicket.events.start_at)} • ${formatTime(selectedTicket.events.start_at)}`}
                 </p>
               </div>
               

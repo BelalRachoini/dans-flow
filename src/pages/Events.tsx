@@ -318,6 +318,43 @@ export default function EventsPage() {
     }).format(new Date(dateStr));
   };
 
+  const handleBuyTicket = async (event: Event) => {
+    if (!userId) {
+      toast.error('Du måste vara inloggad för att köpa biljetter');
+      return;
+    }
+
+    if (event.sold_count >= event.capacity) {
+      toast.error('Eventet är fullbokat');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('event_bookings')
+        .insert({
+          event_id: event.id,
+          member_id: userId,
+          status: 'confirmed',
+          payment_status: 'paid',
+        });
+
+      if (error) throw error;
+
+      // Update sold count
+      await supabase
+        .from('events')
+        .update({ sold_count: event.sold_count + 1 })
+        .eq('id', event.id);
+
+      toast.success('Biljett köpt! Visa din QR-kod på eventet.');
+      loadEvents();
+    } catch (error: any) {
+      console.error('Error buying ticket:', error);
+      toast.error(error.message || 'Kunde inte köpa biljett');
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12">{t.common.loading}</div>;
   }
@@ -616,7 +653,11 @@ export default function EventsPage() {
                     </>
                   ) : (
                     availableSeats > 0 && (
-                      <Button variant="hero" className="flex-1">
+                      <Button 
+                        variant="hero" 
+                        className="flex-1"
+                        onClick={() => handleBuyTicket(event)}
+                      >
                         <Ticket size={16} className="mr-2" />
                         {t.events.buyTicket}
                       </Button>

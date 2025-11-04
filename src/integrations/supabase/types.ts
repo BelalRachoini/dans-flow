@@ -215,6 +215,7 @@ export type Database = {
           id: string
           member_id: string
           payment_status: string
+          qr_payload: string | null
           status: string
         }
         Insert: {
@@ -224,6 +225,7 @@ export type Database = {
           id?: string
           member_id: string
           payment_status?: string
+          qr_payload?: string | null
           status?: string
         }
         Update: {
@@ -233,6 +235,7 @@ export type Database = {
           id?: string
           member_id?: string
           payment_status?: string
+          qr_payload?: string | null
           status?: string
         }
         Relationships: [
