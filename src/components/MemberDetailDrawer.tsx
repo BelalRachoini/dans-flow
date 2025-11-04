@@ -373,14 +373,16 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
         <DrawerContent className="h-[90vh]">
           <div className="mx-auto w-full max-w-4xl h-full flex flex-col">
             <DrawerHeader className="border-b">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3 sm:gap-4">
                   <Avatar className="h-12 w-12">
                     <AvatarFallback>{getInitials(profile.full_name)}</AvatarFallback>
                   </Avatar>
-                  <div>
-                    <DrawerTitle className="text-2xl">{profile.full_name || '—'}</DrawerTitle>
-                    <DrawerDescription className="flex items-center gap-2 mt-1">
+                  <div className="min-w-0">
+                    <DrawerTitle className="text-xl sm:text-2xl truncate">
+                      {profile.full_name || '—'}
+                    </DrawerTitle>
+                    <DrawerDescription className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                       <Badge variant="outline" className={levelColors[profile.level as keyof typeof levelColors]}>
                         {t.crm.level[profile.level as keyof typeof t.crm.level]}
                       </Badge>
@@ -388,26 +390,26 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                         {profile.role}
                       </Badge>
                       {profile.email && (
-                        <a href={`mailto:${profile.email}`} className="flex items-center gap-1 text-sm hover:underline">
+                        <a href={`mailto:${profile.email}`} className="flex items-center gap-1 hover:underline">
                           <Mail className="h-3 w-3" />
-                          {profile.email}
+                          <span className="truncate max-w-[140px] sm:max-w-none">{profile.email}</span>
                         </a>
                       )}
                       {profile.phone && (
-                        <a href={`tel:${profile.phone}`} className="flex items-center gap-1 text-sm hover:underline">
+                        <a href={`tel:${profile.phone}`} className="flex items-center gap-1 hover:underline">
                           <Phone className="h-3 w-3" />
-                          {profile.phone}
+                          <span className="truncate max-w-[120px] sm:max-w-none">{profile.phone}</span>
                         </a>
                       )}
                     </DrawerDescription>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleEditClick}>
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                  <Button variant="outline" size="sm" onClick={handleEditClick} className="flex-1 sm:flex-none">
                     <Edit className="h-4 w-4 mr-2" />
                     {t.crm.actions.edit}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+                  <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(true)} className="flex-1 sm:flex-none">
                     <Trash2 className="h-4 w-4 mr-2" />
                     {t.crm.actions.delete}
                   </Button>
@@ -420,9 +422,9 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
               </div>
             </DrawerHeader>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                   <TabsTrigger value="overview">{t.crm.drawer.overview}</TabsTrigger>
                   <TabsTrigger value="purchases">{t.crm.drawer.purchases}</TabsTrigger>
                   <TabsTrigger value="tickets">{t.crm.drawer.tickets}</TabsTrigger>
@@ -488,7 +490,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                         {/* Change level */}
                         <div className="space-y-2">
                           <label className="text-sm font-medium">{t.crm.actions.changeLevel}</label>
-                          <div className="flex gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
                             <Select value={newLevel} onValueChange={setNewLevel}>
                               <SelectTrigger>
                                 <SelectValue placeholder={t.crm.selectLevel} />
@@ -502,6 +504,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                               </SelectContent>
                             </Select>
                             <Button
+                              className="w-full sm:w-auto"
                               onClick={() => updateMemberMutation.mutate({ new_level: newLevel })}
                               disabled={!newLevel || updateMemberMutation.isPending}
                             >
@@ -513,14 +516,16 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                         {/* Adjust points */}
                         <div className="space-y-2">
                           <label className="text-sm font-medium">{t.crm.actions.adjustPoints}</label>
-                          <div className="flex gap-2">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <Input
                               type="number"
                               placeholder={t.crm.enterPoints}
                               value={pointsDelta}
                               onChange={(e) => setPointsDelta(e.target.value)}
+                              className="w-full sm:w-auto"
                             />
                             <Button
+                              className="w-full sm:w-auto"
                               onClick={() =>
                                 updateMemberMutation.mutate({ points_delta: parseInt(pointsDelta) })
                               }
@@ -564,6 +569,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                       <div>
                         <Button
                           variant="outline"
+                          className="w-full sm:w-auto"
                           onClick={() =>
                             updateMemberMutation.mutate({
                               new_status: profile.status === 'active' ? 'inactive' : 'active',
@@ -586,34 +592,36 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                       {payments.length === 0 ? (
                         <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
                       ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>{t.events.date}</TableHead>
-                              <TableHead>{t.course.description}</TableHead>
-                              <TableHead className="text-right">{t.courses.price}</TableHead>
-                              <TableHead>{t.events.paymentStatus}</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {payments.map((payment) => (
-                              <TableRow key={payment.id}>
-                                <TableCell>{format(new Date(payment.created_at), 'yyyy-MM-dd')}</TableCell>
-                                <TableCell>{payment.description || '—'}</TableCell>
-                                <TableCell className="text-right">
-                                  {formatCurrency(payment.amount_cents)}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={payment.status === 'succeeded' ? 'default' : 'secondary'}
-                                  >
-                                    {payment.status}
-                                  </Badge>
-                                </TableCell>
+                        <div className="overflow-x-auto -mx-4 md:mx-0">
+                          <Table className="min-w-[600px]">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>{t.events.date}</TableHead>
+                                <TableHead>{t.course.description}</TableHead>
+                                <TableHead className="text-right">{t.courses.price}</TableHead>
+                                <TableHead>{t.events.paymentStatus}</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {payments.map((payment) => (
+                                <TableRow key={payment.id}>
+                                  <TableCell>{format(new Date(payment.created_at), 'yyyy-MM-dd')}</TableCell>
+                                  <TableCell>{payment.description || '—'}</TableCell>
+                                  <TableCell className="text-right">
+                                    {formatCurrency(payment.amount_cents)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge
+                                      variant={payment.status === 'succeeded' ? 'default' : 'secondary'}
+                                    >
+                                      {payment.status}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -625,28 +633,30 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                       {tickets.length === 0 ? (
                         <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
                       ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>{t.courses.title}</TableHead>
-                              <TableHead>{t.qr.checkedIn}</TableHead>
-                              <TableHead>{t.events.date}</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {tickets.map((ticket: any) => (
-                              <TableRow key={ticket.id}>
-                                <TableCell>{ticket.course?.title || '—'}</TableCell>
-                                <TableCell>
-                                  {ticket.checked_in_count} / {ticket.max_checkins}
-                                </TableCell>
-                                <TableCell>
-                                  {format(new Date(ticket.purchased_at), 'yyyy-MM-dd')}
-                                </TableCell>
+                        <div className="overflow-x-auto -mx-4 md:mx-0">
+                          <Table className="min-w-[520px]">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>{t.courses.title}</TableHead>
+                                <TableHead>{t.qr.checkedIn}</TableHead>
+                                <TableHead>{t.events.date}</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {tickets.map((ticket: any) => (
+                                <TableRow key={ticket.id}>
+                                  <TableCell>{ticket.course?.title || '—'}</TableCell>
+                                  <TableCell>
+                                    {ticket.checked_in_count} / {ticket.max_checkins}
+                                  </TableCell>
+                                  <TableCell>
+                                    {format(new Date(ticket.purchased_at), 'yyyy-MM-dd')}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -658,32 +668,34 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                       {subscriptions.length === 0 ? (
                         <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
                       ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>{t.memberships.plans}</TableHead>
-                              <TableHead>{t.events.bookingStatus}</TableHead>
-                              <TableHead>{t.memberships.nextBilling}</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {subscriptions.map((sub) => (
-                              <TableRow key={sub.id}>
-                                <TableCell>{sub.plan}</TableCell>
-                                <TableCell>
-                                  <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
-                                    {sub.status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  {sub.current_period_end
-                                    ? format(new Date(sub.current_period_end), 'yyyy-MM-dd')
-                                    : '—'}
-                                </TableCell>
+                        <div className="overflow-x-auto -mx-4 md:mx-0">
+                          <Table className="min-w-[520px]">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>{t.memberships.plans}</TableHead>
+                                <TableHead>{t.events.bookingStatus}</TableHead>
+                                <TableHead>{t.memberships.nextBilling}</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {subscriptions.map((sub) => (
+                                <TableRow key={sub.id}>
+                                  <TableCell>{sub.plan}</TableCell>
+                                  <TableCell>
+                                    <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
+                                      {sub.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {sub.current_period_end
+                                      ? format(new Date(sub.current_period_end), 'yyyy-MM-dd')
+                                      : '—'}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
