@@ -106,22 +106,53 @@ Deno.serve(async (req) => {
       user_metadata: { full_name },
     });
 
-    if (createError || !created.user) {
+    let userId: string;
+    let isExistingUser = false;
+
+    // If user already exists, fetch their ID and update profile
+    if (createError && (createError.status === 422 || createError.message?.includes('already been registered'))) {
+      console.log('User with email already exists, fetching existing user...');
+      
+      // Fetch existing user by email
+      const { data: existingUsers, error: listError } = await adminClient.auth.admin.listUsers();
+      
+      if (listError) {
+        console.error('listUsers error:', listError);
+        return new Response(JSON.stringify({ error: 'Failed to check existing users' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+
+      const existingUser = existingUsers.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      
+      if (!existingUser) {
+        console.error('User not found after email_exists error');
+        return new Response(JSON.stringify({ error: 'User email exists but could not be retrieved' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+
+      userId = existingUser.id;
+      isExistingUser = true;
+      console.log('Found existing user:', userId);
+    } else if (createError || !created?.user) {
       console.error('createUser error:', createError);
       return new Response(JSON.stringify({ error: createError?.message || 'CREATE_USER_FAILED' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
+    } else {
+      userId = created.user.id;
     }
-
-    const newUserId = created.user.id;
 
     // Upsert profile row (in case a signup trigger already inserted one)
     const { error: profileError } = await adminClient
       .from('profiles')
       .upsert(
         {
-          id: newUserId,
+          id: userId,
           email,
           full_name,
           phone,
@@ -142,7 +173,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, user_id: newUserId }),
+      JSON.stringify({ 
+        success: true, 
+        user_id: userId,
+        created: !isExistingUser,
+        message: isExistingUser ? 'Existing user profile updated' : 'New member created successfully'
+      }),
       { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   } catch (e) {

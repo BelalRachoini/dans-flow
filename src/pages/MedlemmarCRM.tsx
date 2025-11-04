@@ -152,9 +152,12 @@ export default function MedlemmarCRM() {
       if (error) throw error;
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['crm-members'] });
-      toast.success(t.crm.addMember || 'Member added successfully');
+      const message = data?.created === false 
+        ? 'Existing user profile updated successfully'
+        : t.crm.addMember || 'Member added successfully';
+      toast.success(message);
       setAddMemberOpen(false);
       setNewMember({ email: '', password: '', full_name: '', phone: '', level: 'bronze' });
     },
