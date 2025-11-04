@@ -38,30 +38,62 @@ export default function Schema() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const { data, error } = await supabase
-          .from('calendar_items' as any)
-          .select('*')
-          .gte('starts_at', startOfMonth(subWeeks(currentDate, 2)).toISOString())
-          .lte('starts_at', endOfMonth(addWeeks(currentDate, 2)).toISOString());
+        const startDate = startOfMonth(subWeeks(currentDate, 2)).toISOString();
+        const endDate = endOfMonth(addWeeks(currentDate, 2)).toISOString();
 
-        if (error) throw error;
-        
-        const items: CalendarItem[] = ((data as any[]) || []).map((item: any) => {
-          const startDate = new Date(item.starts_at);
-          const endDate = item.ends_at ? new Date(item.ends_at) : addDays(startDate, 0);
+        // Fetch course lessons
+        const { data: lessons, error: lessonsError } = await supabase
+          .from('course_lessons')
+          .select('*')
+          .gte('starts_at', startDate)
+          .lte('starts_at', endDate);
+
+        if (lessonsError) throw lessonsError;
+
+        // Fetch events
+        const { data: events, error: eventsError } = await supabase
+          .from('events')
+          .select('*')
+          .gte('start_at', startDate)
+          .lte('start_at', endDate)
+          .eq('status', 'published');
+
+        if (eventsError) throw eventsError;
+
+        // Map lessons to calendar items
+        const lessonItems: CalendarItem[] = (lessons || []).map((lesson) => {
+          const startDate = new Date(lesson.starts_at);
+          const endDate = lesson.ends_at ? new Date(lesson.ends_at) : addDays(startDate, 2);
           return {
-            id: item.id,
-            title: item.title,
-            type: item.kind as 'lesson' | 'event',
+            id: lesson.id,
+            title: lesson.title || 'Lektion',
+            type: 'lesson' as const,
             startTime: format(startDate, 'HH:mm'),
             endTime: format(endDate, 'HH:mm'),
-            location: item.venue,
-            description: '',
+            location: lesson.venue || '',
+            description: lesson.notes || '',
             date: startDate,
           };
         });
-        
-        setCalendarItems(items);
+
+        // Map events to calendar items
+        const eventItems: CalendarItem[] = (events || []).map((event) => {
+          const startDate = new Date(event.start_at);
+          const endDate = event.end_at ? new Date(event.end_at) : addDays(startDate, 0);
+          return {
+            id: event.id,
+            title: event.title,
+            type: 'event' as const,
+            startTime: format(startDate, 'HH:mm'),
+            endTime: format(endDate, 'HH:mm'),
+            location: event.venue,
+            description: event.description,
+            date: startDate,
+          };
+        });
+
+        // Combine and sort all items
+        setCalendarItems([...lessonItems, ...eventItems]);
       } catch (error) {
         console.error('Error loading calendar:', error);
       } finally {
