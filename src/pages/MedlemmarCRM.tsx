@@ -188,16 +188,16 @@ export default function MedlemmarCRM() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="container mx-auto py-4 md:py-8 px-4 space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{t.crm.title}</h1>
-          <p className="text-muted-foreground">{t.crm.subtitle}</p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl md:text-3xl font-bold truncate">{t.crm.title}</h1>
+          <p className="text-sm md:text-base text-muted-foreground truncate">{t.crm.subtitle}</p>
         </div>
-        <Button onClick={() => setAddMemberOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          {t.crm.addMember || 'Add Member'}
+        <Button onClick={() => setAddMemberOpen(true)} size="sm" className="shrink-0">
+          <UserPlus className="h-4 w-4" />
+          <span className="hidden sm:inline ml-2">{t.crm.addMember || 'Add Member'}</span>
         </Button>
       </div>
 
@@ -253,104 +253,104 @@ export default function MedlemmarCRM() {
 
       {/* Controls */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t.crm.search.placeholder}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
+        <CardContent className="pt-4 md:pt-6">
+          <div className="flex flex-col gap-3 md:gap-4">
+            <div className="relative w-full">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={t.crm.search.placeholder}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8"
+              />
             </div>
             
-            <Select value={levelFilter} onValueChange={setLevelFilter}>
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder={t.crm.filter.level} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t.crm.filter.level}</SelectItem>
-                <SelectItem value="bronze">{t.crm.level.bronze}</SelectItem>
-                <SelectItem value="silver">{t.crm.level.silver}</SelectItem>
-                <SelectItem value="gold">{t.crm.level.gold}</SelectItem>
-                <SelectItem value="platinum">{t.crm.level.platinum}</SelectItem>
-                <SelectItem value="vip">{t.crm.level.vip}</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+              <Select value={levelFilter} onValueChange={setLevelFilter}>
+                <SelectTrigger className="w-full sm:flex-1">
+                  <SelectValue placeholder={t.crm.filter.level} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t.crm.filter.level}</SelectItem>
+                  <SelectItem value="bronze">{t.crm.level.bronze}</SelectItem>
+                  <SelectItem value="silver">{t.crm.level.silver}</SelectItem>
+                  <SelectItem value="gold">{t.crm.level.gold}</SelectItem>
+                  <SelectItem value="platinum">{t.crm.level.platinum}</SelectItem>
+                  <SelectItem value="vip">{t.crm.level.vip}</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="revenue">{t.crm.sort.revenue}</SelectItem>
-                <SelectItem value="recent">{t.crm.sort.recent}</SelectItem>
-                <SelectItem value="oldest">{t.crm.sort.oldest}</SelectItem>
-                <SelectItem value="points">{t.crm.sort.points}</SelectItem>
-                <SelectItem value="name">{t.crm.sort.name}</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-full sm:flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="revenue">{t.crm.sort.revenue}</SelectItem>
+                  <SelectItem value="recent">{t.crm.sort.recent}</SelectItem>
+                  <SelectItem value="oldest">{t.crm.sort.oldest}</SelectItem>
+                  <SelectItem value="points">{t.crm.sort.points}</SelectItem>
+                  <SelectItem value="name">{t.crm.sort.name}</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Badge variant="secondary" className="whitespace-nowrap">
-              {filteredMembers.length} {t.crm.members}
-            </Badge>
+              <Badge variant="secondary" className="whitespace-nowrap self-center sm:self-auto">
+                {filteredMembers.length} {t.crm.members}
+              </Badge>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Members Table */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4 md:pt-6">
           {filteredMembers.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">{t.crm.empty}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t.crm.table.name}</TableHead>
-                  <TableHead>{t.crm.table.contact}</TableHead>
-                  <TableHead>{t.crm.table.level}</TableHead>
-                  <TableHead className="text-right">{t.crm.table.points}</TableHead>
-                  <TableHead className="text-right">{t.crm.table.revenue}</TableHead>
-                  <TableHead>{t.crm.table.since}</TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMembers.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.full_name || '—'}</TableCell>
-                    <TableCell>
-                      <div className="text-sm space-y-1">
-                        {member.email && <div>{member.email}</div>}
-                        {member.phone && <div className="text-muted-foreground">{member.phone}</div>}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={levelColors[member.level as keyof typeof levelColors]}>
-                        {t.crm.level[member.level as keyof typeof t.crm.level]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{member.points || 0}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(member.revenue_cents || 0)}
-                    </TableCell>
-                    <TableCell>{format(new Date(member.created_at), 'yyyy-MM-dd')}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedMemberId(member.id)}
-                        >
-                          {t.crm.view}
-                        </Button>
+            <div className="overflow-x-auto -mx-4 md:mx-0">
+              <Table className="min-w-[640px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="sticky left-0 bg-background z-10">{t.crm.table.name}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t.crm.table.contact}</TableHead>
+                    <TableHead>{t.crm.table.level}</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">{t.crm.table.points}</TableHead>
+                    <TableHead className="text-right">{t.crm.table.revenue}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t.crm.table.since}</TableHead>
+                    <TableHead className="w-[80px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredMembers.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell className="font-medium sticky left-0 bg-background z-10">
+                        <div className="min-w-[120px]">
+                          {member.full_name || '—'}
+                          <div className="sm:hidden text-xs text-muted-foreground mt-1">
+                            {member.email}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <div className="text-sm space-y-1 min-w-[180px]">
+                          {member.email && <div className="truncate">{member.email}</div>}
+                          {member.phone && <div className="text-muted-foreground">{member.phone}</div>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`${levelColors[member.level as keyof typeof levelColors]} whitespace-nowrap text-xs`}>
+                          {t.crm.level[member.level as keyof typeof t.crm.level]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right hidden md:table-cell">{member.points || 0}</TableCell>
+                      <TableCell className="text-right font-medium whitespace-nowrap">
+                        {formatCurrency(member.revenue_cents || 0)}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">{format(new Date(member.created_at), 'yyyy-MM-dd')}</TableCell>
+                      <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -368,12 +368,12 @@ export default function MedlemmarCRM() {
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -389,7 +389,7 @@ export default function MedlemmarCRM() {
 
       {/* Add Member Dialog */}
       <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t.crm.addMember || 'Add Member'}</DialogTitle>
             <DialogDescription>
