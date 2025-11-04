@@ -136,15 +136,18 @@ export default function MedlemmarCRM() {
     return filtered;
   }, [members, searchQuery, levelFilter, sortBy]);
 
-  // Add member mutation
+  // Add member mutation (uses edge function to create auth user + profile)
   const addMemberMutation = useMutation({
     mutationFn: async (data: typeof newMember) => {
-      const { data: result, error } = await supabase.rpc('admin_create_member', {
-        p_email: data.email,
-        p_password: data.password,
-        p_full_name: data.full_name,
-        p_phone: data.phone || null,
-        p_level: data.level,
+      const { data: result, error } = await supabase.functions.invoke('admin-create-member', {
+        body: {
+          email: data.email,
+          password: data.password,
+          full_name: data.full_name,
+          phone: data.phone || null,
+          level: data.level,
+          role: 'member',
+        },
       });
       if (error) throw error;
       return result;
