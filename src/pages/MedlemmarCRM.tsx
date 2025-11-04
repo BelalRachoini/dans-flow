@@ -10,9 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, DollarSign, TrendingUp, Award, Search, MoreVertical, Mail } from 'lucide-react';
+import { Users, DollarSign, TrendingUp, Award, Search, MoreVertical, Mail, UserPlus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MemberDetailDrawer } from '@/components/MemberDetailDrawer';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 
 interface MemberWithRevenue {
@@ -45,6 +47,14 @@ export default function MedlemmarCRM() {
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('revenue');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [newMember, setNewMember] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    phone: '',
+    level: 'bronze',
+  });
 
   // Fetch members with revenue
   const { data: members = [], isLoading } = useQuery({
@@ -126,6 +136,30 @@ export default function MedlemmarCRM() {
     return filtered;
   }, [members, searchQuery, levelFilter, sortBy]);
 
+  // Add member mutation
+  const addMemberMutation = useMutation({
+    mutationFn: async (data: typeof newMember) => {
+      const { data: result, error } = await supabase.rpc('admin_create_member', {
+        p_email: data.email,
+        p_password: data.password,
+        p_full_name: data.full_name,
+        p_phone: data.phone || null,
+        p_level: data.level,
+      });
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-members'] });
+      toast.success(t.crm.addMember || 'Member added successfully');
+      setAddMemberOpen(false);
+      setNewMember({ email: '', password: '', full_name: '', phone: '', level: 'bronze' });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to add member');
+    },
+  });
+
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat('sv-SE', {
       style: 'currency',
@@ -153,9 +187,15 @@ export default function MedlemmarCRM() {
   return (
     <div className="container mx-auto py-8 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">{t.crm.title}</h1>
-        <p className="text-muted-foreground">{t.crm.subtitle}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">{t.crm.title}</h1>
+          <p className="text-muted-foreground">{t.crm.subtitle}</p>
+        </div>
+        <Button onClick={() => setAddMemberOpen(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          {t.crm.addMember || 'Add Member'}
+        </Button>
       </div>
 
       {/* KPI Cards */}
@@ -343,6 +383,85 @@ export default function MedlemmarCRM() {
           onOpenChange={(open) => !open && setSelectedMemberId(null)}
         />
       )}
+
+      {/* Add Member Dialog */}
+      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.crm.addMember || 'Add Member'}</DialogTitle>
+            <DialogDescription>
+              Create a new member account
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="full_name">{t.crm.fullName || 'Full Name'}</Label>
+              <Input
+                id="full_name"
+                value={newMember.full_name}
+                onChange={(e) => setNewMember({ ...newMember, full_name: e.target.value })}
+                placeholder="John Doe"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">{t.crm.email || 'Email'}</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newMember.email}
+                onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
+                placeholder="john@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">{t.crm.password || 'Password'}</Label>
+              <Input
+                id="password"
+                type="password"
+                value={newMember.password}
+                onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
+                placeholder={t.crm.passwordPlaceholder || 'Enter password'}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">{t.crm.phone || 'Phone'}</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={newMember.phone}
+                onChange={(e) => setNewMember({ ...newMember, phone: e.target.value })}
+                placeholder="+46 70 123 45 67"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="level">{t.crm.table.level || 'Level'}</Label>
+              <Select value={newMember.level} onValueChange={(val) => setNewMember({ ...newMember, level: val })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bronze">{t.crm.level.bronze}</SelectItem>
+                  <SelectItem value="silver">{t.crm.level.silver}</SelectItem>
+                  <SelectItem value="gold">{t.crm.level.gold}</SelectItem>
+                  <SelectItem value="platinum">{t.crm.level.platinum}</SelectItem>
+                  <SelectItem value="vip">{t.crm.level.vip}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddMemberOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button 
+              onClick={() => addMemberMutation.mutate(newMember)}
+              disabled={!newMember.email || !newMember.password || !newMember.full_name || addMemberMutation.isPending}
+            >
+              {addMemberMutation.isPending ? t.common.loading : (t.crm.addMember || 'Add Member')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
