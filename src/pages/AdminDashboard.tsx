@@ -48,18 +48,40 @@ export default function AdminDashboard() {
     }
   };
 
+  // Safely access adminDashboard translations with fallbacks
+  const ad = t.adminDashboard || {
+    title: 'Admin - Overview',
+    subtitle: 'Complete control over the system',
+    coursesThisWeek: 'Courses this week',
+    eventsThisWeek: 'Events this week',
+    totalMembers: 'Total members',
+    activeTickets: 'Active tickets',
+    upcomingClasses: 'Upcoming classes & events',
+    nextWeek: 'Next week',
+    noUpcomingClasses: 'No upcoming classes',
+    quickActions: 'Quick Actions',
+    quickActionsDesc: 'Quick access to common tasks',
+    scanQR: 'Scan QR',
+    createCourse: 'Create course',
+    createEvent: 'Create event',
+    openSchedule: 'Open Schedule',
+    manageMembers: 'Manage members',
+    payments: 'Payments',
+    settings: 'Settings',
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">{t.adminDashboard.title}</h1>
-        <p className="text-muted-foreground">{t.adminDashboard.subtitle}</p>
+        <h1 className="text-3xl font-bold">{ad.title}</h1>
+        <p className="text-muted-foreground">{ad.subtitle}</p>
       </div>
 
       {/* Quick Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t.adminDashboard.coursesThisWeek}</CardTitle>
+            <CardTitle className="text-sm font-medium">{ad.coursesThisWeek}</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -68,7 +90,7 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t.adminDashboard.eventsThisWeek}</CardTitle>
+            <CardTitle className="text-sm font-medium">{ad.eventsThisWeek}</CardTitle>
             <Music className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -77,7 +99,7 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t.adminDashboard.totalMembers}</CardTitle>
+            <CardTitle className="text-sm font-medium">{ad.totalMembers}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -86,7 +108,7 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t.adminDashboard.activeTickets}</CardTitle>
+            <CardTitle className="text-sm font-medium">{ad.activeTickets}</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -100,9 +122,9 @@ export default function AdminDashboard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5" />
-            {t.adminDashboard.upcomingClasses}
+            {ad.upcomingClasses}
           </CardTitle>
-          <CardDescription>{t.adminDashboard.nextWeek}</CardDescription>
+          <CardDescription>{ad.nextWeek}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -132,7 +154,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
-              {t.adminDashboard.noUpcomingClasses}
+              {ad.noUpcomingClasses}
             </p>
           )}
         </CardContent>
@@ -141,51 +163,51 @@ export default function AdminDashboard() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>{t.adminDashboard.quickActions}</CardTitle>
-          <CardDescription>{t.adminDashboard.quickActionsDesc}</CardDescription>
+          <CardTitle>{ad.quickActions}</CardTitle>
+          <CardDescription>{ad.quickActionsDesc}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/scan" className="flex flex-col items-center gap-2">
                 <QrCode className="h-5 w-5" />
-                <span>{t.adminDashboard.scanQR}</span>
+                <span>{ad.scanQR}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/kurser-poang" className="flex flex-col items-center gap-2">
                 <Plus className="h-5 w-5" />
-                <span>{t.adminDashboard.createCourse}</span>
+                <span>{ad.createCourse}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/event" className="flex flex-col items-center gap-2">
                 <Music className="h-5 w-5" />
-                <span>{t.adminDashboard.createEvent}</span>
+                <span>{ad.createEvent}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/schema" className="flex flex-col items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                <span>{t.adminDashboard.openSchedule}</span>
+                <span>{ad.openSchedule}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/medlemmar" className="flex flex-col items-center gap-2">
                 <Users className="h-5 w-5" />
-                <span>{t.adminDashboard.manageMembers}</span>
+                <span>{ad.manageMembers}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin/betalningar" className="flex flex-col items-center gap-2">
                 <CreditCard className="h-5 w-5" />
-                <span>{t.adminDashboard.payments}</span>
+                <span>{ad.payments}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/admin" className="flex flex-col items-center gap-2">
                 <Settings className="h-5 w-5" />
-                <span>{t.adminDashboard.settings}</span>
+                <span>{ad.settings}</span>
               </Link>
             </Button>
           </div>
