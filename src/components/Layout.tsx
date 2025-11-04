@@ -26,8 +26,15 @@ export const Layout = () => {
   const { userId, role, logout } = useAuthStore();
   const { t, language, setLanguage } = useLanguageStore();
 
+  // Get the correct overview path based on role
+  const getOverviewPath = () => {
+    if (role === 'admin') return '/admin';
+    if (role === 'instructor') return '/instructor';
+    return '/member';
+  };
+
   const navItems = [
-    { icon: LayoutDashboard, label: t.nav.oversikt, path: '/', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: LayoutDashboard, label: t.nav.oversikt, path: getOverviewPath(), roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
     { icon: BookOpen, label: t.nav.kurserPoang, path: '/kurser-poang', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
     { icon: Calendar, label: t.nav.schema, path: '/schema', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
     { icon: PartyPopper, label: t.nav.event, path: '/event', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
