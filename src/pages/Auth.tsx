@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Mail, Chrome, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import heroImage from '@/assets/hero-dance.jpg';
+import { useAuthStore } from '@/store/authStore';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -18,6 +19,7 @@ export default function Auth() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { initialize } = useAuthStore();
 
   const getRoleRedirect = async (userId: string) => {
     const { data, error } = await (supabase as any)
@@ -65,6 +67,8 @@ export default function Auth() {
       if (error) throw error;
 
       if (data.user) {
+        // Force refresh auth store with latest role from database
+        await initialize();
         const redirect = await getRoleRedirect(data.user.id);
         toast.success('Välkommen tillbaka!');
         navigate(redirect);
@@ -99,6 +103,8 @@ export default function Auth() {
         toast.success('Konto skapat! Loggar in...');
         // Wait a bit for trigger to complete
         await new Promise(resolve => setTimeout(resolve, 1000));
+        // Force refresh auth store with latest role from database
+        await initialize();
         const redirect = await getRoleRedirect(data.user.id);
         navigate(redirect);
       }
