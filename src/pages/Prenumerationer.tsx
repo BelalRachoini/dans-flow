@@ -59,11 +59,21 @@ export default function Prenumerationer() {
   const { data: members = [] } = useQuery({
     queryKey: ['members-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .eq('role', 'member')
-        .order('full_name');
+      const { data: userRoles, error: rolesError } = await supabase
+        .from('user_roles' as any)
+        .select('user_id')
+        .eq('role', 'member');
+      
+      if (rolesError) throw rolesError;
+      
+      const memberIds = (userRoles || []).map((ur: any) => ur.user_id);
+      const { data, error } = memberIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', memberIds)
+            .order('full_name')
+        : { data: [], error: null };
       if (error) throw error;
       return data;
     },

@@ -60,10 +60,20 @@ export default function MedlemmarCRM() {
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['crm-members'],
     queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
+      const { data: userRoles, error: rolesError } = await supabase
+        .from('user_roles' as any)
+        .select('user_id')
         .eq('role', 'member');
+      
+      if (rolesError) throw rolesError;
+      
+      const memberIds = (userRoles || []).map((ur: any) => ur.user_id);
+      const { data: profiles, error: profilesError } = memberIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', memberIds)
+        : { data: [], error: null };
 
       if (profilesError) throw profilesError;
 

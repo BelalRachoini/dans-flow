@@ -111,11 +111,30 @@ export default function Courses() {
 
       // Load instructors for admin
       if (role === 'admin') {
-        const { data: instructorsData } = await supabase
-          .from('profiles')
-          .select('id, full_name')
+        const { data: userRoles, error: rolesError } = await supabase
+          .from('user_roles' as any)
+          .select('user_id')
           .eq('role', 'instructor');
-        setInstructors(instructorsData || []);
+        
+        if (rolesError) {
+          console.error('Error loading instructor roles:', rolesError);
+          setInstructors([]);
+        } else if (userRoles && userRoles.length > 0) {
+          const instructorIds = userRoles.map((ur: any) => ur.user_id);
+          const { data: instructorsData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', instructorIds);
+          
+          if (profilesError) {
+            console.error('Error loading instructor profiles:', profilesError);
+            setInstructors([]);
+          } else {
+            setInstructors(instructorsData || []);
+          }
+        } else {
+          setInstructors([]);
+        }
       }
     } catch (error) {
       console.error('Error loading courses:', error);
