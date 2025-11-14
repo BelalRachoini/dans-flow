@@ -290,8 +290,7 @@ export default function EventsPage() {
           profiles:member_id (
             id,
             full_name,
-            avatar_url,
-            role
+            avatar_url
           )
         `)
         .eq('event_id', eventId)
@@ -330,28 +329,53 @@ export default function EventsPage() {
     }
 
     try {
-      const { error } = await supabase
+      console.log('Purchasing ticket for event:', event.id, 'user:', userId);
+      
+      // Verify user profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Profile check failed:', profileError);
+        toast.error('Kunde inte verifiera din profil. Försök logga in igen.');
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('event_bookings')
         .insert({
           event_id: event.id,
           member_id: userId,
           status: 'confirmed',
           payment_status: 'paid',
-        });
+        })
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Insert error:', error);
+        throw error;
+      }
+
+      console.log('Ticket created:', data);
 
       // Update sold count
-      await supabase
+      const { error: updateError } = await supabase
         .from('events')
         .update({ sold_count: event.sold_count + 1 })
         .eq('id', event.id);
 
-      toast.success('Biljett köpt! Visa din QR-kod på eventet.');
+      if (updateError) {
+        console.error('Update sold count error:', updateError);
+      }
+
+      toast.success('Biljett köpt! Du hittar den under "Biljetter".');
       loadEvents();
     } catch (error: any) {
       console.error('Error buying ticket:', error);
-      toast.error(error.message || 'Kunde inte köpa biljett');
+      toast.error(error.message || 'Kunde inte köpa biljett. Kontrollera din anslutning och försök igen.');
     }
   };
 
