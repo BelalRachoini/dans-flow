@@ -21,7 +21,7 @@ import type { Tables } from '@/integrations/supabase/types';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-type Event = Tables<'events'>;
+type EventData = Tables<'events'>;
 type EventBooking = Tables<'event_bookings'> & {
   profiles: Tables<'profiles'>;
 };
@@ -46,12 +46,12 @@ export default function EventsPage() {
   const { role, userId } = useAuthStore();
   const { t, language } = useLanguageStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingEvent, setEditingEvent] = useState<EventData | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const [eventToDelete, setEventToDelete] = useState<EventData | null>(null);
   const [discountEnabled, setDiscountEnabled] = useState(false);
   const [attendeesDialogOpen, setAttendeesDialogOpen] = useState(false);
   const [selectedEventAttendees, setSelectedEventAttendees] = useState<EventBooking[]>([]);
@@ -109,7 +109,7 @@ export default function EventsPage() {
     }
   };
 
-  const calculateDisplayPrice = (event: Event) => {
+  const calculateDisplayPrice = (event: EventData) => {
     const priceSEK = event.price_cents / 100;
     if (event.discount_type === 'none') {
       return { current: priceSEK, original: null, discountPercent: null };
@@ -155,7 +155,7 @@ export default function EventsPage() {
     }).format(new Date(dateStr));
   };
 
-  const getEventStatus = (event: Event) => {
+  const getEventStatus = (event: EventData) => {
     const eventDate = new Date(event.start_at);
     const now = new Date();
     
@@ -238,7 +238,7 @@ export default function EventsPage() {
     }
   };
 
-  const handleEdit = (event: Event) => {
+  const handleEdit = (event: EventData) => {
     setEditingEvent(event);
     const startDate = new Date(event.start_at);
     const dateStr = startDate.toISOString().split('T')[0];
@@ -262,7 +262,7 @@ export default function EventsPage() {
     setDrawerOpen(true);
   };
 
-  const handleDeleteClick = (event: Event) => {
+  const handleDeleteClick = (event: EventData) => {
     setEventToDelete(event);
     setDeleteDialogOpen(true);
   };
@@ -423,7 +423,7 @@ export default function EventsPage() {
     }
   };
 
-  const handleBuyTicket = async (event: Event) => {
+  const handleBuyTicket = async (event: EventData) => {
     if (!userId) {
       toast.error('Du måste vara inloggad för att köpa biljetter');
       return;
