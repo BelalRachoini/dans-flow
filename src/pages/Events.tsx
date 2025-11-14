@@ -423,7 +423,7 @@ export default function EventsPage() {
     }
   };
 
-  const handleBuyTicket = async (event: Event) {
+  const handleBuyTicket = async (event: Event) => {
     if (!userId) {
       toast.error('Du måste vara inloggad för att köpa biljetter');
       return;
