@@ -48,6 +48,8 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         await supabase.auth.signOut();
         set({ userId: null, role: null, loading: false });
+        // Clear persisted state
+        localStorage.removeItem('dance-school-auth');
       },
       
       initialize: async () => {
@@ -55,17 +57,27 @@ export const useAuthStore = create<AuthState>()(
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
+          // Always fetch fresh role from database, don't trust persisted state
           const { data, error } = await (supabase as any)
             .from('user_roles')
             .select('role')
             .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
           if (!error && data?.role) {
             set({ userId: session.user.id, role: data.role as Role, loading: false });
           } else {
-            // Fallback to member to avoid UX deadlock while role trigger runs
-            set({ userId: session.user.id, role: 'member', loading: false });
+            // If no role in user_roles, check profiles as fallback
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', session.user.id)
+              .single();
+            
+            const fallbackRole = (profileData?.role as Role) || 'member';
+            set({ userId: session.user.id, role: fallbackRole, loading: false });
           }
         } else {
           set({ userId: null, role: null, loading: false });
