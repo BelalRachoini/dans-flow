@@ -85,13 +85,24 @@ export default function Scan() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
+      // Query user_roles instead of profiles.role
+      const { data: userRoles, error } = await supabase
+        .from('user_roles' as any)
         .select('role')
-        .eq('id', user.id)
-        .single();
+        .eq('user_id', user.id);
 
-      if (!profile || !['instructor', 'admin'].includes(profile.role)) {
+      if (error) {
+        console.error('Error fetching user roles:', error);
+        throw error;
+      }
+
+      // Get the highest privilege role
+      const roles = (userRoles || []).map((ur: any) => ur.role);
+      const hasAccess = roles.some((role: string) => 
+        ['instructor', 'admin'].includes(role)
+      );
+
+      if (!hasAccess) {
         toast({
           title: 'Ingen åtkomst',
           description: 'Du måste vara instruktör eller admin för att skanna biljetter',
@@ -101,8 +112,12 @@ export default function Scan() {
         return;
       }
 
-      setUserRole(profile.role);
+      // Set the highest privilege role
+      const role = roles.includes('admin') ? 'admin' : 
+                   roles.includes('instructor') ? 'instructor' : 'member';
+      setUserRole(role);
     } catch (error: any) {
+      console.error('Role check error:', error);
       toast({
         title: 'Fel',
         description: error.message,

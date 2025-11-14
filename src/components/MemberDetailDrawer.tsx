@@ -96,6 +96,24 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     enabled: open,
   });
 
+  // Fetch member role from user_roles table
+  const { data: memberRole } = useQuery({
+    queryKey: ['member-role', memberId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_roles' as any)
+        .select('role')
+        .eq('user_id', memberId)
+        .order('role', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      const role = data ? (data as any).role : 'member';
+      return role as string;
+    },
+    enabled: open,
+  });
+
   // Fetch courses for check-in
   const { data: courses = [] } = useQuery({
     queryKey: ['courses-for-checkin'],
@@ -352,9 +370,37 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     updateProfileMutation.mutate(editForm);
   };
 
-  const handleRoleChange = (role: string) => {
-    setNewRole(role);
-    updateProfileMutation.mutate({ role });
+  const handleRoleChange = async (role: string) => {
+    try {
+      setNewRole(role);
+      
+      // First, delete existing roles for this user
+      const { error: deleteError } = await supabase
+        .from('user_roles' as any)
+        .delete()
+        .eq('user_id', memberId);
+
+      if (deleteError) throw deleteError;
+
+      // Then, insert the new role
+      const { error: insertError } = await supabase
+        .from('user_roles' as any)
+        .insert({
+          user_id: memberId,
+          role: role,
+        });
+
+      if (insertError) throw insertError;
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['member-role', memberId] });
+      queryClient.invalidateQueries({ queryKey: ['crm-members'] });
+      toast.success('Role updated successfully');
+      setNewRole('');
+    } catch (error: any) {
+      console.error('Error updating role:', error);
+      toast.error(error.message || 'Failed to update role');
+    }
   };
 
   const handleCheckinSubmit = () => {
@@ -387,7 +433,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                         {t.crm.level[profile.level as keyof typeof t.crm.level]}
                       </Badge>
                       <Badge variant="outline">
-                        {profile.role}
+                        {memberRole || 'member'}
                       </Badge>
                       {profile.email && (
                         <a href={`mailto:${profile.email}`} className="flex items-center gap-1 hover:underline">
@@ -539,7 +585,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                         {/* Change role */}
                         <div className="space-y-2">
                           <label className="text-sm font-medium">{t.crm.actions.changeRole}</label>
-                          <Select value={newRole || profile.role} onValueChange={handleRoleChange}>
+                          <Select value={newRole || memberRole || 'member'} onValueChange={handleRoleChange}>
                             <SelectTrigger>
                               <SelectValue placeholder={t.crm.selectRole} />
                             </SelectTrigger>
