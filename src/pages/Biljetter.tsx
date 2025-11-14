@@ -70,6 +70,37 @@ export default function Biljetter() {
     loadTickets();
   }, []);
 
+  useEffect(() => {
+    const setupRealtimeSubscription = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user?.id) return;
+
+      const channel = supabase
+        .channel('event_bookings_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'event_bookings',
+            filter: `member_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('New ticket detected:', payload);
+            loadTickets();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    setupRealtimeSubscription();
+  }, []);
+
   const loadTickets = async () => {
     try {
       setLoading(true);
