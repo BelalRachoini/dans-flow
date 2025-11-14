@@ -40,6 +40,7 @@ import { sv } from '@/locales/sv';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 
 type PaymentStatus = 'paid' | 'pending' | 'failed';
 type PaymentType = 'course' | 'event' | 'membership' | 'other';
@@ -56,6 +57,8 @@ type Payment = {
   createdAt: string;
   paidAt?: string;
   method?: string;
+  stripePaymentIntentId?: string;
+  stripeCustomerId?: string;
 };
 
 const paymentSchema = z.object({
@@ -94,78 +97,89 @@ export default function Betalningar() {
 
   const loadPayments = async () => {
     try {
-      // TODO: Load from API
-      // Mock data for now
-      const mockPayments: Payment[] = [
-        {
-          id: 'pay-1',
-          userId: 'user-3',
-          userName: 'Maria Johansson',
-          userEmail: 'maria@example.com',
-          amountSEK: 2400,
-          type: 'course',
-          status: 'paid',
-          description: 'Salsa Nybörjare - 12 lektioner',
-          createdAt: '2025-01-05T10:00:00Z',
-          paidAt: '2025-01-05T10:05:00Z',
-          method: 'Swish',
-        },
-        {
-          id: 'pay-2',
-          userId: 'user-4',
-          userName: 'Lars Nilsson',
-          userEmail: 'lars@example.com',
-          amountSEK: 1800,
-          type: 'course',
-          status: 'paid',
-          description: 'HipHop för Ungdomar - 12 lektioner',
-          createdAt: '2025-01-08T10:00:00Z',
-          paidAt: '2025-01-08T10:02:00Z',
-          method: 'Kort',
-        },
-        {
-          id: 'pay-3',
-          userId: 'user-3',
-          userName: 'Maria Johansson',
-          userEmail: 'maria@example.com',
-          amountSEK: 299,
-          type: 'membership',
-          status: 'paid',
-          description: 'Basic Medlemskap - Januari 2025',
-          createdAt: '2025-01-10T10:00:00Z',
-          paidAt: '2025-01-10T10:01:00Z',
-          method: 'Autogiro',
-        },
-        {
-          id: 'pay-4',
-          userId: 'user-5',
-          userName: 'Emma Andersson',
-          userEmail: 'emma@example.com',
-          amountSEK: 250,
-          type: 'event',
-          status: 'pending',
-          description: 'Salsa Social - Vinterspecial',
-          createdAt: '2025-01-15T14:30:00Z',
-          method: 'Swish',
-        },
-        {
-          id: 'pay-5',
-          userId: 'user-6',
-          userName: 'Oscar Berg',
-          userEmail: 'oscar@example.com',
-          amountSEK: 2400,
-          type: 'course',
-          status: 'paid',
-          description: 'Bachata Mellanivå - 12 lektioner',
-          createdAt: '2025-01-20T09:15:00Z',
-          paidAt: '2025-01-20T09:16:00Z',
-          method: 'Kort',
-        },
-      ];
-      
-      setPayments(mockPayments);
+      console.log('[Betalningar] Loading Stripe payments...');
+      toast.loading('Hämtar betalningar...', { id: 'load-payments' });
+
+      const { data, error } = await supabase.functions.invoke('get-stripe-payments', {
+        body: { limit: 100 },
+      });
+
+      toast.dismiss('load-payments');
+
+      if (error) {
+        console.error('[Betalningar] Error loading payments:', error);
+        throw error;
+      }
+
+      if (data?.payments) {
+        console.log('[Betalningar] Loaded', data.payments.length, 'payments');
+        setPayments(data.payments);
+        toast.success(`Laddade ${data.payments.length} betalningar från Stripe`);
+      } else {
+        setPayments([]);
+        toast.info('Inga betalningar hittades');
+      }
+    } catch (error: any) {
+      console.error('[Betalningar] Error:', error);
+      toast.error(error.message || 'Kunde inte hämta betalningar från Stripe');
+      // Keep empty array on error
+      setPayments([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportToCSV = () => {
+    try {
+      // Prepare CSV headers
+      const headers = [
+        'ID',
+        'Datum',
+        'Namn',
+        'E-post',
+        'Belopp (SEK)',
+        'Typ',
+        'Status',
+        'Beskrivning',
+        'Betalningsmetod',
+        'Betald datum',
+        'Stripe Payment Intent ID',
+      ];
+
+      // Prepare CSV rows
+      const rows = filteredPayments.map(payment => [
+        payment.id,
+        formatDate(payment.createdAt),
+        payment.userName,
+        payment.userEmail,
+        payment.amountSEK.toFixed(2),
+        getTypeLabel(payment.type),
+        payment.status,
+        payment.description,
+        payment.method || '-',
+        payment.paidAt ? formatDate(payment.paidAt) : '-',
+        payment.stripePaymentIntentId || '-',
+      ]);
+
+      // Create CSV content
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      ].join('\n');
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `betalningar-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast.success('Betalningar exporterade till CSV');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Kunde inte exportera betalningar');
     }
   };
 
@@ -539,8 +553,28 @@ export default function Betalningar() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Betalningar</span>
-            <Badge variant="secondary">{filteredPayments.length} transaktioner</Badge>
+            <div className="flex items-center gap-4">
+              <span>Betalningar</span>
+              <Badge variant="secondary">{filteredPayments.length} transaktioner</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={exportToCSV}
+                disabled={filteredPayments.length === 0}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Exportera CSV
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={loadPayments}
+              >
+                Uppdatera
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
