@@ -22,20 +22,29 @@ export default function Auth() {
   const { initialize } = useAuthStore();
 
   const getRoleRedirect = async (userId: string) => {
+    // Prefer user_roles; fall back to RPC check
     const { data, error } = await (supabase as any)
       .from('user_roles')
-      .select('role')
+      .select('role, created_at')
       .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    if (error || !data?.role) return '/member';
-    
-    switch (data.role) {
-      case 'admin': return '/admin';
-      case 'instructor': return '/instructor';
-      case 'member': return '/member';
-      default: return '/member';
+    if (!error && data?.role) {
+      switch (data.role) {
+        case 'admin': return '/admin';
+        case 'instructor': return '/instructor';
+        case 'member': return '/member';
+        default: return '/member';
+      }
     }
+
+    // Fallback: use has_role RPC to check admin quickly
+    const { data: isAdmin } = await supabase.rpc('has_role', { _user_id: userId, _role: 'admin' });
+    if (isAdmin) return '/admin';
+
+    return '/member';
   };
 
   const handleGoogleSignIn = async () => {

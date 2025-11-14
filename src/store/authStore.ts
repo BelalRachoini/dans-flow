@@ -27,21 +27,23 @@ export const useAuthStore = create<AuthState>()(
         try {
           const { data, error } = await (supabase as any)
             .from('user_roles')
-            .select('role')
+            .select('role, created_at')
             .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
           if (error) throw error;
           if (data?.role) {
             set({ userId, role: data.role as Role, loading: false });
           } else {
-            // Fallback to member until role is created by trigger
-            set({ userId, role: 'member', loading: false });
+            // Do not assume 'member' to avoid incorrect redirects
+            set({ userId, role: null, loading: false });
           }
         } catch (error) {
           console.error('Error fetching role:', error);
-          // Fallback to member to avoid blocking the UI
-          set({ userId, role: 'member', loading: false });
+          // Keep role unknown instead of forcing member
+          set({ userId, role: null, loading: false });
         }
       },
       
