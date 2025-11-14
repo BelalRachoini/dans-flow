@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,7 @@ type EventFormData = z.infer<typeof eventSchema>;
 export default function EventsPage() {
   const { role, userId } = useAuthStore();
   const { t, language } = useLanguageStore();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -54,6 +56,7 @@ export default function EventsPage() {
   const [attendeesDialogOpen, setAttendeesDialogOpen] = useState(false);
   const [selectedEventAttendees, setSelectedEventAttendees] = useState<EventBooking[]>([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -72,6 +75,22 @@ export default function EventsPage() {
   useEffect(() => {
     loadEvents();
   }, []);
+
+  // Handle payment success redirect
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    const eventId = searchParams.get('event_id');
+    const sessionId = searchParams.get('session_id');
+
+    if (payment === 'success' && eventId && sessionId && !processingPayment) {
+      completeBooking(eventId, sessionId);
+    } else if (payment === 'cancelled') {
+      toast.error('Betalningen avbröts');
+      // Clean up URL
+      searchParams.delete('payment');
+      setSearchParams(searchParams);
+    }
+  }, [searchParams]);
 
   const loadEvents = async () => {
     try {
@@ -317,20 +336,13 @@ export default function EventsPage() {
     }).format(new Date(dateStr));
   };
 
-  const handleBuyTicket = async (event: Event) => {
-    if (!userId) {
-      toast.error('Du måste vara inloggad för att köpa biljetter');
-      return;
-    }
-
-    if (event.sold_count >= event.capacity) {
-      toast.error('Eventet är fullbokat');
-      return;
-    }
-
+  const completeBooking = async (eventId: string, sessionId: string) => {
+    if (processingPayment) return;
+    
+    setProcessingPayment(true);
     try {
-      console.log('Purchasing ticket for event:', event.id, 'user:', userId);
-      
+      console.log('Completing booking for event:', eventId, 'session:', sessionId);
+
       // Verify user profile exists
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -344,38 +356,113 @@ export default function EventsPage() {
         return;
       }
 
+      // Check if booking already exists
+      const { data: existingBooking } = await supabase
+        .from('event_bookings')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('member_id', userId!)
+        .maybeSingle();
+
+      if (existingBooking) {
+        toast.success('Biljett redan registrerad! Du hittar den under "Biljetter".');
+        // Clean up URL
+        searchParams.delete('payment');
+        searchParams.delete('event_id');
+        searchParams.delete('session_id');
+        setSearchParams(searchParams);
+        loadEvents();
+        return;
+      }
+
+      // Create booking
       const { data, error } = await supabase
         .from('event_bookings')
         .insert({
-          event_id: event.id,
-          member_id: userId,
+          event_id: eventId,
+          member_id: userId!,
           status: 'confirmed',
           payment_status: 'paid',
         })
         .select();
 
       if (error) {
-        console.error('Insert error:', error);
+        console.error('Booking creation error:', error);
         throw error;
       }
 
-      console.log('Ticket created:', data);
+      console.log('Booking created:', data);
 
       // Update sold count
-      const { error: updateError } = await supabase
-        .from('events')
-        .update({ sold_count: event.sold_count + 1 })
-        .eq('id', event.id);
+      const event = events.find(e => e.id === eventId);
+      if (event) {
+        const { error: updateError } = await supabase
+          .from('events')
+          .update({ sold_count: event.sold_count + 1 })
+          .eq('id', eventId);
 
-      if (updateError) {
-        console.error('Update sold count error:', updateError);
+        if (updateError) {
+          console.error('Update sold count error:', updateError);
+        }
       }
 
-      toast.success('Biljett köpt! Du hittar den under "Biljetter".');
+      toast.success('Betalning genomförd! Din biljett finns under "Biljetter".');
+      
+      // Clean up URL
+      searchParams.delete('payment');
+      searchParams.delete('event_id');
+      searchParams.delete('session_id');
+      setSearchParams(searchParams);
+      
       loadEvents();
     } catch (error: any) {
+      console.error('Error completing booking:', error);
+      toast.error(error.message || 'Kunde inte slutföra bokningen.');
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const handleBuyTicket = async (event: Event) {
+    if (!userId) {
+      toast.error('Du måste vara inloggad för att köpa biljetter');
+      return;
+    }
+
+    if (event.sold_count >= event.capacity) {
+      toast.error('Eventet är fullbokat');
+      return;
+    }
+
+    try {
+      console.log('Creating Stripe checkout for event:', event.id);
+      
+      toast.loading('Skapar betalning...', { id: 'payment-loading' });
+
+      // Call edge function to create Stripe checkout
+      const { data, error } = await supabase.functions.invoke('create-event-payment', {
+        body: { event_id: event.id },
+      });
+
+      toast.dismiss('payment-loading');
+
+      if (error) {
+        console.error('Error creating checkout:', error);
+        throw error;
+      }
+
+      if (!data?.url) {
+        throw new Error('No checkout URL returned');
+      }
+
+      console.log('Opening Stripe checkout:', data.url);
+      
+      // Open Stripe checkout in new tab
+      window.open(data.url, '_blank');
+      toast.success('Betalningsfönster öppnat. Slutför betalningen i den nya fliken.');
+    } catch (error: any) {
       console.error('Error buying ticket:', error);
-      toast.error(error.message || 'Kunde inte köpa biljett. Kontrollera din anslutning och försök igen.');
+      toast.error(error.message || 'Kunde inte skapa betalning. Försök igen.');
     }
   };
 
