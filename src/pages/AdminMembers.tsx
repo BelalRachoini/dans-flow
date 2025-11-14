@@ -61,19 +61,29 @@ export default function AdminMembers() {
 
   const fetchMembers = async () => {
     try {
-      // Fetch all profiles (role stored on profiles table)
+      // Fetch all profiles with their roles from user_roles table
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, created_at, role')
+        .select('id, full_name, email, created_at')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
 
+      // Fetch roles separately from user_roles table
+      const { data: rolesData, error: rolesError } = await (supabase as any)
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (rolesError) throw rolesError;
+
+      // Map roles to profiles
+      const rolesMap = new Map(rolesData?.map((r: any) => [r.user_id, r.role]) || []);
+
       const membersWithRoles = (profilesData || []).map((profile: any) => ({
         id: profile.id,
         full_name: profile.full_name || 'Okänd',
-        email: '-',
-        role: profile.role as Role,
+        email: profile.email || '-',
+        role: (rolesMap.get(profile.id) as Role) || 'member',
         created_at: profile.created_at,
       }));
 
@@ -108,12 +118,35 @@ export default function AdminMembers() {
     if (!selectedMember || !newRole) return;
 
     try {
-      toast.info('Rolluppgradering kommer snart i denna demo.');
+      setLoading(true);
+
+      // Delete existing role
+      const { error: deleteError } = await (supabase as any)
+        .from('user_roles')
+        .delete()
+        .eq('user_id', selectedMember.id);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new role
+      const { error: insertError } = await (supabase as any)
+        .from('user_roles')
+        .insert({ user_id: selectedMember.id, role: newRole });
+
+      if (insertError) throw insertError;
+
+      toast.success(`Roll ändrad till ${getRoleLabel(newRole)}`);
+      
+      // Refresh members list
+      await fetchMembers();
+      
       setSelectedMember(null);
       setNewRole(null);
     } catch (error: any) {
       console.error('Error changing role:', error);
       toast.error('Kunde inte ändra roll');
+    } finally {
+      setLoading(false);
     }
   };
 

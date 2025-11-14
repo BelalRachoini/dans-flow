@@ -21,9 +21,9 @@ export default function Auth() {
 
   const getRoleRedirect = async (userId: string) => {
     const { data, error } = await (supabase as any)
-      .from('profiles')
+      .from('user_roles')
       .select('role')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error || !data?.role) return '/member';

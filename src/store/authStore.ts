@@ -26,16 +26,16 @@ export const useAuthStore = create<AuthState>()(
       fetchRole: async (userId: string) => {
         try {
           const { data, error } = await (supabase as any)
-            .from('profiles')
+            .from('user_roles')
             .select('role')
-            .eq('id', userId)
+            .eq('user_id', userId)
             .maybeSingle();
 
           if (error) throw error;
           if (data?.role) {
             set({ userId, role: data.role as Role, loading: false });
           } else {
-            // Fallback to member until profile is created by trigger
+            // Fallback to member until role is created by trigger
             set({ userId, role: 'member', loading: false });
           }
         } catch (error) {
@@ -56,15 +56,15 @@ export const useAuthStore = create<AuthState>()(
         
         if (session?.user) {
           const { data, error } = await (supabase as any)
-            .from('profiles')
+            .from('user_roles')
             .select('role')
-            .eq('id', session.user.id)
+            .eq('user_id', session.user.id)
             .maybeSingle();
 
           if (!error && data?.role) {
             set({ userId: session.user.id, role: data.role as Role, loading: false });
           } else {
-            // Fallback to member to avoid UX deadlock while profile trigger runs
+            // Fallback to member to avoid UX deadlock while role trigger runs
             set({ userId: session.user.id, role: 'member', loading: false });
           }
         } else {
