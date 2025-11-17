@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useNavigate } from 'react-router-dom';
 
 type EventData = Tables<'events'>;
 type EventBooking = Tables<'event_bookings'> & {
@@ -45,6 +46,7 @@ type EventFormData = z.infer<typeof eventSchema>;
 export default function EventsPage() {
   const { role, userId } = useAuthStore();
   const { t, language } = useLanguageStore();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -655,7 +657,11 @@ export default function EventsPage() {
             const availableSeats = event.capacity - event.sold_count;
 
             return (
-              <Card key={event.id} className="shadow-md transition-smooth hover:shadow-lg flex flex-col overflow-hidden">
+              <Card 
+                key={event.id} 
+                className="shadow-md transition-smooth hover:shadow-lg flex flex-col overflow-hidden cursor-pointer"
+                onClick={() => navigate(`/event/${event.id}`)}
+              >
                 {event.image_url ? (
                   <div className="relative h-48 bg-muted aspect-video">
                     <img 
@@ -742,7 +748,10 @@ export default function EventsPage() {
                       <Button 
                         variant="secondary" 
                         className="flex-1"
-                        onClick={() => handleViewAttendees(event.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewAttendees(event.id);
+                        }}
                       >
                         <Users size={16} className="mr-2" />
                         {t.events.viewAttendees}
@@ -750,14 +759,20 @@ export default function EventsPage() {
                       <Button 
                         variant="outline" 
                         size="icon"
-                        onClick={() => handleEdit(event)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(event);
+                        }}
                       >
                         <Edit size={16} />
                       </Button>
                       <Button 
                         variant="outline" 
                         size="icon"
-                        onClick={() => handleDeleteClick(event)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(event);
+                        }}
                       >
                         <Trash2 size={16} />
                       </Button>
@@ -767,7 +782,10 @@ export default function EventsPage() {
                       <Button 
                         variant="hero" 
                         className="flex-1"
-                        onClick={() => handleBuyTicket(event)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBuyTicket(event);
+                        }}
                       >
                         <Ticket size={16} className="mr-2" />
                         {t.events.buyTicket}
