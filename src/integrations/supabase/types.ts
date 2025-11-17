@@ -262,6 +262,50 @@ export type Database = {
           },
         ]
       }
+      event_page_sections: {
+        Row: {
+          content: Json
+          created_at: string | null
+          event_id: string
+          id: string
+          is_visible: boolean | null
+          position: number
+          section_type: string
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          content: Json
+          created_at?: string | null
+          event_id: string
+          id?: string
+          is_visible?: boolean | null
+          position?: number
+          section_type: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          content?: Json
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          is_visible?: boolean | null
+          position?: number
+          section_type?: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_page_sections_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           capacity: number

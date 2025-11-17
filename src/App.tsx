@@ -24,6 +24,7 @@ import MedlemmarCRM from "@/pages/MedlemmarCRM";
 import Betalningar from "@/pages/Betalningar";
 import Prenumerationer from "@/pages/Prenumerationer";
 import EventsPage from "@/pages/Events";
+import EventDetail from "@/pages/EventDetail";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +69,7 @@ const AppRoutes = () => {
         <Route path="/kurser-poang/:id" element={<CourseDetail />} />
         <Route path="/schema" element={<Schema />} />
         <Route path="/event" element={<EventsPage />} />
+        <Route path="/event/:id" element={<EventDetail />} />
         <Route path="/biljetter" element={<Biljetter />} />
       </Route>
 
@@ -83,6 +85,7 @@ const AppRoutes = () => {
         <Route path="/admin/kurser-poang" element={<Courses />} />
         <Route path="/admin/schema" element={<Schema />} />
         <Route path="/admin/event" element={<EventsPage />} />
+        <Route path="/admin/event/:id" element={<EventDetail />} />
         <Route path="/admin/medlemmar" element={<MedlemmarCRM />} />
         <Route path="/admin/prenumerationer" element={<Prenumerationer />} />
         <Route path="/admin/betalningar" element={<Betalningar />} />
