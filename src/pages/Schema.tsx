@@ -164,7 +164,26 @@ export default function Schema() {
     return colors[style] || 'bg-accent text-accent-foreground';
   };
 
-  const timeSlots = ['18:00', '19:00', '20:00', '21:00', '22:00', '23:00'];
+  const timeSlots = [
+    '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00',
+    '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
+  ];
+
+  // Helper function to calculate event positioning within a time slot
+  const calculateEventPosition = (startTime: string, endTime: string) => {
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    const duration = Math.max(endMinutes - startMinutes, 30); // Minimum 30 min height
+    
+    return { 
+      startHour,
+      startMin,
+      duration 
+    };
+  };
 
   const handlePrevious = () => {
     if (viewMode === 'day') {
@@ -194,68 +213,78 @@ export default function Schema() {
     const items = getCalendarItems(currentDate);
     
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="text-center py-4 border-b">
           <h3 className="text-2xl font-bold">{format(currentDate, 'EEEE', { locale: svLocale })}</h3>
           <p className="text-muted-foreground">{format(currentDate, 'd MMMM yyyy', { locale: svLocale })}</p>
         </div>
         
-        <div className="space-y-2">
-          {items.length === 0 ? (
-            <div className="text-center py-12">
-              <CalendarIcon className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-muted-foreground">Inga klasser eller event denna dag</p>
-            </div>
-          ) : (
-            items.map((item) => (
-              <Card 
-                key={item.id} 
-                className={`shadow-md overflow-hidden ${
-                  item.type === 'event' ? 'cursor-pointer hover-scale hover:shadow-lg' : ''
-                }`}
-                onClick={() => item.type === 'event' && navigate('/event')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 text-center min-w-16">
-                      <div className="text-sm font-semibold text-primary">{item.startTime}</div>
-                      <div className="text-xs text-muted-foreground">{item.endTime}</div>
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-bold text-lg">{item.title}</h4>
-                        <Badge className="bg-secondary">
-                          {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
-                        </Badge>
-                      </div>
-                      {item.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
-                      )}
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4" />
-                          {item.location}
+        {items.length === 0 ? (
+          <div className="text-center py-12">
+            <CalendarIcon className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground">Inga klasser eller event denna dag</p>
+          </div>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full border-collapse">
+              <tbody>
+                {timeSlots.map((time) => {
+                  const slotHour = parseInt(time.split(':')[0]);
+                  const itemsAtThisHour = items.filter((item) => {
+                    const itemHour = parseInt(item.startTime.split(':')[0]);
+                    return itemHour === slotHour;
+                  });
+                  
+                  return (
+                    <tr key={time} className="border-b last:border-b-0">
+                      <td className="w-20 border-r p-2 text-xs text-muted-foreground text-right align-top font-medium">
+                        {time}
+                      </td>
+                      <td className="p-2 relative min-h-20">
+                        <div className="space-y-1">
+                          {itemsAtThisHour.map((item) => {
+                            const pos = calculateEventPosition(item.startTime, item.endTime);
+                            const heightRem = Math.max(pos.duration / 15, 3); // 1rem per 15min, min 3rem
+                            
+                            return (
+                              <div
+                                key={item.id}
+                                className={`rounded-md p-3 border-l-4 shadow-sm cursor-pointer transition-all hover:shadow-md ${
+                                  item.type === 'lesson'
+                                    ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20'
+                                    : 'bg-purple-500/10 border-purple-500 hover:bg-purple-500/20'
+                                }`}
+                                style={{ minHeight: `${heightRem}rem` }}
+                                onClick={() => item.type === 'event' && navigate('/event')}
+                              >
+                                <div className="flex items-start justify-between gap-2 mb-1">
+                                  <h4 className="font-bold text-sm">{item.title}</h4>
+                                  <Badge variant="outline" className="text-xs">
+                                    {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground space-y-1">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {item.startTime} - {item.endTime}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {item.location}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      </div>
-                      {item.type === 'event' && (
-                        <Button variant="hero" size="sm" className="w-full mt-2" onClick={(e) => { e.stopPropagation(); }}>
-                          <Ticket className="h-4 w-4 mr-2" />
-                          Köp biljett
-                        </Button>
-                      )}
-                      {item.type === 'lesson' && (
-                        <Button variant="outline" size="sm" className="w-full mt-2" onClick={(e) => { e.stopPropagation(); }}>
-                          <BookOpen className="h-4 w-4 mr-2" />
-                          Lektion
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     );
   };
@@ -264,63 +293,92 @@ export default function Schema() {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
     const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
+    const today = new Date();
 
     return (
       <div className="overflow-x-auto">
         <div className="min-w-[768px]">
-          {/* Header */}
-          <div className="grid grid-cols-8 gap-2 mb-4">
-            <div className="text-sm font-medium text-muted-foreground">Tid</div>
-            {days.map((day) => (
-              <div key={day.toString()} className="text-center">
-                <div className={`text-sm font-bold ${isSameDay(day, new Date()) ? 'text-primary' : ''}`}>
-                  {format(day, 'EEE', { locale: svLocale })}
-                </div>
-                <div className={`text-2xl font-bold ${isSameDay(day, new Date()) ? 'text-primary' : ''}`}>
-                  {format(day, 'd')}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Time slots */}
-          <div className="space-y-2">
-            {timeSlots.map((time) => (
-              <div key={time} className="grid grid-cols-8 gap-2">
-                <div className="text-sm font-medium text-muted-foreground py-2">{time}</div>
-                {days.map((day) => {
-                  const items = getCalendarItems(day);
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="sticky left-0 bg-muted/30 w-20 p-2 text-xs font-medium text-muted-foreground text-right border-r">
+                    Tid
+                  </th>
+                  {days.map((day) => {
+                    const isToday = isSameDay(day, today);
+                    return (
+                      <th 
+                        key={day.toString()} 
+                        className={`p-2 text-center border-r last:border-r-0 min-w-32 ${
+                          isToday ? 'bg-primary/5' : ''
+                        }`}
+                      >
+                        <div className={`text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
+                          {format(day, 'EEE', { locale: svLocale })}
+                        </div>
+                        <div className={`text-2xl font-bold ${isToday ? 'text-primary' : ''}`}>
+                          {format(day, 'd')}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {timeSlots.map((time) => {
                   const slotHour = parseInt(time.split(':')[0]);
-                  const itemsAtThisTime = items.filter((item) => {
-                    const itemHour = parseInt(item.startTime.split(':')[0]);
-                    return itemHour === slotHour;
-                  });
                   
                   return (
-                    <div key={day.toString()} className="min-h-20">
-                      {itemsAtThisTime.map((item) => (
-                        <Card 
-                          key={item.id} 
-                          className={`mb-1 border ${item.type === 'lesson' ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-secondary/50'} ${
-                            item.type === 'event' ? 'cursor-pointer hover:shadow-md transition-smooth' : ''
-                          }`}
-                          onClick={() => item.type === 'event' && navigate('/event')}
-                        >
-                          <CardContent className="p-2">
-                            <div className="text-xs font-bold truncate flex items-center gap-1">
-                              {item.type === 'event' && <Ticket className="h-3 w-3" />}
-                              {item.type === 'lesson' && <BookOpen className="h-3 w-3" />}
-                              {item.title}
+                    <tr key={time} className="border-b last:border-b-0 h-20">
+                      <td className="border-r p-2 text-xs text-muted-foreground text-right align-top font-medium">
+                        {time}
+                      </td>
+                      {days.map((day) => {
+                        const items = getCalendarItems(day);
+                        const isToday = isSameDay(day, today);
+                        const itemsAtThisHour = items.filter((item) => {
+                          const itemHour = parseInt(item.startTime.split(':')[0]);
+                          return itemHour === slotHour;
+                        });
+                        
+                        return (
+                          <td 
+                            key={day.toString()} 
+                            className={`border-r last:border-r-0 p-1 relative ${
+                              isToday ? 'bg-primary/5' : ''
+                            }`}
+                          >
+                            <div className="space-y-1">
+                              {itemsAtThisHour.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className={`rounded p-1 text-xs font-medium shadow-sm border-l-2 cursor-pointer transition-all hover:shadow-md ${
+                                    item.type === 'lesson'
+                                      ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20'
+                                      : 'bg-purple-500/10 border-purple-500 hover:bg-purple-500/20'
+                                  }`}
+                                  onClick={() => item.type === 'event' && navigate('/event')}
+                                >
+                                  <div className="flex items-center gap-1 truncate">
+                                    {item.type === 'event' && <Ticket className="h-3 w-3 flex-shrink-0" />}
+                                    {item.type === 'lesson' && <BookOpen className="h-3 w-3 flex-shrink-0" />}
+                                    <span className="truncate font-semibold">{item.title}</span>
+                                  </div>
+                                  <div className="truncate text-muted-foreground mt-0.5">
+                                    {item.startTime}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <div className="text-xs text-muted-foreground truncate">{item.location}</div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   );
                 })}
-              </div>
-            ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -335,73 +393,78 @@ export default function Schema() {
     
     const weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
     const weekdays = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
+    const today = new Date();
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-2">
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 border rounded-t-lg overflow-hidden bg-muted/30">
           {weekdays.map((day) => (
-            <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+            <div key={day} className="text-center text-sm font-medium text-muted-foreground py-3 border-r last:border-r-0">
               {day}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="space-y-2">
-          {weeks.map((weekStart) => {
+        <div className="border rounded-b-lg overflow-hidden">
+          {weeks.map((weekStart, weekIdx) => {
             const days = eachDayOfInterval({ 
               start: weekStart, 
               end: addDays(weekStart, 6) 
             });
             
             return (
-              <div key={weekStart.toString()} className="grid grid-cols-7 gap-2">
+              <div key={weekStart.toString()} className={`grid grid-cols-7 ${weekIdx < weeks.length - 1 ? 'border-b' : ''}`}>
                 {days.map((day) => {
                   const items = getCalendarItems(day);
                   const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-                  const isToday = isSameDay(day, new Date());
+                  const isToday = isSameDay(day, today);
                   
                   return (
-                    <Card 
+                    <div
                       key={day.toString()} 
-                      className={`min-h-24 cursor-pointer transition-smooth hover:shadow-md ${
-                        !isCurrentMonth ? 'opacity-40' : ''
-                      } ${isToday ? 'ring-2 ring-primary' : ''}`}
+                      className={`min-h-28 p-2 cursor-pointer transition-all hover:bg-muted/50 border-r last:border-r-0 ${
+                        !isCurrentMonth ? 'opacity-40 bg-muted/20' : ''
+                      } ${isToday ? 'bg-primary/5 ring-2 ring-inset ring-primary/20' : ''}`}
                       onClick={() => {
                         setCurrentDate(day);
                         setViewMode('day');
                       }}
                     >
-                      <CardContent className="p-2">
-                        <div className={`text-sm font-bold mb-1 ${isToday ? 'text-primary' : ''}`}>
-                          {format(day, 'd')}
-                        </div>
-                        <div className="space-y-1">
-                          {items.slice(0, 2).map((item) => (
-                            <div 
-                              key={item.id} 
-                              className={`text-xs p-1 rounded truncate border flex items-center gap-1 ${
-                                item.type === 'lesson' ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-secondary/50'
-                              }`}
-                              onClick={(e) => {
-                                if (item.type === 'event') {
-                                  e.stopPropagation();
-                                  navigate('/event');
-                                }
-                              }}
-                            >
-                              {item.type === 'event' && <Ticket className="h-3 w-3" />}
-                              {item.type === 'lesson' && <BookOpen className="h-3 w-3" />}
-                              {item.startTime} {item.title}
-                            </div>
-                          ))}
-                          {items.length > 2 && (
-                            <div className="text-xs text-muted-foreground">+{items.length - 2} mer</div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                      <div className={`text-sm font-bold mb-2 ${isToday ? 'text-primary' : ''}`}>
+                        {format(day, 'd')}
+                      </div>
+                      <div className="space-y-1">
+                        {items.slice(0, 3).map((item) => (
+                          <div 
+                            key={item.id} 
+                            className={`text-xs p-1 rounded truncate border-l-2 flex items-center gap-1 ${
+                              item.type === 'lesson' 
+                                ? 'bg-blue-500/10 border-blue-500' 
+                                : 'bg-purple-500/10 border-purple-500'
+                            }`}
+                            onClick={(e) => {
+                              if (item.type === 'event') {
+                                e.stopPropagation();
+                                navigate('/event');
+                              }
+                            }}
+                          >
+                            {item.type === 'event' && <Ticket className="h-3 w-3 flex-shrink-0" />}
+                            {item.type === 'lesson' && <BookOpen className="h-3 w-3 flex-shrink-0" />}
+                            <span className="truncate">
+                              <span className="font-medium">{item.startTime}</span> {item.title}
+                            </span>
+                          </div>
+                        ))}
+                        {items.length > 3 && (
+                          <div className="text-xs text-muted-foreground font-medium">
+                            +{items.length - 3} mer
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -436,7 +499,7 @@ export default function Schema() {
           <div>
             <h1 className="text-3xl font-bold">Schema</h1>
             <p className="mt-1 text-muted-foreground">
-              Kurser och event 18:00 - 23:00
+              Kurser och event 08:00 - 23:00
             </p>
           </div>
           
