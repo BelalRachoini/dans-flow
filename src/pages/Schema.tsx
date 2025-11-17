@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
+import { useAuthStore } from '@/store/authStore';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
 import { sv as svLocale } from 'date-fns/locale';
 import { sv } from '@/locales/sv';
@@ -29,6 +30,7 @@ type CalendarItem = {
 
 export default function Schema() {
   const { t } = useLanguageStore();
+  const { userId } = useAuthStore();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -41,6 +43,13 @@ export default function Schema() {
         const startDate = startOfMonth(subWeeks(currentDate, 2)).toISOString();
         const endDate = endOfMonth(addWeeks(currentDate, 2)).toISOString();
 
+        console.log('🔍 Loading Schema data...', {
+          userId,
+          startDate,
+          endDate,
+          currentDate
+        });
+
         // Fetch course lessons
         const { data: lessons, error: lessonsError } = await supabase
           .from('course_lessons')
@@ -48,7 +57,16 @@ export default function Schema() {
           .gte('starts_at', startDate)
           .lte('starts_at', endDate);
 
-        if (lessonsError) throw lessonsError;
+        console.log('📚 Lessons query result:', { 
+          count: lessons?.length, 
+          error: lessonsError,
+          lessons: lessons 
+        });
+
+        if (lessonsError) {
+          console.error('❌ Lessons error details:', lessonsError);
+          throw lessonsError;
+        }
 
         // Fetch events
         const { data: events, error: eventsError } = await supabase
@@ -58,7 +76,16 @@ export default function Schema() {
           .lte('start_at', endDate)
           .eq('status', 'published');
 
-        if (eventsError) throw eventsError;
+        console.log('🎉 Events query result:', { 
+          count: events?.length, 
+          error: eventsError,
+          events: events 
+        });
+
+        if (eventsError) {
+          console.error('❌ Events error details:', eventsError);
+          throw eventsError;
+        }
 
         // Map lessons to calendar items
         const lessonItems: CalendarItem[] = (lessons || []).map((lesson) => {
@@ -93,16 +120,30 @@ export default function Schema() {
         });
 
         // Combine and sort all items
-        setCalendarItems([...lessonItems, ...eventItems]);
+        const combined = [...lessonItems, ...eventItems];
+        console.log('✅ Combined calendar items:', { 
+          lessons: lessonItems.length, 
+          events: eventItems.length,
+          total: combined.length
+        });
+        
+        setCalendarItems(combined);
       } catch (error) {
-        console.error('Error loading calendar:', error);
+        console.error('❌ Error loading calendar:', error);
       } finally {
         setLoading(false);
       }
     };
 
+    // Only load data if user is authenticated
+    if (!userId) {
+      console.warn('⚠️ No userId found, waiting for authentication...');
+      setLoading(false);
+      return;
+    }
+
     loadData();
-  }, [currentDate]);
+  }, [currentDate, userId]);
 
   const getCalendarItems = (date: Date): CalendarItem[] => {
     return calendarItems
