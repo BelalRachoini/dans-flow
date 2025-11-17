@@ -182,7 +182,7 @@ export default function EventDetail() {
       {/* Header */}
       <div className="border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Button variant="ghost" onClick={() => navigate('/events')}>
+          <Button variant="ghost" onClick={() => navigate('/event')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Events
           </Button>
