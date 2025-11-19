@@ -22,6 +22,7 @@ interface MemberWithRevenue {
   full_name: string | null;
   email: string | null;
   phone: string | null;
+  role: string;
   level: string;
   points: number;
   status: string;
@@ -45,6 +46,7 @@ export default function MedlemmarCRM() {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('revenue');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
@@ -60,14 +62,14 @@ export default function MedlemmarCRM() {
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['crm-members'],
     queryFn: async () => {
-      // Use JOIN to get profiles with member role in one query
+      // Use JOIN to get profiles with member and instructor roles in one query
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select(`
           *,
           user_roles!inner(role)
         `)
-        .eq('user_roles.role', 'member');
+        .in('user_roles.role', ['member', 'instructor']);
 
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
@@ -91,6 +93,7 @@ export default function MedlemmarCRM() {
         full_name: p.full_name,
         email: p.email,
         phone: p.phone,
+        role: (p.user_roles as any)?.[0]?.role || 'member',
         level: p.level,
         points: p.points,
         status: p.status,
@@ -129,8 +132,9 @@ export default function MedlemmarCRM() {
         m.phone?.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesLevel = levelFilter === 'all' || m.level === levelFilter;
+      const matchesRole = roleFilter === 'all' || m.role === roleFilter;
       
-      return matchesSearch && matchesLevel;
+      return matchesSearch && matchesLevel && matchesRole;
     });
 
     // Sort
@@ -301,6 +305,17 @@ export default function MedlemmarCRM() {
                 </SelectContent>
               </Select>
 
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-full sm:flex-1">
+                  <SelectValue placeholder="Alla roller" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alla roller</SelectItem>
+                  <SelectItem value="member">Medlem</SelectItem>
+                  <SelectItem value="instructor">Instruktör</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="w-full sm:flex-1">
                   <SelectValue />
@@ -334,6 +349,7 @@ export default function MedlemmarCRM() {
                   <TableRow>
                     <TableHead className="sticky left-0 bg-background z-10">{t.crm.table.name}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t.crm.table.contact}</TableHead>
+                    <TableHead>Roll</TableHead>
                     <TableHead>{t.crm.table.level}</TableHead>
                     <TableHead className="text-right hidden md:table-cell">{t.crm.table.points}</TableHead>
                     <TableHead className="text-right">{t.crm.table.revenue}</TableHead>
@@ -357,6 +373,17 @@ export default function MedlemmarCRM() {
                           {member.email && <div className="truncate">{member.email}</div>}
                           {member.phone && <div className="text-muted-foreground">{member.phone}</div>}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={member.role === 'instructor' 
+                            ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-800' 
+                            : 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800'
+                          }
+                        >
+                          {member.role === 'instructor' ? 'Instruktör' : 'Medlem'}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`${levelColors[member.level as keyof typeof levelColors]} whitespace-nowrap text-xs`}>
