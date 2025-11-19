@@ -262,6 +262,85 @@ export type Database = {
           },
         ]
       }
+      event_checkins: {
+        Row: {
+          booking_id: string
+          created_at: string
+          device_info: string | null
+          event_id: string
+          id: string
+          location: string | null
+          member_id: string
+          scanned_at: string
+          scanned_by: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          device_info?: string | null
+          event_id: string
+          id?: string
+          location?: string | null
+          member_id: string
+          scanned_at?: string
+          scanned_by: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          device_info?: string | null
+          event_id?: string
+          id?: string
+          location?: string | null
+          member_id?: string
+          scanned_at?: string
+          scanned_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_checkins_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "event_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_checkins_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_checkins_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_checkins_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+          {
+            foreignKeyName: "event_checkins_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_checkins_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
       event_page_sections: {
         Row: {
           content: Json
