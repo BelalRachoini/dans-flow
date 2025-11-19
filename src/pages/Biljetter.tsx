@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Ticket, Calendar, MapPin, Clock, QrCode, 
-  PartyPopper, ShoppingCart, Search, X, Info
+  PartyPopper, ShoppingCart, Search, X, Info, Check
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import QRCodeLib from 'qrcode';
 import { sv } from '@/locales/sv';
 
@@ -64,6 +65,7 @@ export default function Biljetter() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedTicket, setSelectedTicket] = useState<AllTickets | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const qrCanvasRef = useRef<{ [key: string]: string }>({});
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function Biljetter() {
       if (!user?.id) return;
 
       const channel = supabase
-        .channel('event_bookings_changes')
+        .channel('tickets_updates')
         .on(
           'postgres_changes',
           {
@@ -87,7 +89,46 @@ export default function Biljetter() {
             filter: `member_id=eq.${user.id}`,
           },
           (payload) => {
+            console.log('New event booking detected:', payload);
+            loadTickets();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'event_bookings',
+            filter: `member_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('Event booking updated:', payload);
+            loadTickets();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'tickets',
+            filter: `member_id=eq.${user.id}`,
+          },
+          (payload) => {
             console.log('New ticket detected:', payload);
+            loadTickets();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'tickets',
+            filter: `member_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('Ticket updated:', payload);
             loadTickets();
           }
         )
@@ -230,6 +271,7 @@ export default function Biljetter() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'valid':
+      case 'confirmed':
         return { label: 'Giltig', variant: 'default' as const };
       case 'checked_in':
         return { label: 'Incheckad', variant: 'secondary' as const };
@@ -239,6 +281,51 @@ export default function Biljetter() {
         return { label: 'Återbetald', variant: 'outline' as const };
       default:
         return { label: status, variant: 'outline' as const };
+    }
+  };
+
+  const handleSelfCheckIn = async (ticket: AllTickets) => {
+    setCheckingIn(ticket.id);
+    try {
+      const { data, error } = await supabase.rpc('check_in_with_qr', {
+        qr: ticket.qr_payload,
+        p_location: 'Self Check-in',
+        p_device_info: navigator.userAgent
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+
+      if (result?.success) {
+        sonnerToast.success(
+          'Incheckning lyckades!',
+          {
+            description: `Du är nu incheckad för ${result.is_event ? result.event_title : result.course_title}`
+          }
+        );
+        // Reload tickets to update the UI
+        await loadTickets();
+      } else {
+        sonnerToast.error('Incheckning misslyckades', {
+          description: result?.message || 'Ett fel uppstod'
+        });
+      }
+    } catch (error) {
+      console.error('Check-in error:', error);
+      sonnerToast.error('Ett fel uppstod', {
+        description: 'Kunde inte checka in. Försök igen.'
+      });
+    } finally {
+      setCheckingIn(null);
+    }
+  };
+
+  const canCheckIn = (ticket: AllTickets): boolean => {
+    if (ticket.type === 'event') {
+      return ticket.status === 'confirmed' && ticket.payment_status === 'paid';
+    } else {
+      return ticket.status === 'valid' && ticket.checked_in_count < ticket.max_checkins;
     }
   };
 
@@ -346,7 +433,7 @@ export default function Biljetter() {
           <div className="text-sm space-y-1">
             <p className="font-semibold">Så här fungerar det:</p>
             <p className="text-muted-foreground">
-              Visa din QR-kod för instruktören när du kommer till kursen. 
+              Du kan checka in dig själv genom att klicka på "Checka in nu"-knappen, eller visa din QR-kod för instruktören att skanna. 
               Klicka på "Visa QR i helskärm" för en större kod som är lättare att skanna.
             </p>
           </div>
@@ -452,14 +539,33 @@ export default function Biljetter() {
                 )}
 
                 {(ticket.status === 'valid' || ticket.status === 'confirmed') && (
-                  <Button 
-                    className="w-full" 
-                    variant="outline"
-                    onClick={() => openQRModal(ticket)}
-                  >
-                    <QrCode className="mr-2 h-4 w-4" />
-                    Visa QR i helskärm
-                  </Button>
+                  <div className="space-y-2">
+                    {canCheckIn(ticket) && (
+                      <Button 
+                        className="w-full" 
+                        variant="default"
+                        onClick={() => handleSelfCheckIn(ticket)}
+                        disabled={checkingIn === ticket.id}
+                      >
+                        {checkingIn === ticket.id ? (
+                          <>Checkar in...</>
+                        ) : (
+                          <>
+                            <Check className="mr-2 h-4 w-4" />
+                            Checka in nu
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button 
+                      className="w-full" 
+                      variant="outline"
+                      onClick={() => openQRModal(ticket)}
+                    >
+                      <QrCode className="mr-2 h-4 w-4" />
+                      Visa QR i helskärm
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
