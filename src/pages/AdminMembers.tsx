@@ -64,29 +64,30 @@ export default function AdminMembers() {
 
   const fetchMembers = async () => {
     try {
-      // Fetch all profiles with their roles from user_roles table
-      const { data: profilesData, error: profilesError } = await supabase
+      // Single query with JOIN to get profiles with their roles
+      const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, created_at, dance_role')
+        .select(`
+          id,
+          full_name,
+          email,
+          created_at,
+          dance_role,
+          user_roles!inner(role)
+        `)
         .order('created_at', { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (error) {
+        console.error('Query error:', error);
+        throw error;
+      }
 
-      // Fetch roles separately from user_roles table
-      const { data: rolesData, error: rolesError } = await (supabase as any)
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      // Map roles to profiles
-      const rolesMap = new Map(rolesData?.map((r: any) => [r.user_id, r.role]) || []);
-
-      const membersWithRoles = (profilesData || []).map((profile: any) => ({
+      // Map the data to our Member interface
+      const membersWithRoles = (data || []).map((profile: any) => ({
         id: profile.id,
         full_name: profile.full_name || 'Okänd',
         email: profile.email || '-',
-        role: (rolesMap.get(profile.id) as Role) || 'member',
+        role: profile.user_roles[0]?.role || 'member',
         dance_role: profile.dance_role as DanceRole,
         created_at: profile.created_at,
       }));
@@ -95,7 +96,7 @@ export default function AdminMembers() {
       setFilteredMembers(membersWithRoles);
     } catch (error: any) {
       console.error('Error fetching members:', error);
-      toast.error('Kunde inte hämta medlemmar');
+      toast.error(`Kunde inte hämta medlemmar: ${error.message}`);
     } finally {
       setLoading(false);
     }
