@@ -14,7 +14,12 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    {
+      auth: {
+        persistSession: false,
+      },
+    }
   );
 
   try {
@@ -31,9 +36,12 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    // Check if user is admin using the security definer function
+    // Check if user is admin using the has_role function with user ID
     const { data: isAdmin, error: adminCheckError } = await supabaseClient
-      .rpc("is_admin");
+      .rpc("has_role", {
+        _user_id: user.id,
+        _role: "admin"
+      });
 
     if (adminCheckError) {
       console.error("[get-stripe-payments] Admin check error:", adminCheckError);
