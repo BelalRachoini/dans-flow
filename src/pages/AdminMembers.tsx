@@ -33,12 +33,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 type Role = 'member' | 'instructor' | 'admin';
+type DanceRole = 'follower' | 'leader' | null;
 
 interface Member {
   id: string;
   full_name: string;
   email: string;
   role: Role;
+  dance_role: DanceRole;
   created_at: string;
 }
 
@@ -48,6 +50,7 @@ export default function AdminMembers() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [danceRoleFilter, setDanceRoleFilter] = useState<string>('all');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [newRole, setNewRole] = useState<Role | null>(null);
 
@@ -57,14 +60,14 @@ export default function AdminMembers() {
 
   useEffect(() => {
     filterMembers();
-  }, [searchTerm, roleFilter, members]);
+  }, [searchTerm, roleFilter, danceRoleFilter, members]);
 
   const fetchMembers = async () => {
     try {
       // Fetch all profiles with their roles from user_roles table
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, email, created_at')
+        .select('id, full_name, email, created_at, dance_role')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -84,6 +87,7 @@ export default function AdminMembers() {
         full_name: profile.full_name || 'Okänd',
         email: profile.email || '-',
         role: (rolesMap.get(profile.id) as Role) || 'member',
+        dance_role: profile.dance_role as DanceRole,
         created_at: profile.created_at,
       }));
 
@@ -109,6 +113,14 @@ export default function AdminMembers() {
 
     if (roleFilter !== 'all') {
       filtered = filtered.filter(m => m.role === roleFilter);
+    }
+
+    if (danceRoleFilter !== 'all') {
+      if (danceRoleFilter === 'not_set') {
+        filtered = filtered.filter(m => !m.dance_role);
+      } else {
+        filtered = filtered.filter(m => m.dance_role === danceRoleFilter);
+      }
     }
 
     setFilteredMembers(filtered);
@@ -206,6 +218,18 @@ export default function AdminMembers() {
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select value={danceRoleFilter} onValueChange={setDanceRoleFilter}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Filtrera dansroll" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alla dansroller</SelectItem>
+                <SelectItem value="follower">Följare</SelectItem>
+                <SelectItem value="leader">Ledare</SelectItem>
+                <SelectItem value="not_set">Ej valt</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Table */}
@@ -216,6 +240,7 @@ export default function AdminMembers() {
                   <TableHead>Namn</TableHead>
                   <TableHead>E-post</TableHead>
                   <TableHead>Roll</TableHead>
+                  <TableHead>Dansroll</TableHead>
                   <TableHead>Skapad</TableHead>
                   <TableHead className="text-right">Åtgärder</TableHead>
                 </TableRow>
@@ -223,7 +248,7 @@ export default function AdminMembers() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       </div>
@@ -231,7 +256,7 @@ export default function AdminMembers() {
                   </TableRow>
                 ) : filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Inga medlemmar hittades
                     </TableCell>
                   </TableRow>
@@ -244,6 +269,15 @@ export default function AdminMembers() {
                         <Badge variant={getRoleBadgeVariant(member.role)}>
                           {getRoleLabel(member.role)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {member.dance_role ? (
+                          <Badge variant={member.dance_role === 'follower' ? 'secondary' : 'default'}>
+                            {member.dance_role === 'follower' ? 'Följare' : 'Ledare'}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {new Date(member.created_at).toLocaleDateString('sv-SE')}
