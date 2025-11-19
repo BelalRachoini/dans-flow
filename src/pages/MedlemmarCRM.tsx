@@ -60,33 +60,41 @@ export default function MedlemmarCRM() {
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['crm-members'],
     queryFn: async () => {
-      const { data: userRoles, error: rolesError } = await supabase
-        .from('user_roles' as any)
-        .select('user_id')
-        .eq('role', 'member');
-      
-      if (rolesError) throw rolesError;
-      
-      const memberIds = (userRoles || []).map((ur: any) => ur.user_id);
-      const { data: profiles, error: profilesError } = memberIds.length > 0
-        ? await supabase
-            .from('profiles')
-            .select('*')
-            .in('id', memberIds)
-        : { data: [], error: null };
+      // Use JOIN to get profiles with member role in one query
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select(`
+          *,
+          user_roles!inner(role)
+        `)
+        .eq('user_roles.role', 'member');
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
+      }
 
+      // Fetch revenue data separately (can't join views easily)
       const { data: revenues, error: revenuesError } = await supabase
         .from('v_member_revenue')
         .select('*');
 
-      if (revenuesError) throw revenuesError;
+      if (revenuesError) {
+        console.error('Error fetching revenues:', revenuesError);
+        throw revenuesError;
+      }
 
-      const revenueMap = new Map(revenues.map(r => [r.member_id, r]));
+      const revenueMap = new Map(revenues?.map(r => [r.member_id, r]) || []);
 
-      return profiles.map(p => ({
-        ...p,
+      return (profiles || []).map(p => ({
+        id: p.id,
+        full_name: p.full_name,
+        email: p.email,
+        phone: p.phone,
+        level: p.level,
+        points: p.points,
+        status: p.status,
+        created_at: p.created_at,
         revenue_cents: revenueMap.get(p.id)?.revenue_cents || 0,
         txn_count: revenueMap.get(p.id)?.txn_count || 0,
       })) as MemberWithRevenue[];
