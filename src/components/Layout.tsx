@@ -19,6 +19,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
 import { LanguageMenu } from '@/components/LanguageMenu';
+import logo from '@/assets/dance-vida-logo.png';
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -97,8 +98,8 @@ export const Layout = () => {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-            <Link to="/" className="text-xl font-bold text-sidebar-foreground">
-              Dansskolan
+            <Link to="/" className="flex items-center">
+              <img src={logo} alt="Dance Vida" className="h-10 w-auto" />
             </Link>
             <Button
               variant="ghost"
@@ -173,7 +174,7 @@ export const Layout = () => {
                 <Menu size={20} />
               </Button>
               <h1 className="text-base lg:text-lg font-semibold truncate">
-                {visibleNavItems.find(item => item.path === location.pathname)?.label || 'Dansskolan'}
+                {visibleNavItems.find(item => item.path === location.pathname)?.label || 'Dance Vida'}
               </h1>
             </div>
 
