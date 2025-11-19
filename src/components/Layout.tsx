@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   LayoutDashboard, BookOpen, Calendar, PartyPopper, Ticket, 
   Users, CreditCard, Repeat, Settings,
@@ -21,10 +22,31 @@ import { LanguageMenu } from '@/components/LanguageMenu';
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userName, setUserName] = useState<string>('User');
   const location = useLocation();
   const navigate = useNavigate();
   const { userId, role, logout } = useAuthStore();
   const { t, language, setLanguage } = useLanguageStore();
+
+  // Fetch user profile data
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!userId) return;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .single();
+      
+      if (data?.full_name) {
+        const firstName = data.full_name.split(' ')[0];
+        setUserName(firstName);
+      }
+    };
+
+    fetchUserProfile();
+  }, [userId]);
 
   // Get the correct overview path based on role
   const getOverviewPath = () => {
@@ -128,7 +150,7 @@ export const Layout = () => {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-medium text-sidebar-foreground">User</p>
+                <p className="truncate text-sm font-medium text-sidebar-foreground">{userName}</p>
                 <p className="text-xs text-sidebar-foreground/70">{t.roles[roleMap[role]]}</p>
               </div>
             </div>
@@ -178,13 +200,13 @@ export const Layout = () => {
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="hidden lg:inline">User</span>
+                    <span className="hidden lg:inline">{userName}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">User</p>
+                      <p className="text-sm font-medium">{userName}</p>
                       <p className="text-xs text-muted-foreground">user@example.com</p>
                     </div>
                   </DropdownMenuLabel>
