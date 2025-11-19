@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import heroImage from '@/assets/hero-dance.jpg';
 import { useAuthStore } from '@/store/authStore';
 import DanceRoleSelector from '@/components/DanceRoleSelector';
+import logo from '@/assets/dance-vida-logo.png';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -154,7 +155,8 @@ export default function Auth() {
           className="absolute inset-0 h-full w-full object-cover mix-blend-overlay"
         />
         <div className="relative z-10 flex flex-col justify-center p-12 text-white">
-          <h1 className="mb-4 text-5xl font-bold">Välkommen till Dansskolan</h1>
+          <img src={logo} alt="Dance Vida" className="mb-6 h-32 w-auto" />
+          <h1 className="mb-4 text-5xl font-bold">Välkommen till Dance Vida</h1>
           <p className="text-xl text-white/90">
             Upptäck din passion för dans. Från Salsa till HipHop - vi har kurser för alla nivåer.
           </p>
@@ -164,8 +166,8 @@ export default function Auth() {
       {/* Auth Form */}
       <div className="flex w-full items-center justify-center p-8 lg:w-1/2">
         <div className="w-full max-w-md space-y-6">
-          <div className="text-center lg:hidden">
-            <h2 className="text-3xl font-bold gradient-primary bg-clip-text text-transparent">Dansskolan</h2>
+          <div className="flex justify-center lg:hidden">
+            <img src={logo} alt="Dance Vida" className="h-24 w-auto" />
           </div>
 
           <Card className="shadow-lg">
