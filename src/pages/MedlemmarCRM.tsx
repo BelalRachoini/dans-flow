@@ -62,21 +62,21 @@ export default function MedlemmarCRM() {
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['crm-members'],
     queryFn: async () => {
-      // Use JOIN to get profiles with member and instructor roles in one query
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+      // Query from user_roles and join profiles - better for PostgREST filtering
+      const { data: userRolesData, error: profilesError } = await supabase
+        .from('user_roles')
         .select(`
-          *,
-          user_roles!inner(role)
+          role,
+          profiles!inner(*)
         `)
-        .in('user_roles.role', ['member', 'instructor']);
+        .in('role', ['member', 'instructor']);
 
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
         throw profilesError;
       }
 
-      // Fetch revenue data separately (can't join views easily)
+      // Fetch revenue data separately
       const { data: revenues, error: revenuesError } = await supabase
         .from('v_member_revenue')
         .select('*');
@@ -88,19 +88,22 @@ export default function MedlemmarCRM() {
 
       const revenueMap = new Map(revenues?.map(r => [r.member_id, r]) || []);
 
-      return (profiles || []).map(p => ({
-        id: p.id,
-        full_name: p.full_name,
-        email: p.email,
-        phone: p.phone,
-        role: (p.user_roles as any)?.[0]?.role || 'member',
-        level: p.level,
-        points: p.points,
-        status: p.status,
-        created_at: p.created_at,
-        revenue_cents: revenueMap.get(p.id)?.revenue_cents || 0,
-        txn_count: revenueMap.get(p.id)?.txn_count || 0,
-      })) as MemberWithRevenue[];
+      return (userRolesData || []).map(ur => {
+        const profile = (ur as any).profiles;
+        return {
+          id: profile.id,
+          full_name: profile.full_name,
+          email: profile.email,
+          phone: profile.phone,
+          role: ur.role,
+          level: profile.level,
+          points: profile.points,
+          status: profile.status,
+          created_at: profile.created_at,
+          revenue_cents: revenueMap.get(profile.id)?.revenue_cents || 0,
+          txn_count: revenueMap.get(profile.id)?.txn_count || 0,
+        };
+      }) as MemberWithRevenue[];
     },
     enabled: role === 'admin',
   });
