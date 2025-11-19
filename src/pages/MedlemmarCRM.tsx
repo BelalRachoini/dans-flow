@@ -23,6 +23,7 @@ interface MemberWithRevenue {
   email: string | null;
   phone: string | null;
   role: string;
+  dance_role: 'follower' | 'leader' | null;
   level: string;
   points: number;
   status: string;
@@ -47,6 +48,7 @@ export default function MedlemmarCRM() {
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [danceRoleFilter, setDanceRoleFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('revenue');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
@@ -96,6 +98,7 @@ export default function MedlemmarCRM() {
           email: profile.email,
           phone: profile.phone,
           role: ur.role,
+          dance_role: profile.dance_role,
           level: profile.level,
           points: profile.points,
           status: profile.status,
@@ -136,8 +139,12 @@ export default function MedlemmarCRM() {
       
       const matchesLevel = levelFilter === 'all' || m.level === levelFilter;
       const matchesRole = roleFilter === 'all' || m.role === roleFilter;
+      const matchesDanceRole = 
+        danceRoleFilter === 'all' || 
+        (danceRoleFilter === 'not_set' && !m.dance_role) ||
+        m.dance_role === danceRoleFilter;
       
-      return matchesSearch && matchesLevel && matchesRole;
+      return matchesSearch && matchesLevel && matchesRole && matchesDanceRole;
     });
 
     // Sort
@@ -319,6 +326,18 @@ export default function MedlemmarCRM() {
                 </SelectContent>
               </Select>
 
+              <Select value={danceRoleFilter} onValueChange={setDanceRoleFilter}>
+                <SelectTrigger className="w-full sm:flex-1">
+                  <SelectValue placeholder="Alla dans roller" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alla dans roller</SelectItem>
+                  <SelectItem value="follower">Följare</SelectItem>
+                  <SelectItem value="leader">Ledare</SelectItem>
+                  <SelectItem value="not_set">Ej vald</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="w-full sm:flex-1">
                   <SelectValue />
@@ -353,6 +372,7 @@ export default function MedlemmarCRM() {
                     <TableHead className="sticky left-0 bg-background z-10">{t.crm.table.name}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t.crm.table.contact}</TableHead>
                     <TableHead>Roll</TableHead>
+                    <TableHead>Dans Roll</TableHead>
                     <TableHead>{t.crm.table.level}</TableHead>
                     <TableHead className="text-right hidden md:table-cell">{t.crm.table.points}</TableHead>
                     <TableHead className="text-right">{t.crm.table.revenue}</TableHead>
@@ -387,6 +407,22 @@ export default function MedlemmarCRM() {
                         >
                           {member.role === 'instructor' ? 'Instruktör' : 'Medlem'}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {member.dance_role ? (
+                          <Badge 
+                            variant="outline" 
+                            className={
+                              member.dance_role === 'leader' 
+                                ? 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-200 dark:border-indigo-800' 
+                                : 'bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900 dark:text-pink-200 dark:border-pink-800'
+                            }
+                          >
+                            {member.dance_role === 'leader' ? '🕺 Ledare' : '💃 Följare'}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`${levelColors[member.level as keyof typeof levelColors]} whitespace-nowrap text-xs`}>
