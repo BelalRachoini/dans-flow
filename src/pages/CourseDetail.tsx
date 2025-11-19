@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, MapPin, User, Clock, Coins, ShoppingCart, ArrowLeft } from 'lucide-react';
-import { useCartStore } from '@/store/cartStore';
+import { Calendar, MapPin, User, Clock, Coins, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { sv } from '@/locales/sv';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,7 +13,6 @@ import { sv as svLocale } from 'date-fns/locale';
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addItem } = useCartStore();
   const [course, setCourse] = useState<any | null>(null);
   const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,18 +53,23 @@ export default function CourseDetail() {
     }
   }, [id]);
 
-  const handleBuyCourse = () => {
+  const handleBuyCourse = async () => {
     if (!course) return;
     
-    addItem({
-      id: `course-${course.id}`,
-      type: 'course',
-      itemId: course.id,
-      name: course.title,
-      priceSEK: course.price_cents / 100,
-      quantity: 1,
-    });
-    toast.success(`${course.title} tillagd i varukorg!`);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-course-payment', {
+        body: { course_id: course.id }
+      });
+
+      if (error) throw error;
+
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      toast.error('Kunde inte skapa betalning. Försök igen.');
+    }
   };
 
   const getLevelLabel = (level: string) => {
@@ -262,8 +265,7 @@ export default function CourseDetail() {
             className="flex-1"
             onClick={handleBuyCourse}
           >
-            <ShoppingCart size={20} className="mr-2" />
-            Lägg till i varukorg
+            Köp kurs för {course.price_cents / 100} SEK
           </Button>
           <Button 
             variant="outline" 

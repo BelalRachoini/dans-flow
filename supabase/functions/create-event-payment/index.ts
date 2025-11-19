@@ -142,8 +142,8 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${origin}/events?payment=success&session_id={CHECKOUT_SESSION_ID}&event_id=${event_id}`,
-      cancel_url: `${origin}/events?payment=cancelled`,
+      success_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/payment-cancelled`,
       metadata: {
         event_id: event_id,
         user_id: user.id,

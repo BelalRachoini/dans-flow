@@ -25,6 +25,8 @@ import Betalningar from "@/pages/Betalningar";
 import Prenumerationer from "@/pages/Prenumerationer";
 import EventsPage from "@/pages/Events";
 import EventDetail from "@/pages/EventDetail";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentCancelled from "@/pages/PaymentCancelled";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,6 +63,10 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route path="/auth/callback" element={<Auth />} />
+      
+      {/* Payment Routes - Outside auth guard for redirect handling */}
+      <Route path="/payment-success" element={<PaymentSuccess />} />
+      <Route path="/payment-cancelled" element={<PaymentCancelled />} />
       
       {/* Member Routes */}
       <Route element={<RoleGuard allowedRoles={['member', 'instructor', 'admin']}><Layout /></RoleGuard>}>
