@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import QRCodeLib from 'qrcode';
-import { sv } from '@/locales/sv';
+import { useLanguageStore } from '@/store/languageStore';
 
 interface TicketWithCourse {
   id: string;
@@ -59,6 +59,7 @@ type AllTickets = (TicketWithCourse & { type: 'course' }) | (EventTicket & { typ
 export default function Biljetter() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguageStore();
   const [tickets, setTickets] = useState<AllTickets[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -341,7 +342,7 @@ export default function Biljetter() {
   });
 
   if (loading) {
-    return <div className="text-center py-12">{sv.common.loading}</div>;
+    return <div className="text-center py-12">{t.common.loading}</div>;
   }
 
   if (loading) {
@@ -360,9 +361,9 @@ export default function Biljetter() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">{sv.nav.biljetter}</h1>
+          <h1 className="text-3xl font-bold">{t.nav.biljetter}</h1>
           <p className="mt-1 text-muted-foreground">
-            Dina eventbiljetter
+            {t.tickets.subtitleEmpty}
           </p>
         </div>
 
@@ -415,14 +416,14 @@ export default function Biljetter() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{sv.nav.biljetter}</h1>
+          <h1 className="text-3xl font-bold">{t.nav.biljetter}</h1>
           <p className="mt-1 text-muted-foreground">
-            Dina kursbiljetter och incheckningar
+            {t.tickets.subtitleWithTickets}
           </p>
         </div>
         <Button variant="hero" onClick={() => navigate('/kurser-poang')}>
           <ShoppingCart className="mr-2 h-4 w-4" />
-          Köp kurser
+          {t.tickets.buyCourses}
         </Button>
       </div>
 
