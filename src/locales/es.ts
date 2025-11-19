@@ -54,6 +54,7 @@ export const es = {
   // Courses & Points
   courses: {
     title: 'Cursos y Puntos',
+    subtitle: 'Compra cursos, colecciona puntos y asiste a clases',
     buyPoints: 'Comprar puntos',
     pointsBalance: 'Saldo de puntos',
     pointsHistory: 'Historial de puntos',
@@ -81,6 +82,23 @@ export const es = {
     thursday: 'Jueves',
     friday: 'Viernes',
     saturday: 'Sábado',
+    formDescription: 'Completar información del curso',
+    selectInstructor: 'Seleccionar instructor',
+    noInstructor: 'Ninguno',
+    startDateTime: 'Fecha y hora de inicio',
+    endDateTime: 'Fecha y hora de fin',
+    selectDateTime: 'Seleccionar fecha y hora',
+    timeLabel: 'Hora',
+    lessonsCount: 'lecciones',
+    priceLabel: 'Precio:',
+    pointsLabel: 'Puntos:',
+    errorLoad: 'No se pudieron cargar los cursos',
+    errorSave: 'No se pudo guardar el curso',
+    errorDelete: 'No se pudo eliminar el curso',
+    deleteConfirmation: 'Esto no se puede deshacer. El curso y todas sus lecciones se eliminarán permanentemente.',
+    upcomingEventsTitle: '¡No te pierdas nuestros próximos eventos!',
+    upcomingEventsDescription: 'Desde bailes sociales hasta talleres y noches especiales: descubre todos los emocionantes eventos que tenemos para ofrecer.',
+    viewAllEvents: 'Ver todos los eventos',
   },
 
   // Events

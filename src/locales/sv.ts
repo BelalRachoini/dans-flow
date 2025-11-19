@@ -54,6 +54,7 @@ export const sv = {
   // Courses & Points
   courses: {
     title: 'Kurser & Poäng',
+    subtitle: 'Köp kurser, samla poäng och delta i lektioner',
     buyPoints: 'Köp poäng',
     pointsBalance: 'Poängsaldo',
     pointsHistory: 'Poänghistorik',
@@ -81,6 +82,23 @@ export const sv = {
     thursday: 'Torsdag',
     friday: 'Fredag',
     saturday: 'Lördag',
+    formDescription: 'Fyll i kursinformation',
+    selectInstructor: 'Välj instruktör',
+    noInstructor: 'Ingen',
+    startDateTime: 'Startdatum och tid',
+    endDateTime: 'Slutdatum och tid',
+    selectDateTime: 'Välj datum och tid',
+    timeLabel: 'Tid',
+    lessonsCount: 'lektioner',
+    priceLabel: 'Pris:',
+    pointsLabel: 'Poäng:',
+    errorLoad: 'Kunde inte ladda kurser',
+    errorSave: 'Kunde inte spara kurs',
+    errorDelete: 'Kunde inte ta bort kurs',
+    deleteConfirmation: 'Detta går inte att ångra. Kursen och alla dess lektioner kommer att tas bort permanent.',
+    upcomingEventsTitle: 'Missa inte våra kommande event!',
+    upcomingEventsDescription: 'Från sociala danser till workshops och specialkvällar - upptäck alla spännande evenemang vi har att erbjuda.',
+    viewAllEvents: 'Se alla event',
   },
 
   // Events

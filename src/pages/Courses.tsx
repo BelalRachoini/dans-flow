@@ -220,7 +220,7 @@ export default function Courses() {
       loadData();
     } catch (error) {
       console.error('Error deleting course:', error);
-      toast.error('Kunde inte ta bort kurs');
+      toast.error(t.courses.errorDelete);
     }
     setDeleteDialog(null);
   };
@@ -244,7 +244,7 @@ export default function Courses() {
         <div>
           <h1 className="text-3xl font-bold">{t.nav.kurserPoang}</h1>
           <p className="mt-1 text-muted-foreground">
-            Köp kurser, samla poäng och delta i lektioner
+            {t.courses.subtitle}
           </p>
         </div>
         {role === 'admin' && (
@@ -259,7 +259,7 @@ export default function Courses() {
               <SheetHeader>
                 <SheetTitle>{editingCourse ? t.course.edit : t.course.create}</SheetTitle>
                 <SheetDescription>
-                  Fyll i kursinformation
+                  {t.courses.formDescription}
                 </SheetDescription>
               </SheetHeader>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
@@ -319,10 +319,10 @@ export default function Courses() {
                   <Label htmlFor="primary_instructor">{t.course.instructor}</Label>
                   <Select onValueChange={(value) => setValue('primary_instructor', value === 'none' ? undefined : value)} value={watch('primary_instructor') || 'none'}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Välj instruktör" />
+                      <SelectValue placeholder={t.courses.selectInstructor} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Ingen</SelectItem>
+                      <SelectItem value="none">{t.courses.noInstructor}</SelectItem>
                       {instructors.map((instructor) => (
                         <SelectItem key={instructor.id} value={instructor.id}>
                           {instructor.full_name}
@@ -347,7 +347,7 @@ export default function Courses() {
                 </div>
 
                 <div>
-                  <Label>Startdatum och tid</Label>
+                  <Label>{t.courses.startDateTime}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -358,7 +358,7 @@ export default function Courses() {
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {watch('starts_at') ? format(watch('starts_at')!, "PPP HH:mm") : <span>Välj datum och tid</span>}
+                        {watch('starts_at') ? format(watch('starts_at')!, "PPP HH:mm") : <span>{t.courses.selectDateTime}</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -379,7 +379,7 @@ export default function Courses() {
                         className={cn("p-3 pointer-events-auto")}
                       />
                       <div className="p-3 border-t">
-                        <Label className="text-sm">Tid</Label>
+                        <Label className="text-sm">{t.courses.timeLabel}</Label>
                         <div className="flex gap-2 mt-2">
                           <Input
                             type="number"
@@ -415,7 +415,7 @@ export default function Courses() {
                 </div>
 
                 <div>
-                  <Label>Slutdatum och tid</Label>
+                  <Label>{t.courses.endDateTime}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -426,7 +426,7 @@ export default function Courses() {
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {watch('ends_at') ? format(watch('ends_at')!, "PPP HH:mm") : <span>Välj datum och tid</span>}
+                        {watch('ends_at') ? format(watch('ends_at')!, "PPP HH:mm") : <span>{t.courses.selectDateTime}</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -447,7 +447,7 @@ export default function Courses() {
                         className={cn("p-3 pointer-events-auto")}
                       />
                       <div className="p-3 border-t">
-                        <Label className="text-sm">Tid</Label>
+                        <Label className="text-sm">{t.courses.timeLabel}</Label>
                         <div className="flex gap-2 mt-2">
                           <Input
                             type="number"
@@ -556,16 +556,16 @@ export default function Courses() {
               <CardContent className="p-3 sm:p-4 md:p-6 pt-0 flex-1 flex flex-col justify-between space-y-3">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm sm:text-base">{course.lesson_count || 0} lektioner</span>
+                  <span className="text-sm sm:text-base">{course.lesson_count || 0} {t.courses.lessonsCount}</span>
                 </div>
                 <div className="pt-3 border-t mt-auto">
                   <div className="space-y-2">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-xs text-muted-foreground">Pris:</span>
+                      <span className="text-xs text-muted-foreground">{t.courses.priceLabel}</span>
                       <span className="text-lg sm:text-xl md:text-2xl font-bold">{course.price_cents / 100} kr</span>
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-xs text-muted-foreground">Poäng:</span>
+                      <span className="text-xs text-muted-foreground">{t.courses.pointsLabel}</span>
                       <span className="text-lg sm:text-xl md:text-2xl font-bold text-primary">+{course.points}</span>
                     </div>
                   </div>
@@ -581,10 +581,10 @@ export default function Courses() {
           <div className="flex flex-col items-center text-center space-y-6">
             <div className="space-y-3">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold">
-                Missa inte våra kommande event!
+                {t.courses.upcomingEventsTitle}
               </h2>
               <p className="text-white/90 text-base sm:text-lg max-w-2xl">
-                Från sociala danser till workshops och specialkvällar - upptäck alla spännande evenemang vi har att erbjuda.
+                {t.courses.upcomingEventsDescription}
               </p>
             </div>
             <Button
@@ -594,7 +594,7 @@ export default function Courses() {
               onClick={() => navigate('/event')}
             >
               <PartyPopper className="mr-2 h-5 w-5" />
-              Se alla event
+              {t.courses.viewAllEvents}
             </Button>
           </div>
         </CardContent>
@@ -605,7 +605,7 @@ export default function Courses() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t.course.delete}</AlertDialogTitle>
             <AlertDialogDescription>
-              Detta går inte att ångra. Kursen och alla dess lektioner kommer att tas bort permanent.
+              {t.courses.deleteConfirmation}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
