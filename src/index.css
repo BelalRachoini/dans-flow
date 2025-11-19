@@ -17,10 +17,10 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 10%;
 
-    /* Dance energy - rich purple/magenta */
-    --primary: 280 70% 55%;
+    /* Dance energy - rich gold */
+    --primary: 40 59% 49%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 280 80% 65%;
+    --primary-glow: 40 65% 60%;
     
     /* Vibrant accent - coral/pink */
     --secondary: 340 80% 60%;
@@ -37,21 +37,21 @@ All colors MUST be HSL.
 
     --border: 240 6% 90%;
     --input: 240 6% 90%;
-    --ring: 280 70% 55%;
+    --ring: 40 59% 49%;
 
     --radius: 0.75rem;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(280 70% 55%), hsl(320 75% 58%));
+    --gradient-primary: linear-gradient(135deg, hsl(40 59% 49%), hsl(40 65% 60%));
     --gradient-secondary: linear-gradient(135deg, hsl(340 80% 60%), hsl(20 90% 65%));
     --gradient-accent: linear-gradient(135deg, hsl(200 95% 50%), hsl(240 80% 60%));
     --gradient-dark: linear-gradient(135deg, hsl(40 59% 35%), hsl(40 59% 49%));
     
     /* Shadows */
-    --shadow-sm: 0 2px 8px hsl(280 70% 55% / 0.1);
-    --shadow-md: 0 4px 16px hsl(280 70% 55% / 0.15);
-    --shadow-lg: 0 8px 32px hsl(280 70% 55% / 0.2);
-    --shadow-glow: 0 0 40px hsl(280 80% 65% / 0.3);
+    --shadow-sm: 0 2px 8px hsl(40 59% 49% / 0.1);
+    --shadow-md: 0 4px 16px hsl(40 59% 49% / 0.15);
+    --shadow-lg: 0 8px 32px hsl(40 59% 49% / 0.2);
+    --shadow-glow: 0 0 40px hsl(40 65% 60% / 0.3);
 
     /* Sidebar */
     --sidebar-background: 40 59% 49%;
@@ -78,9 +78,9 @@ All colors MUST be HSL.
     --popover: 260 45% 12%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 280 75% 60%;
+    --primary: 40 59% 49%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 280 85% 70%;
+    --primary-glow: 40 65% 60%;
 
     --secondary: 340 85% 65%;
     --secondary-foreground: 0 0% 100%;
@@ -96,7 +96,7 @@ All colors MUST be HSL.
 
     --border: 260 40% 20%;
     --input: 260 40% 20%;
-    --ring: 280 75% 60%;
+    --ring: 40 59% 49%;
 
     --sidebar-background: 40 59% 45%;
     --sidebar-foreground: 0 0% 100%;
