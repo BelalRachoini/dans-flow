@@ -483,6 +483,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          dance_role: Database["public"]["Enums"]["dance_role_type"] | null
           email: string | null
           full_name: string | null
           id: string
@@ -497,6 +498,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          dance_role?: Database["public"]["Enums"]["dance_role_type"] | null
           email?: string | null
           full_name?: string | null
           id: string
@@ -511,6 +513,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          dance_role?: Database["public"]["Enums"]["dance_role_type"] | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -737,6 +740,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "instructor" | "member"
+      dance_role_type: "follower" | "leader"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -865,6 +869,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "instructor", "member"],
+      dance_role_type: ["follower", "leader"],
     },
   },
 } as const

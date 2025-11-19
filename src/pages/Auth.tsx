@@ -11,6 +11,7 @@ import { Mail, Chrome, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import heroImage from '@/assets/hero-dance.jpg';
 import { useAuthStore } from '@/store/authStore';
+import DanceRoleSelector from '@/components/DanceRoleSelector';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -18,6 +19,8 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDanceRoleSelector, setShowDanceRoleSelector] = useState(false);
+  const [newUserId, setNewUserId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { initialize } = useAuthStore();
 
@@ -112,7 +115,23 @@ export default function Auth() {
         toast.success('Konto skapat! Loggar in...');
         // Wait a bit for trigger to complete
         await new Promise(resolve => setTimeout(resolve, 1000));
-        // Force refresh auth store with latest role from database
+        
+        // Check if dance_role is already set
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('dance_role')
+          .eq('id', data.user.id)
+          .single();
+        
+        if (!profile?.dance_role) {
+          // Show dance role selector
+          setNewUserId(data.user.id);
+          setShowDanceRoleSelector(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Already has role, proceed normally
         await initialize();
         const redirect = await getRoleRedirect(data.user.id);
         navigate(redirect);
@@ -310,6 +329,17 @@ export default function Auth() {
           </Card>
         </div>
       </div>
+
+      {showDanceRoleSelector && newUserId && (
+        <DanceRoleSelector 
+          userId={newUserId} 
+          onComplete={async () => {
+            await initialize();
+            const redirect = await getRoleRedirect(newUserId);
+            navigate(redirect);
+          }} 
+        />
+      )}
     </div>
   );
 }
