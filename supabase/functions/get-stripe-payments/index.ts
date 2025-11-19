@@ -31,13 +31,15 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    // Check if user is admin
-    const { data: userRoles } = await supabaseClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
+    // Check if user is admin using the security definer function
+    const { data: isAdmin, error: adminCheckError } = await supabaseClient
+      .rpc("is_admin");
 
-    const isAdmin = userRoles?.some(r => r.role === "admin");
+    if (adminCheckError) {
+      console.error("[get-stripe-payments] Admin check error:", adminCheckError);
+      throw new Error("Failed to verify admin status");
+    }
+
     if (!isAdmin) {
       throw new Error("Unauthorized: Admin access required");
     }
