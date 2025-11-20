@@ -792,12 +792,6 @@ export default function Biljetter() {
 
       {/* Member's Personal Tickets Section */}
       <div className="space-y-4">
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold">Mina Personliga Biljetter</h2>
-          </div>
-        )}
-
         {tickets.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center space-y-4">
