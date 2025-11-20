@@ -49,6 +49,18 @@ export const sv = {
     quickStats: 'Snabbstatistik',
     recentPayments: 'Senaste betalningar',
     quickActions: 'Snabba åtgärder',
+    overview: 'Översikt',
+    overviewDescription: 'Välkommen tillbaka! Här är din översikt.',
+    myClassesToday: 'Mina klasser idag',
+    scheduledClassesToday: 'Dina schemalagda klasser för idag',
+    noClassesToday: 'Inga klasser idag',
+    myTickets: 'Mina biljetter',
+    recentActiveTickets: 'Senaste aktiva biljetter',
+    viewAllTickets: 'Visa alla biljetter',
+    noActiveTickets: 'Inga aktiva biljetter',
+    buyCourse: 'Köp kurs',
+    shortcuts: 'Snabbgenvägar',
+    shortcutsDescription: 'Snabb tillgång till dina viktigaste funktioner',
   },
 
   // Courses & Points

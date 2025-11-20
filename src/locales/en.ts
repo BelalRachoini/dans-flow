@@ -49,6 +49,18 @@ export const en = {
     quickStats: 'Quick stats',
     recentPayments: 'Recent payments',
     quickActions: 'Quick actions',
+    overview: 'Overview',
+    overviewDescription: 'Welcome back! Here is your overview.',
+    myClassesToday: 'My classes today',
+    scheduledClassesToday: 'Your scheduled classes for today',
+    noClassesToday: 'No classes today',
+    myTickets: 'My tickets',
+    recentActiveTickets: 'Recent active tickets',
+    viewAllTickets: 'View all tickets',
+    noActiveTickets: 'No active tickets',
+    buyCourse: 'Buy course',
+    shortcuts: 'Shortcuts',
+    shortcutsDescription: 'Quick access to your most important features',
   },
 
   // Courses & Points
