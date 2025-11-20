@@ -111,6 +111,19 @@ export const sv = {
     upcomingEventsTitle: 'Missa inte våra kommande event!',
     upcomingEventsDescription: 'Från sociala danser till workshops och specialkvällar - upptäck alla spännande evenemang vi har att erbjuda.',
     viewAllEvents: 'Se alla event',
+    lessons: {
+      manual: 'Manuell',
+      recurring: 'Återkommande',
+      dayOfWeek: 'Veckodag',
+      startTime: 'Starttid',
+      endTime: 'Sluttid',
+      generateLessons: 'Generera Lektioner',
+      lessonsWillBeCreated: 'Detta kommer skapa {count} lektioner',
+      titleTemplate: 'Lektion {n}',
+      lessonsGenerated: '{count} lektioner genererade',
+      needCourseDates: 'Kursen måste ha start- och slutdatum',
+      endTimeAfterStart: 'Sluttid måste vara efter starttid',
+    },
   },
 
   // Events
