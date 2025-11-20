@@ -40,6 +40,7 @@ export const es = {
     noData: 'No hay datos disponibles',
     error: 'Ocurrió un error',
     success: 'Acción exitosa',
+    done: 'Hecho',
   },
 
   // Dashboard
@@ -490,6 +491,8 @@ export const es = {
     viewSchedule: 'Ver todas las clases',
     flexibleTicketInfo: 'Sistema de tickets flexibles - usa tickets para cualquier clase',
     ticketExpiry: 'Los tickets vencen',
+    notFound: 'Curso no encontrado',
+    backToCourses: 'Volver a Cursos',
   },
 
   // Lessons
