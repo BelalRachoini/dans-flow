@@ -445,6 +445,10 @@ export const en = {
     today: "Today",
     colorCoding: "Color Coding",
     moreItems: "more",
+    bookNow: "Book Now",
+    viewDetails: "View Details",
+    dayDetails: "Day Overview",
+    noBooking: "Cannot book",
     weekdays: {
       mon: "Mon",
       tue: "Tue",

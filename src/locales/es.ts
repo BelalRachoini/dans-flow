@@ -445,6 +445,10 @@ export const es = {
     today: "Hoy",
     colorCoding: "Código de Colores",
     moreItems: "más",
+    bookNow: "Reservar ahora",
+    viewDetails: "Ver detalles",
+    dayDetails: "Resumen del día",
+    noBooking: "No se puede reservar",
     weekdays: {
       mon: "Lun",
       tue: "Mar",
