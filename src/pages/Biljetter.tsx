@@ -790,75 +790,76 @@ export default function Biljetter() {
         </div>
       )}
 
-      {/* Member's Personal Tickets Section */}
-      <div className="space-y-4">
-        {tickets.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center space-y-4">
-              <Ticket className="h-12 w-12 text-muted-foreground mx-auto" />
-              <div>
-                <p className="text-muted-foreground font-medium">
-                  Du har inga personliga biljetter
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Köp en kurs eller evenemangsbiljett för att komma igång
-                </p>
-              </div>
-              <div className="flex gap-2 justify-center mt-4">
-                <Button variant="outline" onClick={() => navigate('/kurser-poang')}>
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  Köp kurser
-                </Button>
-                <Button variant="outline" onClick={() => navigate('/event')}>
-                  <PartyPopper className="mr-2 h-4 w-4" />
-                  Se event
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {/* Info Box */}
-            <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="p-4 flex gap-3">
-                <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <div className="text-sm space-y-1">
-                  <p className="font-semibold">Så här fungerar det:</p>
-                  <p className="text-muted-foreground">
-                    Du kan checka in dig själv genom att klicka på "Checka in nu"-knappen, eller visa din QR-kod för instruktören att skanna. 
-                    Klicka på "Visa QR i helskärm" för en större kod som är lättare att skanna.
+      {/* Member's Personal Tickets Section - Only show for non-admins or when admin has tickets */}
+      {(!isAdmin || tickets.length > 0) && (
+        <div className="space-y-4">
+          {tickets.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center space-y-4">
+                <Ticket className="h-12 w-12 text-muted-foreground mx-auto" />
+                <div>
+                  <p className="text-muted-foreground font-medium">
+                    Du har inga personliga biljetter
                   </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Köp en kurs eller evenemangsbiljett för att komma igång
+                  </p>
+                </div>
+                <div className="flex gap-2 justify-center mt-4">
+                  <Button variant="outline" onClick={() => navigate('/kurser-poang')}>
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    Köp kurser
+                  </Button>
+                  <Button variant="outline" onClick={() => navigate('/event')}>
+                    <PartyPopper className="mr-2 h-4 w-4" />
+                    Se event
+                  </Button>
                 </div>
               </CardContent>
             </Card>
+          ) : (
+            <>
+              {/* Info Box */}
+              <Card className="bg-primary/5 border-primary/20">
+                <CardContent className="p-4 flex gap-3">
+                  <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div className="text-sm space-y-1">
+                    <p className="font-semibold">Så här fungerar det:</p>
+                    <p className="text-muted-foreground">
+                      Du kan checka in dig själv genom att klicka på "Checka in nu"-knappen, eller visa din QR-kod för instruktören att skanna. 
+                      Klicka på "Visa QR i helskärm" för en större kod som är lättare att skanna.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Filters */}
-            <div className="flex gap-3 flex-wrap">
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Sök kurs..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
+              {/* Filters */}
+              <div className="flex gap-3 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Sök kurs..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
                 </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alla</SelectItem>
+                    <SelectItem value="valid">Giltiga</SelectItem>
+                    <SelectItem value="checked_in">Incheckade</SelectItem>
+                    <SelectItem value="cancelled">Avbrutna</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alla</SelectItem>
-                  <SelectItem value="valid">Giltiga</SelectItem>
-                  <SelectItem value="checked_in">Incheckade</SelectItem>
-                  <SelectItem value="cancelled">Avbrutna</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
-            {/* Tickets Grid */}
+              {/* Tickets Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {filteredTickets.map((ticket) => {
           const statusBadge = getStatusBadge(ticket.status);
@@ -966,7 +967,8 @@ export default function Biljetter() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      )}
 
       {filteredTickets.length === 0 && tickets.length > 0 && (
         <Card className="p-12 text-center">
