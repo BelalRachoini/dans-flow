@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -422,6 +422,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3 sm:gap-4">
                   <Avatar className="h-12 w-12">
+                    <AvatarImage src={profile.avatar_url || ''} alt={profile.full_name} />
                     <AvatarFallback>{getInitials(profile.full_name)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">

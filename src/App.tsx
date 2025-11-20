@@ -11,6 +11,7 @@ import { initializeLocale, useLanguageStore } from "@/store/languageStore";
 import { supabase } from "@/integrations/supabase/client";
 import Auth from "@/pages/Auth";
 import MemberDashboard from "@/pages/MemberDashboard";
+import Profile from "@/pages/Profile";
 import InstructorDashboard from "@/pages/InstructorDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminMembers from "@/pages/AdminMembers";
@@ -71,6 +72,7 @@ const AppRoutes = () => {
       {/* Member Routes */}
       <Route element={<RoleGuard allowedRoles={['member', 'instructor', 'admin']}><Layout /></RoleGuard>}>
         <Route path="/member" element={<MemberDashboard />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/kurser-poang" element={<Courses />} />
         <Route path="/kurser-poang/:id" element={<CourseDetail />} />
         <Route path="/schema" element={<Schema />} />
