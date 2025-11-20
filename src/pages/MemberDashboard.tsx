@@ -7,9 +7,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CalendarDays, Ticket, ShoppingCart, Calendar, Music, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { useLanguageStore } from '@/store/languageStore';
 
 export default function MemberDashboard() {
   const { userId } = useAuthStore();
+  const { t, language } = useLanguageStore();
   const [tickets, setTickets] = useState<any[]>([]);
   const [todayCourses, setTodayCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,11 +68,20 @@ export default function MemberDashboard() {
     }
   };
 
+  const getLocale = () => {
+    const localeMap: { [key: string]: string } = {
+      sv: 'sv-SE',
+      en: 'en-US',
+      es: 'es-ES'
+    };
+    return localeMap[language] || 'sv-SE';
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Översikt</h1>
-        <p className="text-muted-foreground">Välkommen tillbaka! Här är din översikt.</p>
+        <h1 className="text-3xl font-bold">{t.dashboard.overview}</h1>
+        <p className="text-muted-foreground">{t.dashboard.overviewDescription}</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -79,9 +90,9 @@ export default function MemberDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5" />
-              Mina klasser idag
+              {t.dashboard.myClassesToday}
             </CardTitle>
-            <CardDescription>Dina schemalagda klasser för idag</CardDescription>
+            <CardDescription>{t.dashboard.scheduledClassesToday}</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -96,7 +107,7 @@ export default function MemberDashboard() {
                     <div>
                       <p className="font-medium">{course.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(course.starts_at).toLocaleTimeString('sv-SE', { 
+                        {new Date(course.starts_at).toLocaleTimeString(getLocale(), { 
                           hour: '2-digit', 
                           minute: '2-digit' 
                         })}
@@ -108,7 +119,7 @@ export default function MemberDashboard() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Inga klasser idag
+                {t.dashboard.noClassesToday}
               </p>
             )}
           </CardContent>
@@ -119,9 +130,9 @@ export default function MemberDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Ticket className="h-5 w-5" />
-              Mina biljetter
+              {t.dashboard.myTickets}
             </CardTitle>
-            <CardDescription>Senaste aktiva biljetter</CardDescription>
+            <CardDescription>{t.dashboard.recentActiveTickets}</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -137,21 +148,21 @@ export default function MemberDashboard() {
                       <p className="font-medium">{ticket.courses?.title}</p>
                       <p className="text-sm text-muted-foreground">
                         {ticket.courses?.starts_at && 
-                          new Date(ticket.courses.starts_at).toLocaleDateString('sv-SE')}
+                          new Date(ticket.courses.starts_at).toLocaleDateString(getLocale())}
                       </p>
                     </div>
-                    <Badge variant="secondary">{ticket.status}</Badge>
+                    <Badge variant="secondary">{ticket.status === 'valid' ? t.tickets.filterValid : ticket.status}</Badge>
                   </div>
                 ))}
                 <Button asChild variant="outline" className="w-full">
-                  <Link to="/biljetter">Visa alla biljetter</Link>
+                  <Link to="/biljetter">{t.dashboard.viewAllTickets}</Link>
                 </Button>
               </div>
             ) : (
               <div className="text-center py-8 space-y-3">
-                <p className="text-sm text-muted-foreground">Inga aktiva biljetter</p>
+                <p className="text-sm text-muted-foreground">{t.dashboard.noActiveTickets}</p>
                 <Button asChild variant="outline">
-                  <Link to="/kurser-poang">Köp kurs</Link>
+                  <Link to="/kurser-poang">{t.dashboard.buyCourse}</Link>
                 </Button>
               </div>
             )}
@@ -162,33 +173,33 @@ export default function MemberDashboard() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Snabbgenvägar</CardTitle>
-          <CardDescription>Snabb tillgång till dina viktigaste funktioner</CardDescription>
+          <CardTitle>{t.dashboard.shortcuts}</CardTitle>
+          <CardDescription>{t.dashboard.shortcutsDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/kurser-poang" className="flex flex-col items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
-                <span>Köp kurs</span>
+                <span>{t.dashboard.buyCourse}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/biljetter" className="flex flex-col items-center gap-2">
                 <Ticket className="h-5 w-5" />
-                <span>Mina biljetter</span>
+                <span>{t.dashboard.myTickets}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/schema" className="flex flex-col items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                <span>Kalender</span>
+                <span>{t.nav.schema}</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4">
               <Link to="/event" className="flex flex-col items-center gap-2">
                 <Music className="h-5 w-5" />
-                <span>Event</span>
+                <span>{t.nav.event}</span>
               </Link>
             </Button>
           </div>
