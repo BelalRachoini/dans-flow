@@ -40,6 +40,7 @@ export const sv = {
     noData: 'Ingen data tillgänglig',
     error: 'Ett fel uppstod',
     success: 'Åtgärden lyckades',
+    done: 'Klar',
   },
 
   // Dashboard
@@ -490,6 +491,8 @@ export const sv = {
     viewSchedule: 'Visa alla lektioner',
     flexibleTicketInfo: 'Flexibelt klippkortssystem - använd klippkort för vilken lektion som helst',
     ticketExpiry: 'Klippkorten utgår',
+    notFound: 'Kursen hittades inte',
+    backToCourses: 'Tillbaka till kurser',
   },
 
   // Lessons

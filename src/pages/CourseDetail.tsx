@@ -1,25 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Ticket, Calendar, MapPin, User, Clock, Coins, ArrowLeft, Info } from 'lucide-react';
+import { ArrowLeft, Edit, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { sv } from '@/locales/sv';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
-import { sv as svLocale } from 'date-fns/locale';
+import { useAuthStore } from '@/store/authStore';
+import { useLanguageStore } from '@/store/languageStore';
+import { CourseSectionRenderer } from '@/components/CourseSectionRenderer';
+import { CourseSectionEditor } from '@/components/CourseSectionEditor';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { role } = useAuthStore();
+  const { t } = useLanguageStore();
+  const isAdmin = role === 'admin';
+
   const [course, setCourse] = useState<any | null>(null);
   const [lessons, setLessons] = useState<any[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [editingSection, setEditingSection] = useState<any | null>(null);
+  const [showAddSection, setShowAddSection] = useState(false);
 
   useEffect(() => {
-    const loadCourse = async () => {
+    const loadCourseData = async () => {
+      if (!id) return;
+
       try {
+        // Load course
         const { data: courseData, error: courseError } = await supabase
           .from('courses')
           .select(`
@@ -41,241 +51,223 @@ export default function CourseDetail() {
 
         if (lessonsError) throw lessonsError;
         setLessons(lessonsData || []);
+
+        // Load sections
+        const { data: sectionsData, error: sectionsError } = await supabase
+          .from('course_page_sections')
+          .select('*')
+          .eq('course_id', id)
+          .eq('is_visible', true)
+          .order('position', { ascending: true });
+
+        if (sectionsError) throw sectionsError;
+        setSections(sectionsData || []);
       } catch (error) {
         console.error('Error loading course:', error);
+        toast.error(t.common?.error || 'Error loading course');
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      loadCourse();
-    }
-  }, [id]);
+    loadCourseData();
+  }, [id, t]);
 
-  const handleBuyCourse = async () => {
-    if (!course) return;
-    
+  const handleSaveSection = async (section: any) => {
     try {
-      const { data, error } = await supabase.functions.invoke('create-course-payment', {
-        body: { course_id: course.id }
-      });
+      if (section.id) {
+        // Update existing section
+        const { error } = await supabase
+          .from('course_page_sections')
+          .update({
+            section_type: section.section_type,
+            title: section.title,
+            content: section.content,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', section.id);
+
+        if (error) throw error;
+
+        setSections(sections.map(s => s.id === section.id ? { ...s, ...section } : s));
+        toast.success(t.course?.pageEditor?.saveSection || 'Section saved');
+      } else {
+        // Create new section
+        const newPosition = sections.length;
+        const { data, error } = await supabase
+          .from('course_page_sections')
+          .insert({
+            course_id: id,
+            section_type: section.section_type,
+            title: section.title,
+            content: section.content,
+            position: newPosition,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setSections([...sections, data]);
+        toast.success(t.course?.pageEditor?.saveSection || 'Section added');
+      }
+
+      setEditingSection(null);
+      setShowAddSection(false);
+    } catch (error) {
+      console.error('Error saving section:', error);
+      toast.error(t.common?.error || 'Error saving section');
+    }
+  };
+
+  const handleDeleteSection = async (sectionId: string) => {
+    if (!confirm(t.course?.pageEditor?.confirmDelete || 'Are you sure you want to delete this section?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('course_page_sections')
+        .delete()
+        .eq('id', sectionId);
 
       if (error) throw error;
 
-      if (data?.url) {
-        window.open(data.url, '_blank');
+      // Update positions for remaining sections
+      const remainingSections = sections.filter(s => s.id !== sectionId);
+      const updatedSections = remainingSections.map((s, index) => ({ ...s, position: index }));
+
+      // Update positions in database
+      for (const section of updatedSections) {
+        await supabase
+          .from('course_page_sections')
+          .update({ position: section.position })
+          .eq('id', section.id);
       }
+
+      setSections(updatedSections);
+      toast.success(t.course?.pageEditor?.deleteSection || 'Section deleted');
     } catch (error) {
-      console.error('Error creating payment:', error);
-      toast.error('Kunde inte skapa betalning. Försök igen.');
+      console.error('Error deleting section:', error);
+      toast.error(t.common?.error || 'Error deleting section');
     }
   };
 
-  const getLevelLabel = (level: string) => {
-    const labels: Record<string, string> = {
-      beginner: 'Nybörjare',
-      intermediate: 'Medel',
-      advanced: 'Avancerad',
-    };
-    return labels[level] || level;
+  const handleReorderSection = async (sectionId: string, direction: 'up' | 'down') => {
+    const currentIndex = sections.findIndex(s => s.id === sectionId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= sections.length) return;
+
+    try {
+      const reorderedSections = [...sections];
+      [reorderedSections[currentIndex], reorderedSections[newIndex]] = 
+        [reorderedSections[newIndex], reorderedSections[currentIndex]];
+
+      // Update positions
+      const updates = reorderedSections.map((s, index) => ({
+        id: s.id,
+        position: index,
+      }));
+
+      for (const update of updates) {
+        await supabase
+          .from('course_page_sections')
+          .update({ position: update.position })
+          .eq('id', update.id);
+      }
+
+      setSections(reorderedSections.map((s, index) => ({ ...s, position: index })));
+      toast.success(t.course?.pageEditor?.moveUp || 'Section moved');
+    } catch (error) {
+      console.error('Error reordering section:', error);
+      toast.error(t.common?.error || 'Error reordering section');
+    }
   };
 
   if (loading) {
-    return <div className="text-center py-12">{sv.common.loading}</div>;
+    return <div className="text-center py-12">{t.common?.loading || 'Loading...'}</div>;
   }
 
   if (!course) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">Kursen hittades inte</p>
+        <p className="text-muted-foreground mb-4">{t.course?.notFound || 'Course not found'}</p>
         <Button onClick={() => navigate('/kurser-poang')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Tillbaka till kurser
+          {t.course?.backToCourses || 'Back to Courses'}
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <Button 
-        variant="ghost" 
-        onClick={() => navigate('/kurser-poang')}
-        className="mb-4"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Tillbaka till kurser
-      </Button>
+    <div className="space-y-6 max-w-5xl mx-auto pb-8">
+      {/* Header with navigation and edit controls */}
+      <div className="flex items-center justify-between gap-4">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/kurser-poang')}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          {t.course?.backToCourses || 'Back to Courses'}
+        </Button>
 
-      <Card className="shadow-lg overflow-hidden">
-        {course.image_url && (
-          <div className="relative w-full aspect-[21/9] overflow-hidden">
-            <img 
-              src={course.image_url} 
-              alt={course.title}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-          </div>
+        {isAdmin && (
+          <Button
+            variant={editMode ? 'default' : 'outline'}
+            onClick={() => setEditMode(!editMode)}
+          >
+            <Edit className="mr-2 h-4 w-4" />
+            {editMode ? t.common?.done || 'Done' : t.course?.pageEditor?.editPage || 'Edit Page'}
+          </Button>
         )}
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-4xl mb-2">{course.title}</CardTitle>
-              <Badge variant="secondary">
-                {getLevelLabel(course.level)}
-              </Badge>
-            </div>
-          </div>
-          {course.description && (
-            <CardDescription className="mt-4 text-base">
-              {course.description}
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Course Details */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-              <Calendar className="h-6 w-6 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Antal lektioner</p>
-                <p className="text-xl font-semibold">{lessons.length} lektioner</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-              <Clock className="h-6 w-6 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Kapacitet</p>
-                <p className="text-xl font-semibold">{course.capacity} platser</p>
-              </div>
-            </div>
+      </div>
 
-            {course.venue && (
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <MapPin className="h-6 w-6 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Plats</p>
-                  <p className="text-xl font-semibold">{course.venue}</p>
-                </div>
-              </div>
-            )}
+      {/* Dynamic sections */}
+      <div className="space-y-6">
+        {sections.map((section, index) => (
+          <CourseSectionRenderer
+            key={section.id}
+            section={section}
+            course={course}
+            lessons={lessons}
+            editMode={editMode}
+            onEdit={() => setEditingSection(section)}
+            onDelete={() => handleDeleteSection(section.id)}
+            onMoveUp={index > 0 ? () => handleReorderSection(section.id, 'up') : undefined}
+            onMoveDown={index < sections.length - 1 ? () => handleReorderSection(section.id, 'down') : undefined}
+          />
+        ))}
+      </div>
 
-            {course.profiles && (
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                <User className="h-6 w-6 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Instruktör</p>
-                  <p className="text-xl font-semibold">{course.profiles.full_name}</p>
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Add Section button (only in edit mode) */}
+      {editMode && (
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full border-dashed"
+          onClick={() => setShowAddSection(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          {t.course?.pageEditor?.addSection || 'Add Section'}
+        </Button>
+      )}
 
-          {/* Lessons Schedule */}
-          {lessons.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold">Lektionsschema</h3>
-              <div className="space-y-2">
-                {lessons.map((lesson: any, index: number) => (
-                  <Card key={lesson.id} className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="font-medium">
-                          {lesson.title || `Lektion ${index + 1}`}
-                        </p>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(lesson.starts_at), 'EEEE d MMM', { locale: svLocale })}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(lesson.starts_at), 'HH:mm')}
-                            {lesson.ends_at && ` - ${format(new Date(lesson.ends_at), 'HH:mm')}`}
-                          </span>
-                          {lesson.venue && (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {lesson.venue}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pricing & Tickets */}
-          <Card className="gradient-primary text-white">
-            <CardContent className="py-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/80 mb-1">Pris</p>
-                  <p className="text-4xl font-bold">{course.price_cents / 100} kr</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-white/80 mb-1">Klippkort ingår</p>
-                  <div className="flex items-center gap-2 justify-end">
-                    <Ticket className="h-8 w-8" />
-                    <p className="text-4xl font-bold">{lessons.length}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Ticket Explanation */}
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="p-4">
-              <div className="flex gap-3">
-                <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <div className="text-sm space-y-1">
-                  <p className="font-semibold">Flexibla klippkort</p>
-                  <p className="text-muted-foreground">
-                    Denna kurs ger dig {lessons.length} klippkort som kan användas för alla lektioner, 
-                    inte bara denna kurs. Klippkorten utgår {course.ends_at ? format(new Date(course.ends_at), 'PPP', { locale: svLocale }) : 'vid kursens slut'}.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Course Period */}
-          {(course.starts_at || course.ends_at) && (
-            <div className="p-4 rounded-lg border">
-              <p className="text-sm text-muted-foreground mb-2">Kursperiod</p>
-              <p className="text-lg font-medium">
-                {course.starts_at && format(new Date(course.starts_at), 'PPP', { locale: svLocale })}
-                {course.ends_at && ` - ${format(new Date(course.ends_at), 'PPP', { locale: svLocale })}`}
-              </p>
-            </div>
-          )}
-
-        </CardContent>
-        <CardFooter className="flex gap-3">
-          <Button 
-            variant="hero" 
-            size="lg"
-            className="flex-1"
-            onClick={handleBuyCourse}
-          >
-            Köp kurs för {course.price_cents / 100} SEK
-          </Button>
-          <Button 
-            variant="outline" 
-            size="lg"
-            onClick={() => navigate('/kurser-poang')}
-          >
-            Se fler kurser
-          </Button>
-        </CardFooter>
-      </Card>
+      {/* Section Editor Dialog */}
+      {(editingSection || showAddSection) && (
+        <CourseSectionEditor
+          section={editingSection}
+          course={course}
+          open={true}
+          onSave={handleSaveSection}
+          onClose={() => {
+            setEditingSection(null);
+            setShowAddSection(false);
+          }}
+        />
+      )}
     </div>
   );
 }
