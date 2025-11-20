@@ -666,5 +666,7 @@ export const es = {
     phone: "Teléfono",
     password: "Contraseña",
     passwordPlaceholder: "Dejar vacío para mantener actual",
+    exportSuccess: 'Miembros exportados a CSV',
+    exportError: 'No se pudo exportar a CSV',
   },
 };
