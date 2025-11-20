@@ -107,6 +107,50 @@ export type Database = {
           },
         ]
       }
+      course_page_sections: {
+        Row: {
+          content: Json
+          course_id: string
+          created_at: string
+          id: string
+          is_visible: boolean | null
+          position: number
+          section_type: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          content?: Json
+          course_id: string
+          created_at?: string
+          id?: string
+          is_visible?: boolean | null
+          position?: number
+          section_type: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: Json
+          course_id?: string
+          created_at?: string
+          id?: string
+          is_visible?: boolean | null
+          position?: number
+          section_type?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_page_sections_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           capacity: number
