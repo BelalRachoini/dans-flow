@@ -10,7 +10,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
 import { useAuthStore } from '@/store/authStore';
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, startOfDay, isSameMonth, isToday } from 'date-fns';
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, startOfDay, isSameMonth, isToday, addHours } from 'date-fns';
 import { sv as svLocale, enUS as enLocale, es as esLocale } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -105,8 +105,8 @@ export default function Schema() {
 
         // Map lessons to calendar items
         const lessonItems: CalendarItem[] = (lessons || []).map((lesson) => {
-          const startDate = new Date(lesson.starts_at);
-          const endDate = lesson.ends_at ? new Date(lesson.ends_at) : addDays(startDate, 2);
+      const startDate = new Date(lesson.starts_at);
+      const endDate = lesson.ends_at ? new Date(lesson.ends_at) : addHours(startDate, 2);
           return {
             id: lesson.id,
             title: lesson.title || t.calendar.lesson,

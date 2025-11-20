@@ -237,14 +237,18 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
 
       if (deleteError) throw deleteError;
 
-      const lessonsToInsert = lessons.map(lesson => ({
+    const lessonsToInsert = lessons.map(lesson => {
+      // Ensure ends_at is never null - default to 2 hours after start
+      const endsAt = lesson.ends_at || new Date(lesson.starts_at.getTime() + 2 * 60 * 60 * 1000);
+      return {
         course_id: courseId,
         title: lesson.title || null,
         starts_at: lesson.starts_at.toISOString(),
-        ends_at: lesson.ends_at?.toISOString() || null,
+        ends_at: endsAt.toISOString(),
         venue: lesson.venue || null,
         notes: lesson.notes || null,
-      }));
+      };
+    });
 
       if (lessonsToInsert.length > 0) {
         const { error: insertError } = await supabase
