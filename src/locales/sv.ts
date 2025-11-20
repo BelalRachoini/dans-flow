@@ -666,5 +666,7 @@ export const sv = {
     phone: "Telefon",
     password: "Lösenord",
     passwordPlaceholder: "Lämna tomt för att behålla",
+    exportSuccess: 'Medlemmar exporterade till CSV',
+    exportError: 'Kunde inte exportera till CSV',
   },
 };

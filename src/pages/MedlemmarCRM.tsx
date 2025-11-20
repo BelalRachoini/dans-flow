@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, DollarSign, TrendingUp, Award, Search, MoreVertical, Mail, UserPlus } from 'lucide-react';
+import { Users, DollarSign, TrendingUp, Award, Search, MoreVertical, Mail, UserPlus, Download } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MemberDetailDrawer } from '@/components/MemberDetailDrawer';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -166,7 +166,7 @@ export default function MedlemmarCRM() {
     });
 
     return filtered;
-  }, [members, searchQuery, levelFilter, sortBy]);
+  }, [members, searchQuery, levelFilter, roleFilter, danceRoleFilter, sortBy]);
 
   // Add member mutation (uses edge function to create auth user + profile)
   const addMemberMutation = useMutation({
@@ -206,6 +206,60 @@ export default function MedlemmarCRM() {
     }).format(cents / 100);
   };
 
+  const exportToCSV = () => {
+    try {
+      // Prepare CSV headers
+      const headers = [
+        'ID',
+        'Namn',
+        'E-post',
+        'Telefon',
+        'Roll',
+        'Dans Roll',
+        'Nivå',
+        'Intäkt (SEK)',
+        'Antal transaktioner',
+        'Medlem sedan',
+        'Status',
+      ];
+
+      // Prepare CSV rows from filtered members
+      const rows = filteredMembers.map(member => [
+        member.id,
+        member.full_name || '-',
+        member.email || '-',
+        member.phone || '-',
+        member.role === 'instructor' ? 'Instruktör' : 'Medlem',
+        member.dance_role === 'leader' ? 'Ledare' : member.dance_role === 'follower' ? 'Följare' : '-',
+        t.crm.level[member.level as keyof typeof t.crm.level] || member.level,
+        ((member.revenue_cents || 0) / 100).toFixed(2),
+        member.txn_count || 0,
+        format(new Date(member.created_at), 'yyyy-MM-dd'),
+        member.status || 'active',
+      ]);
+
+      // Create CSV content with proper escaping
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+      ].join('\n');
+
+      // Create blob and download
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `medlemmar-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast.success(t.crm.exportSuccess || 'Medlemmar exporterade till CSV');
+    } catch (error) {
+      console.error('CSV export error:', error);
+      toast.error(t.crm.exportError || 'Kunde inte exportera till CSV');
+    }
+  };
+
   if (role !== 'admin') {
     return (
       <div className="container mx-auto py-12 text-center">
@@ -230,10 +284,21 @@ export default function MedlemmarCRM() {
           <h1 className="text-2xl md:text-3xl font-bold truncate">{t.crm.title}</h1>
           <p className="text-sm md:text-base text-muted-foreground truncate">{t.crm.subtitle}</p>
         </div>
-        <Button onClick={() => setAddMemberOpen(true)} size="sm" className="shrink-0">
-          <UserPlus className="h-4 w-4" />
-          <span className="hidden sm:inline ml-2">{t.crm.addMember || 'Add Member'}</span>
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button 
+            variant="outline"
+            onClick={exportToCSV}
+            disabled={filteredMembers.length === 0}
+            size="sm"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">{t.reports.exportCSV}</span>
+          </Button>
+          <Button onClick={() => setAddMemberOpen(true)} size="sm">
+            <UserPlus className="h-4 w-4" />
+            <span className="hidden sm:inline ml-2">{t.crm.addMember || 'Add Member'}</span>
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
