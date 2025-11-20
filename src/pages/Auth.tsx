@@ -7,12 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Mail, Chrome, AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import heroImage from '@/assets/hero-dance.jpg';
+import { Chrome } from 'lucide-react';
+import logo from '@/assets/dance-vida-logo.png';
 import { useAuthStore } from '@/store/authStore';
 import DanceRoleSelector from '@/components/DanceRoleSelector';
-import logo from '@/assets/dance-vida-logo.png';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -144,202 +142,208 @@ export default function Auth() {
     }
   };
 
+  const handleDanceRoleSelected = async () => {
+    setShowDanceRoleSelector(false);
+    if (newUserId) {
+      await initialize();
+      const redirect = await getRoleRedirect(newUserId);
+      navigate(redirect);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen w-full">
-      {/* Hero Section */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <div className="absolute inset-0 gradient-primary opacity-90" />
-        <img 
-          src={heroImage} 
-          alt="Dance School" 
-          className="absolute inset-0 h-full w-full object-cover mix-blend-overlay"
-        />
-        <div className="relative z-10 flex flex-col justify-center p-12 text-white">
-          <img src={logo} alt="Dance Vida" className="mb-6 h-32 w-auto" />
-          <h1 className="mb-4 text-5xl font-bold">Välkommen till Dance Vida</h1>
-          <p className="text-xl text-white/90">
-            Upptäck din passion för dans. Från Salsa till HipHop - vi har kurser för alla nivåer.
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+      {/* Decorative background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Logo and Header */}
+        <div className="text-center mb-8">
+          <img 
+            src={logo} 
+            alt="Dance Vida" 
+            className="h-16 w-auto mx-auto mb-4"
+          />
+          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+            Dance Vida
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Din dansskola i Stockholm
           </p>
         </div>
-      </div>
 
-      {/* Auth Form */}
-      <div className="flex w-full items-center justify-center p-8 lg:w-1/2">
-        <div className="w-full max-w-md space-y-6">
-          <div className="flex justify-center lg:hidden">
-            <img src={logo} alt="Dance Vida" className="h-24 w-auto" />
-          </div>
+        {/* Main Auth Card */}
+        <Card className="backdrop-blur-sm bg-card/95 shadow-lg border-border/50">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-2xl font-bold text-center">
+              Välkommen
+            </CardTitle>
+            <CardDescription className="text-center">
+              Logga in eller skapa ett nytt konto
+            </CardDescription>
+          </CardHeader>
 
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl">Kom igång</CardTitle>
-              <CardDescription>
-                Logga in eller skapa ett konto för att fortsätta
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="login">Logga in</TabsTrigger>
-                  <TabsTrigger value="signup">Skapa konto</TabsTrigger>
-                </TabsList>
+          <CardContent className="space-y-4">
+            {/* Google Sign In Button */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 font-medium"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+            >
+              <Chrome className="mr-2 h-5 w-5" />
+              Fortsätt med Google
+            </Button>
 
-                <TabsContent value="login" className="space-y-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleGoogleSignIn}
-                    disabled={loading}
-                  >
-                    <Chrome className="mr-2 h-4 w-4" />
-                    Fortsätt med Google
-                  </Button>
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  Eller
+                </span>
+              </div>
+            </div>
 
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background px-2 text-muted-foreground">
-                        Eller
-                      </span>
-                    </div>
+            {/* Login/Signup Tabs */}
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="login">Logga in</TabsTrigger>
+                <TabsTrigger value="signup">Skapa konto</TabsTrigger>
+              </TabsList>
+
+              {/* Login Form */}
+              <TabsContent value="login" className="space-y-4">
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">E-post</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="din@email.se"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={loading}
+                      className="h-11"
+                    />
                   </div>
 
-                  <form onSubmit={handleSignIn} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="login-email">E-post</Label>
-                      <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="din@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password">Lösenord</Label>
-                      <Input
-                        id="login-password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      variant="hero"
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Lösenord</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
                       disabled={loading}
-                    >
-                      <Mail className="mr-2 h-4 w-4" />
-                      {loading ? 'Loggar in...' : 'Logga in'}
-                    </Button>
-                  </form>
-                </TabsContent>
-
-                <TabsContent value="signup" className="space-y-4">
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Instruktörer tilldelas av en administratör. Alla nya konton börjar som medlem.
-                    </AlertDescription>
-                  </Alert>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleGoogleSignIn}
-                    disabled={loading}
-                  >
-                    <Chrome className="mr-2 h-4 w-4" />
-                    Fortsätt med Google
-                  </Button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background px-2 text-muted-foreground">
-                        Eller
-                      </span>
-                    </div>
+                      className="h-11"
+                    />
                   </div>
 
-                  <form onSubmit={handleSignUp} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-name">Förnamn & Efternamn</Label>
-                      <Input
-                        id="signup-name"
-                        type="text"
-                        placeholder="Anna Andersson"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-email">E-post</Label>
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="din@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-phone">Telefon (valfritt)</Label>
-                      <Input
-                        id="signup-phone"
-                        type="tel"
-                        placeholder="070-123 45 67"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-password">Lösenord</Label>
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      variant="hero"
+                  <Button
+                    type="submit"
+                    className="w-full h-11 font-medium"
+                    disabled={loading}
+                  >
+                    {loading ? 'Loggar in...' : 'Logga in'}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              {/* Signup Form */}
+              <TabsContent value="signup" className="space-y-4">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Fullständigt namn</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="Anna Andersson"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
                       disabled={loading}
-                    >
-                      <Mail className="mr-2 h-4 w-4" />
-                      {loading ? 'Skapar konto...' : 'Skapa konto'}
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
+                      className="h-11"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-phone">Telefon</Label>
+                    <Input
+                      id="signup-phone"
+                      type="tel"
+                      placeholder="070-123 45 67"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      disabled={loading}
+                      className="h-11"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">E-post</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="din@email.se"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={loading}
+                      className="h-11"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Lösenord</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={loading}
+                      className="h-11"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-11 font-medium"
+                    disabled={loading}
+                  >
+                    {loading ? 'Skapar konto...' : 'Skapa konto'}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <p className="text-center text-sm text-muted-foreground mt-6">
+          Genom att fortsätta godkänner du våra{' '}
+          <a href="#" className="underline hover:text-primary transition-colors">
+            användarvillkor
+          </a>
+        </p>
       </div>
 
+      {/* Dance Role Selector Dialog */}
       {showDanceRoleSelector && newUserId && (
-        <DanceRoleSelector 
-          userId={newUserId} 
-          onComplete={async () => {
-            await initialize();
-            const redirect = await getRoleRedirect(newUserId);
-            navigate(redirect);
-          }} 
+        <DanceRoleSelector
+          userId={newUserId}
+          onComplete={handleDanceRoleSelected}
         />
       )}
     </div>
