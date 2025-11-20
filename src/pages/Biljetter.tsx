@@ -19,12 +19,14 @@ import { useLanguageStore } from '@/store/languageStore';
 interface TicketWithCourse {
   id: string;
   member_id: string;
-  course_id: string;
+  course_id: string | null;
+  source_course_id: string;
   purchased_at: string;
   status: string;
   qr_payload: string;
-  max_checkins: number;
-  checked_in_count: number;
+  total_tickets: number;
+  tickets_used: number;
+  expires_at: string;
   order_id: string | null;
   courses: {
     id: string;
@@ -158,7 +160,7 @@ export default function Biljetter() {
         .from('tickets')
         .select(`
           *,
-          courses (
+          courses!tickets_source_course_id_fkey (
             id,
             title,
             starts_at,
@@ -326,7 +328,7 @@ export default function Biljetter() {
     if (ticket.type === 'event') {
       return ticket.status === 'confirmed' && ticket.payment_status === 'paid';
     } else {
-      return ticket.status === 'valid' && ticket.checked_in_count < ticket.max_checkins;
+      return ticket.status === 'valid' && ticket.tickets_used < ticket.total_tickets;
     }
   };
 
@@ -363,7 +365,7 @@ export default function Biljetter() {
         <div>
           <h1 className="text-3xl font-bold">{t.nav.biljetter}</h1>
           <p className="mt-1 text-muted-foreground">
-            {t.tickets.subtitleEmpty}
+            Inga biljetter ännu
           </p>
         </div>
 
@@ -418,7 +420,7 @@ export default function Biljetter() {
         <div>
           <h1 className="text-3xl font-bold">{t.nav.biljetter}</h1>
           <p className="mt-1 text-muted-foreground">
-            {t.tickets.subtitleWithTickets}
+            Hantera dina klippkort och evenemangsbiljetter
           </p>
         </div>
         <Button variant="hero" onClick={() => navigate('/kurser-poang')}>
@@ -531,9 +533,9 @@ export default function Biljetter() {
                 {isCourseTicket && (
                   <div className="pt-2 border-t">
                     <div className="flex items-center justify-between text-sm">
-                      <div className="text-muted-foreground">Incheckningar</div>
+                      <div className="text-muted-foreground">Klipp använda</div>
                       <div className="font-semibold">
-                        {ticket.checked_in_count} / {ticket.max_checkins}
+                        {ticket.tickets_used} / {ticket.total_tickets}
                       </div>
                     </div>
                   </div>

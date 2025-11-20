@@ -569,7 +569,6 @@ export type Database = {
           id: string
           level: string | null
           phone: string | null
-          points: number | null
           preferred_locale: string | null
           role: Database["public"]["Enums"]["app_role"]
           status: string | null
@@ -585,7 +584,6 @@ export type Database = {
           id: string
           level?: string | null
           phone?: string | null
-          points?: number | null
           preferred_locale?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string | null
@@ -601,7 +599,6 @@ export type Database = {
           id?: string
           level?: string | null
           phone?: string | null
-          points?: number | null
           preferred_locale?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string | null
@@ -656,37 +653,43 @@ export type Database = {
       }
       tickets: {
         Row: {
-          checked_in_count: number
-          course_id: string
+          course_id: string | null
+          expires_at: string | null
           id: string
-          max_checkins: number
           member_id: string
           order_id: string | null
           purchased_at: string
           qr_payload: string
+          source_course_id: string | null
           status: string
+          tickets_used: number
+          total_tickets: number
         }
         Insert: {
-          checked_in_count?: number
-          course_id: string
+          course_id?: string | null
+          expires_at?: string | null
           id?: string
-          max_checkins?: number
           member_id: string
           order_id?: string | null
           purchased_at?: string
           qr_payload: string
+          source_course_id?: string | null
           status?: string
+          tickets_used?: number
+          total_tickets?: number
         }
         Update: {
-          checked_in_count?: number
-          course_id?: string
+          course_id?: string | null
+          expires_at?: string | null
           id?: string
-          max_checkins?: number
           member_id?: string
           order_id?: string | null
           purchased_at?: string
           qr_payload?: string
+          source_course_id?: string | null
           status?: string
+          tickets_used?: number
+          total_tickets?: number
         }
         Relationships: [
           {
@@ -709,6 +712,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_member_revenue"
             referencedColumns: ["member_id"]
+          },
+          {
+            foreignKeyName: "tickets_source_course_id_fkey"
+            columns: ["source_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
           },
         ]
       }
