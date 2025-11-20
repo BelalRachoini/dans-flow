@@ -12,6 +12,8 @@ export const en = {
     betalningar: 'Payments',
     rapporter: 'Reports',
     admin: 'Admin',
+    courses: 'Courses',
+    events: 'Events',
   },
 
   // Auth
@@ -235,6 +237,24 @@ export const en = {
     myTickets: 'My tickets',
     buyCourses: 'Buy courses',
     viewEvents: 'View events',
+    adminAttendance: 'Admin: View Attendance',
+    selectCourse: 'Select Course',
+    selectEvent: 'Select Event',
+    chooseCourse: 'Choose a course...',
+    chooseEvent: 'Choose an event...',
+    totalAttendees: 'Total Attendees',
+    leaders: 'Leaders',
+    followers: 'Followers',
+    notSet: 'Not Set',
+    checkedIn: 'Checked In',
+    notCheckedIn: 'Not Checked In',
+    name: 'Name',
+    email: 'Email',
+    phone: 'Phone',
+    danceRole: 'Dance Role',
+    ticketsRemaining: 'Tickets Remaining',
+    checkInStatus: 'Check-in Status',
+    noAttendees: 'No attendees found',
   },
 
   // Memberships
@@ -581,6 +601,9 @@ export const en = {
     passwordTooShort: 'Password must be at least 6 characters',
     invalidFileType: 'Please upload an image file',
     fileTooLarge: 'File size must be less than 5MB',
+    leader: 'Leader',
+    follower: 'Follower',
+    notSet: 'Not Set',
   },
 
   // CRM

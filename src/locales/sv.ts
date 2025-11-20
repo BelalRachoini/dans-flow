@@ -12,6 +12,8 @@ export const sv = {
     betalningar: 'Betalningar',
     rapporter: 'Rapporter',
     admin: 'Admin',
+    courses: 'Kurser',
+    events: 'Event',
   },
 
   // Auth
@@ -235,6 +237,24 @@ export const sv = {
     myTickets: 'Mina biljetter',
     buyCourses: 'Köp kurser',
     viewEvents: 'Se event',
+    adminAttendance: 'Admin: Visa Närvaro',
+    selectCourse: 'Välj Kurs',
+    selectEvent: 'Välj Event',
+    chooseCourse: 'Välj en kurs...',
+    chooseEvent: 'Välj ett event...',
+    totalAttendees: 'Totalt Deltagare',
+    leaders: 'Ledare',
+    followers: 'Följare',
+    notSet: 'Ej Angett',
+    checkedIn: 'Incheckade',
+    notCheckedIn: 'Ej Incheckad',
+    name: 'Namn',
+    email: 'E-post',
+    phone: 'Telefon',
+    danceRole: 'Dans Roll',
+    ticketsRemaining: 'Klipp Kvar',
+    checkInStatus: 'Incheckningsstatus',
+    noAttendees: 'Inga deltagare hittades',
   },
 
   // Memberships
@@ -581,6 +601,9 @@ export const sv = {
     passwordTooShort: 'Lösenordet måste vara minst 6 tecken',
     invalidFileType: 'Vänligen ladda upp en bildfil',
     fileTooLarge: 'Filstorleken måste vara mindre än 5MB',
+    leader: 'Ledare',
+    follower: 'Följare',
+    notSet: 'Ej angett',
   },
 
   // CRM

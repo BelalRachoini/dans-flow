@@ -12,6 +12,8 @@ export const es = {
     betalningar: 'Pagos',
     rapporter: 'Informes',
     admin: 'Admin',
+    courses: 'Cursos',
+    events: 'Eventos',
   },
 
   // Auth
@@ -235,6 +237,24 @@ export const es = {
     myTickets: 'Mis entradas',
     buyCourses: 'Comprar cursos',
     viewEvents: 'Ver eventos',
+    adminAttendance: 'Admin: Ver Asistencia',
+    selectCourse: 'Seleccionar Curso',
+    selectEvent: 'Seleccionar Evento',
+    chooseCourse: 'Elige un curso...',
+    chooseEvent: 'Elige un evento...',
+    totalAttendees: 'Total Asistentes',
+    leaders: 'Líderes',
+    followers: 'Seguidores',
+    notSet: 'No Configurado',
+    checkedIn: 'Registrado',
+    notCheckedIn: 'No Registrado',
+    name: 'Nombre',
+    email: 'Correo',
+    phone: 'Teléfono',
+    danceRole: 'Rol de Baile',
+    ticketsRemaining: 'Entradas Restantes',
+    checkInStatus: 'Estado de Registro',
+    noAttendees: 'No se encontraron asistentes',
   },
 
   // Memberships
@@ -581,6 +601,9 @@ export const es = {
     passwordTooShort: 'La contraseña debe tener al menos 6 caracteres',
     invalidFileType: 'Por favor sube un archivo de imagen',
     fileTooLarge: 'El tamaño del archivo debe ser menor a 5MB',
+    leader: 'Líder',
+    follower: 'Seguidor',
+    notSet: 'No Configurado',
   },
 
   // CRM

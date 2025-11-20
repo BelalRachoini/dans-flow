@@ -8,13 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Ticket, Calendar, MapPin, Clock, QrCode, 
-  PartyPopper, ShoppingCart, Search, X, Info, Check
+  PartyPopper, ShoppingCart, Search, X, Info, Check,
+  Users, GraduationCap
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import QRCodeLib from 'qrcode';
 import { useLanguageStore } from '@/store/languageStore';
+import { useAuthStore } from '@/store/authStore';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format } from 'date-fns';
 
 interface TicketWithCourse {
   id: string;
@@ -62,6 +67,9 @@ export default function Biljetter() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguageStore();
+  const { role } = useAuthStore();
+  const isAdmin = role === 'admin';
+  
   const [tickets, setTickets] = useState<AllTickets[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,9 +79,40 @@ export default function Biljetter() {
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const qrCanvasRef = useRef<{ [key: string]: string }>({});
 
+  // Admin-specific state
+  const [adminView, setAdminView] = useState<'courses' | 'events'>('courses');
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [attendees, setAttendees] = useState<any[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState({
+    totalAttendees: 0,
+    leaders: 0,
+    followers: 0,
+    notSet: 0,
+    checkedIn: 0
+  });
+
   useEffect(() => {
+    if (isAdmin) {
+      loadAdminCourses();
+      loadAdminEvents();
+    }
     loadTickets();
-  }, []);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (selectedCourse) {
+      loadCourseAttendees(selectedCourse);
+    }
+  }, [selectedCourse]);
+
+  useEffect(() => {
+    if (selectedEvent) {
+      loadEventAttendees(selectedEvent);
+    }
+  }, [selectedEvent]);
 
   useEffect(() => {
     const setupRealtimeSubscription = async () => {
@@ -332,6 +371,145 @@ export default function Biljetter() {
     }
   };
 
+  // Admin data loading functions
+  const loadAdminCourses = async () => {
+    const { data, error } = await supabase
+      .from('courses')
+      .select('id, title, starts_at, ends_at, venue, status')
+      .order('starts_at', { ascending: false });
+    
+    if (!error && data) {
+      setCourses(data);
+    }
+  };
+
+  const loadAdminEvents = async () => {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, start_at, end_at, venue, capacity, sold_count')
+      .order('start_at', { ascending: false });
+    
+    if (!error && data) {
+      setEvents(data);
+    }
+  };
+
+  const loadCourseAttendees = async (courseId: string) => {
+    const { data: ticketData, error } = await supabase
+      .from('tickets')
+      .select(`
+        id,
+        member_id,
+        total_tickets,
+        tickets_used,
+        expires_at,
+        status,
+        profiles!inner (
+          id,
+          full_name,
+          email,
+          phone,
+          dance_role
+        )
+      `)
+      .or(`course_id.eq.${courseId},source_course_id.eq.${courseId}`)
+      .eq('status', 'valid');
+    
+    if (error) {
+      console.error('Error loading attendees:', error);
+      return;
+    }
+    
+    const { data: checkinData } = await supabase
+      .from('checkins')
+      .select('ticket_id, tickets!inner(member_id)')
+      .in('ticket_id', ticketData?.map(t => t.id) || []);
+    
+    const attendeeMap = new Map();
+    ticketData?.forEach(ticket => {
+      const profile = ticket.profiles as any;
+      const checkins = checkinData?.filter((c: any) => c.tickets.member_id === ticket.member_id).length || 0;
+      
+      attendeeMap.set(ticket.member_id, {
+        id: ticket.member_id,
+        name: profile.full_name || 'Unknown',
+        email: profile.email,
+        phone: profile.phone,
+        danceRole: profile.dance_role,
+        ticketsRemaining: ticket.total_tickets - ticket.tickets_used,
+        totalCheckins: checkins,
+        hasCheckedIn: checkins > 0
+      });
+    });
+    
+    const attendeesList = Array.from(attendeeMap.values());
+    setAttendees(attendeesList);
+    
+    const stats = {
+      totalAttendees: attendeesList.length,
+      leaders: attendeesList.filter((a: any) => a.danceRole === 'leader').length,
+      followers: attendeesList.filter((a: any) => a.danceRole === 'follower').length,
+      notSet: attendeesList.filter((a: any) => !a.danceRole).length,
+      checkedIn: attendeesList.filter((a: any) => a.hasCheckedIn).length
+    };
+    
+    setAttendanceStats(stats);
+  };
+
+  const loadEventAttendees = async (eventId: string) => {
+    const { data, error } = await supabase
+      .from('event_bookings')
+      .select(`
+        id,
+        member_id,
+        status,
+        booked_at,
+        profiles!inner (
+          id,
+          full_name,
+          email,
+          phone,
+          dance_role
+        )
+      `)
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed');
+    
+    if (error) {
+      console.error('Error loading event attendees:', error);
+      return;
+    }
+    
+    const { data: checkinData } = await supabase
+      .from('event_checkins')
+      .select('member_id')
+      .eq('event_id', eventId);
+    
+    const checkedInMembers = new Set(checkinData?.map(c => c.member_id) || []);
+    
+    const attendeesList = data?.map(booking => ({
+      id: booking.member_id,
+      name: (booking.profiles as any).full_name || 'Unknown',
+      email: (booking.profiles as any).email,
+      phone: (booking.profiles as any).phone,
+      danceRole: (booking.profiles as any).dance_role,
+      bookedAt: booking.booked_at,
+      hasCheckedIn: checkedInMembers.has(booking.member_id)
+    })) || [];
+    
+    setAttendees(attendeesList);
+    
+    const stats = {
+      totalAttendees: attendeesList.length,
+      leaders: attendeesList.filter(a => a.danceRole === 'leader').length,
+      followers: attendeesList.filter(a => a.danceRole === 'follower').length,
+      notSet: attendeesList.filter(a => !a.danceRole).length,
+      checkedIn: attendeesList.filter(a => a.hasCheckedIn).length
+    };
+    
+    setAttendanceStats(stats);
+  };
+
   const filteredTickets = tickets.filter((ticket) => {
     const title = ticket.type === 'course' 
       ? ticket.courses.title 
@@ -428,6 +606,189 @@ export default function Biljetter() {
           {t.tickets.buyCourses}
         </Button>
       </div>
+
+      {/* Admin Attendance Management Section */}
+      {isAdmin && (
+        <div className="mb-8 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                {t.tickets.adminAttendance || 'Admin: View Attendance'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Tab Selection: Courses vs Events */}
+              <div className="flex gap-2">
+                <Button
+                  variant={adminView === 'courses' ? 'default' : 'outline'}
+                  onClick={() => setAdminView('courses')}
+                >
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                  {t.nav.courses || 'Courses'}
+                </Button>
+                <Button
+                  variant={adminView === 'events' ? 'default' : 'outline'}
+                  onClick={() => setAdminView('events')}
+                >
+                  <PartyPopper className="mr-2 h-4 w-4" />
+                  {t.nav.events || 'Events'}
+                </Button>
+              </div>
+
+              {/* Course Selection */}
+              {adminView === 'courses' && (
+                <div className="space-y-2">
+                  <Label>{t.tickets.selectCourse || 'Select Course'}</Label>
+                  <Select value={selectedCourse || ''} onValueChange={setSelectedCourse}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t.tickets.chooseCourse || 'Choose a course...'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {courses.map(course => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.title} - {format(new Date(course.starts_at), 'MMM yyyy')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Event Selection */}
+              {adminView === 'events' && (
+                <div className="space-y-2">
+                  <Label>{t.tickets.selectEvent || 'Select Event'}</Label>
+                  <Select value={selectedEvent || ''} onValueChange={setSelectedEvent}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t.tickets.chooseEvent || 'Choose an event...'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {events.map(event => (
+                        <SelectItem key={event.id} value={event.id}>
+                          {event.title} - {format(new Date(event.start_at), 'PPP')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Statistics Display */}
+              {(selectedCourse || selectedEvent) && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold">{attendanceStats.totalAttendees}</div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.tickets.totalAttendees || 'Total Attendees'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-blue-600">{attendanceStats.leaders}</div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.tickets.leaders || 'Leaders'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-pink-600">{attendanceStats.followers}</div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.tickets.followers || 'Followers'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-gray-500">{attendanceStats.notSet}</div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.tickets.notSet || 'Not Set'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-green-600">{attendanceStats.checkedIn}</div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.tickets.checkedIn || 'Checked In'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Attendees Table */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t.tickets.name || 'Name'}</TableHead>
+                          <TableHead>{t.tickets.email || 'Email'}</TableHead>
+                          <TableHead>{t.tickets.phone || 'Phone'}</TableHead>
+                          <TableHead>{t.tickets.danceRole || 'Dance Role'}</TableHead>
+                          {adminView === 'courses' && (
+                            <TableHead>{t.tickets.ticketsRemaining || 'Tickets Remaining'}</TableHead>
+                          )}
+                          <TableHead>{t.tickets.checkInStatus || 'Check-in Status'}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {attendees.map(attendee => (
+                          <TableRow key={attendee.id}>
+                            <TableCell className="font-medium">{attendee.name}</TableCell>
+                            <TableCell>{attendee.email}</TableCell>
+                            <TableCell>{attendee.phone || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                attendee.danceRole === 'leader' ? 'default' : 
+                                attendee.danceRole === 'follower' ? 'secondary' : 
+                                'outline'
+                              }>
+                                {attendee.danceRole === 'leader' ? t.profile.leader : 
+                                 attendee.danceRole === 'follower' ? t.profile.follower : 
+                                 t.profile.notSet}
+                              </Badge>
+                            </TableCell>
+                            {adminView === 'courses' && (
+                              <TableCell>{attendee.ticketsRemaining || 0}</TableCell>
+                            )}
+                            <TableCell>
+                              {attendee.hasCheckedIn ? (
+                                <Badge variant="default" className="bg-green-600">
+                                  <Check className="mr-1 h-3 w-3" />
+                                  {t.tickets.checkedIn || 'Checked In'}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">
+                                  {t.tickets.notCheckedIn || 'Not Checked In'}
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {attendees.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={adminView === 'courses' ? 6 : 5} className="text-center text-muted-foreground py-8">
+                              {t.tickets.noAttendees || 'No attendees found'}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Info Box */}
       <Card className="bg-primary/5 border-primary/20">
