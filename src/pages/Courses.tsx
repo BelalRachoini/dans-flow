@@ -38,7 +38,6 @@ const courseSchema = z.object({
   description: z.string().min(20).max(2000),
   level: z.enum(['beginner', 'intermediate', 'advanced']),
   price: z.number().min(1),
-  points: z.number().min(0),
   capacity: z.number().min(1),
   primary_instructor: z.string().optional(),
   status: z.enum(['draft', 'published', 'archived']),
@@ -55,7 +54,6 @@ type DbCourse = {
   description: string;
   level: string;
   price_cents: number;
-  points: number;
   capacity: number;
   primary_instructor: string | null;
   status: string;
@@ -78,7 +76,6 @@ export default function Courses() {
     defaultValues: {
       level: 'beginner',
       status: 'published',
-      points: 0,
       capacity: 20,
       price: 1000,
     }
@@ -156,7 +153,6 @@ export default function Courses() {
         description: data.description,
         level: data.level,
         price_cents: Math.round(data.price * 100),
-        points: data.points,
         capacity: data.capacity,
         primary_instructor: data.primary_instructor || null,
         status: data.status,
@@ -199,7 +195,6 @@ export default function Courses() {
     setValue('description', course.description);
     setValue('level', course.level as 'beginner' | 'intermediate' | 'advanced');
     setValue('price', course.price_cents / 100);
-    setValue('points', course.points);
     setValue('capacity', course.capacity);
     setValue('primary_instructor', course.primary_instructor || undefined);
     setValue('status', course.status as 'draft' | 'published' | 'archived');
@@ -303,16 +298,10 @@ export default function Courses() {
                   </div>
 
                   <div>
-                    <Label htmlFor="points">{t.course.points}</Label>
-                    <Input id="points" type="number" {...register('points', { valueAsNumber: true })} />
-                    {errors.points && <p className="text-sm text-destructive mt-1">{errors.points.message}</p>}
+                    <Label htmlFor="capacity">{t.course.capacity}</Label>
+                    <Input id="capacity" type="number" {...register('capacity', { valueAsNumber: true })} />
+                    {errors.capacity && <p className="text-sm text-destructive mt-1">{errors.capacity.message}</p>}
                   </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="capacity">{t.course.capacity}</Label>
-                  <Input id="capacity" type="number" {...register('capacity', { valueAsNumber: true })} />
-                  {errors.capacity && <p className="text-sm text-destructive mt-1">{errors.capacity.message}</p>}
                 </div>
 
                 <div>
@@ -563,10 +552,6 @@ export default function Courses() {
                     <div className="flex items-baseline gap-1">
                       <span className="text-xs text-muted-foreground">{t.courses.priceLabel}</span>
                       <span className="text-lg sm:text-xl md:text-2xl font-bold">{course.price_cents / 100} kr</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xs text-muted-foreground">{t.courses.pointsLabel}</span>
-                      <span className="text-lg sm:text-xl md:text-2xl font-bold text-primary">+{course.points}</span>
                     </div>
                   </div>
                 </div>

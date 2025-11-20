@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, MapPin, User, Clock, Coins, ArrowLeft } from 'lucide-react';
+import { Ticket, Calendar, MapPin, User, Clock, Coins, ArrowLeft, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { sv } from '@/locales/sv';
 import { supabase } from '@/integrations/supabase/client';
@@ -211,7 +211,7 @@ export default function CourseDetail() {
             </div>
           )}
 
-          {/* Pricing & Points */}
+          {/* Pricing & Tickets */}
           <Card className="gradient-primary text-white">
             <CardContent className="py-6">
               <div className="flex items-center justify-between">
@@ -220,11 +220,27 @@ export default function CourseDetail() {
                   <p className="text-4xl font-bold">{course.price_cents / 100} kr</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-white/80 mb-1">Poäng du får</p>
+                  <p className="text-white/80 mb-1">Klippkort ingår</p>
                   <div className="flex items-center gap-2 justify-end">
-                    <Coins className="h-8 w-8" />
-                    <p className="text-4xl font-bold">+{course.points}</p>
+                    <Ticket className="h-8 w-8" />
+                    <p className="text-4xl font-bold">{lessons.length}</p>
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Ticket Explanation */}
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-4">
+              <div className="flex gap-3">
+                <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="text-sm space-y-1">
+                  <p className="font-semibold">Flexibla klippkort</p>
+                  <p className="text-muted-foreground">
+                    Denna kurs ger dig {lessons.length} klippkort som kan användas för alla lektioner, 
+                    inte bara denna kurs. Klippkorten utgår {course.ends_at ? format(new Date(course.ends_at), 'PPP', { locale: svLocale }) : 'vid kursens slut'}.
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -241,22 +257,6 @@ export default function CourseDetail() {
             </div>
           )}
 
-          {/* Info Banner */}
-          <Card className="bg-muted/50 border-primary/20">
-            <CardContent className="py-4">
-              <div className="flex items-start gap-3">
-                <Coins className="h-6 w-6 text-primary shrink-0 mt-1" />
-                <div>
-                  <p className="font-semibold mb-1">Så fungerar poängsystemet</p>
-                  <p className="text-sm text-muted-foreground">
-                    Köp en kurs – få lika många poäng som lektioner. Varje gång du checkar in på en lektion 
-                    dras 1 poäng. Poängen är flexibla och kan användas i vilken klass som helst, 
-                    oavsett stil eller nivå!
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </CardContent>
         <CardFooter className="flex gap-3">
           <Button 

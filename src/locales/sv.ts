@@ -184,8 +184,6 @@ export const sv = {
     viewEvents: 'Se event',
   },
 
-  },
-
   // Memberships
   memberships: {
     title: 'Medlemskap & Prenumerationer',
