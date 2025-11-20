@@ -445,6 +445,10 @@ export const sv = {
     today: "Idag",
     colorCoding: "Färgkodning",
     moreItems: "mer",
+    bookNow: "Boka nu",
+    viewDetails: "Visa detaljer",
+    dayDetails: "Dagöversikt",
+    noBooking: "Kan inte boka",
     weekdays: {
       mon: "Mån",
       tue: "Tis",

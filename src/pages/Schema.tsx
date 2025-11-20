@@ -10,10 +10,11 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
 import { useAuthStore } from '@/store/authStore';
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, startOfDay, isSameMonth } from 'date-fns';
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, startOfDay, isSameMonth, isToday } from 'date-fns';
 import { sv as svLocale, enUS as enLocale, es as esLocale } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -38,6 +39,7 @@ export default function Schema() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   // Get the appropriate date-fns locale based on current language
   const getDateLocale = () => {
@@ -178,6 +180,14 @@ export default function Schema() {
     return colors[style] || 'bg-accent text-accent-foreground';
   };
 
+  const handleBooking = (item: CalendarItem) => {
+    if (item.type === 'lesson') {
+      navigate(`/courses/${item.id}`);
+    } else {
+      navigate(`/event/${item.id}`);
+    }
+  };
+
   const timeSlots = [
     '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00',
     '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
@@ -223,6 +233,76 @@ export default function Schema() {
     setCurrentDate(new Date());
   };
 
+  const renderDayDetailsDialog = () => {
+    if (!selectedDay) return null;
+    
+    const dayItems = getCalendarItems(selectedDay);
+    
+    return (
+      <Dialog open={!!selectedDay} onOpenChange={() => setSelectedDay(null)}>
+        <DialogContent className="max-w-md max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>
+              {format(selectedDay, 'EEEE, d MMMM yyyy', { locale: getDateLocale() })}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-3">
+              {dayItems.length === 0 ? (
+                <div className="text-center py-8">
+                  <CalendarIcon className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                  <p className="text-muted-foreground">{t.schedule.noEventsToday}</p>
+                </div>
+              ) : (
+                dayItems.map(item => (
+                  <Card key={item.id} className="overflow-hidden">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-base mb-1">{item.title}</h4>
+                          <Badge variant="outline" className="mb-2">
+                            {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 flex-shrink-0" />
+                          <span>{item.startTime} - {item.endTime}</span>
+                        </div>
+                        {item.location && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 flex-shrink-0" />
+                            <span>{item.location}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <Button 
+                        className="w-full mt-4" 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDay(null);
+                          handleBooking(item);
+                        }}
+                      >
+                        <Ticket className="h-4 w-4 mr-2" />
+                        {t.schedule.bookNow}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderDayView = () => {
     const items = getCalendarItems(currentDate);
     
@@ -263,13 +343,12 @@ export default function Schema() {
                             return (
                               <div
                                 key={item.id}
-                                className={`rounded-md p-3 border-l-4 shadow-sm cursor-pointer transition-all hover:shadow-md ${
+                                className={`rounded-md p-3 border-l-4 shadow-sm transition-all hover:shadow-md ${
                                   item.type === 'lesson'
                                     ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20'
                                     : 'bg-purple-500/10 border-purple-500 hover:bg-purple-500/20'
                                 }`}
                                 style={{ minHeight: `${heightRem}rem` }}
-                                onClick={() => item.type === 'event' && navigate('/event')}
                               >
                                 <div className="flex items-start justify-between gap-2 mb-1">
                                   <h4 className="font-bold text-sm">{item.title}</h4>
@@ -277,7 +356,7 @@ export default function Schema() {
                                     {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
                                   </Badge>
                                 </div>
-                                <div className="text-xs text-muted-foreground space-y-1">
+                                <div className="text-xs text-muted-foreground space-y-1 mb-3">
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
                                     {item.startTime} - {item.endTime}
@@ -287,6 +366,17 @@ export default function Schema() {
                                     {item.location}
                                   </div>
                                 </div>
+                                <Button 
+                                  size="sm" 
+                                  className="w-full"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBooking(item);
+                                  }}
+                                >
+                                  <Ticket className="h-3 w-3 mr-1" />
+                                  {t.schedule.bookNow}
+                                </Button>
                               </div>
                             );
                           })}
@@ -304,67 +394,64 @@ export default function Schema() {
   };
 
   const renderWeekViewMobile = () => {
-    const today = startOfDay(currentDate);
-    const yesterday = addDays(today, -1);
-    const tomorrow = addDays(today, 1);
-    const threeDays = [yesterday, today, tomorrow];
-
-    const timeSlots = [];
-    for (let hour = 8; hour <= 23; hour++) {
-      timeSlots.push(`${hour.toString().padStart(2, "0")}:00`);
-    }
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const weekDays = eachDayOfInterval({ 
+      start: weekStart, 
+      end: addDays(weekStart, 6) 
+    });
 
     return (
       <ScrollArea className="w-full">
-        <div className="flex gap-3 p-4 pb-6">
-          {threeDays.map((day, dayIdx) => {
-            const isToday = isSameDay(day, new Date());
+        <div className="flex gap-2 min-w-max">
+          {weekDays.map((day) => {
             const dayItems = getCalendarItems(day);
+            const isTodayDate = isToday(day);
             
             return (
-              <Card 
+              <div 
                 key={day.toString()} 
-                className={`min-w-[280px] flex-shrink-0 ${isToday ? 'ring-2 ring-primary' : ''}`}
+                className={`min-w-[90px] flex-shrink-0 border rounded-lg overflow-hidden ${
+                  isTodayDate ? 'ring-2 ring-primary' : ''
+                }`}
               >
-                <CardContent className="p-3">
-                  <div className="text-center mb-3 pb-2 border-b">
-                    <div className="text-xs text-muted-foreground uppercase">
-                      {format(day, "EEE", { locale: getDateLocale() })}
-                    </div>
-                    <div className={`text-2xl font-bold ${isToday ? 'text-primary' : ''}`}>
-                      {format(day, "d")}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {format(day, "MMM", { locale: getDateLocale() })}
-                    </div>
+                <div className={`text-center p-2 border-b ${isTodayDate ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                  <div className="text-xs font-medium uppercase">
+                    {format(day, 'EEE', { locale: getDateLocale() })}
                   </div>
-                  
-                  <div className="space-y-2">
-                    {dayItems.length === 0 ? (
-                      <div className="text-center py-8 text-sm text-muted-foreground">
-                        {t.schedule.noEventsToday}
-                      </div>
-                    ) : (
-                      dayItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`p-3 rounded-lg border-l-4 ${getStyleColor(item.style)} bg-card hover:shadow-md transition-shadow cursor-pointer`}
-                        >
-                          <div className="font-medium text-sm line-clamp-2">{item.title}</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {item.startTime} - {item.endTime}
-                          </div>
-                          {item.location && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              📍 {item.location}
-                            </div>
-                          )}
+                  <div className={`text-lg font-bold ${isTodayDate ? 'text-primary' : ''}`}>
+                    {format(day, 'd')}
+                  </div>
+                </div>
+                
+                <div className="p-2 space-y-1 min-h-[200px]">
+                  {dayItems.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-xs text-muted-foreground">-</p>
+                    </div>
+                  ) : (
+                    dayItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`p-2 rounded text-xs cursor-pointer transition-all hover:shadow-md border-l-2 ${
+                          item.type === 'lesson'
+                            ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20'
+                            : 'bg-purple-500/10 border-purple-500 hover:bg-purple-500/20'
+                        }`}
+                        onClick={() => handleBooking(item)}
+                      >
+                        <div className="font-semibold line-clamp-1 mb-1">{item.title}</div>
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-2.5 w-2.5" />
+                          {item.startTime}
                         </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                        <Badge variant="outline" className="text-[10px] mt-1 h-4">
+                          {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>
@@ -512,6 +599,7 @@ export default function Schema() {
                       className={`min-h-14 p-1 border-r last:border-r-0 ${
                         !isCurrentMonth ? "bg-muted/20" : ""
                       } ${isToday ? "bg-primary/10" : ""} hover:bg-accent/50 transition-colors cursor-pointer`}
+                      onClick={() => setSelectedDay(day)}
                     >
                       <div
                         className={`text-xs font-medium ${
@@ -599,10 +687,7 @@ export default function Schema() {
                       className={`min-h-28 p-2 cursor-pointer transition-all hover:bg-muted/50 border-r last:border-r-0 ${
                         !isCurrentMonth ? 'opacity-40 bg-muted/20' : ''
                       } ${isToday ? 'bg-primary/5 ring-2 ring-inset ring-primary/20' : ''}`}
-                      onClick={() => {
-                        setCurrentDate(day);
-                        setViewMode('day');
-                      }}
+                      onClick={() => setSelectedDay(day)}
                     >
                       <div className={`text-sm font-bold mb-2 ${isToday ? 'text-primary' : ''}`}>
                         {format(day, 'd')}
@@ -617,10 +702,8 @@ export default function Schema() {
                                 : 'bg-purple-500/10 border-purple-500'
                             }`}
                             onClick={(e) => {
-                              if (item.type === 'event') {
-                                e.stopPropagation();
-                                navigate('/event');
-                              }
+                              e.stopPropagation();
+                              handleBooking(item);
                             }}
                           >
                             {item.type === 'event' && <Ticket className="h-3 w-3 flex-shrink-0" />}
@@ -748,6 +831,9 @@ export default function Schema() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Day Details Dialog */}
+      {renderDayDetailsDialog()}
     </div>
   );
 }
