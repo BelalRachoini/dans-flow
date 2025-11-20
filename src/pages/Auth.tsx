@@ -154,8 +154,10 @@ export default function Auth() {
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Dance Vida
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Din dansskola i Stockholm
+          <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+            Välkommen till vår dansskola. Lär dig socialdans på kort tid!
+            <br />
+            Vi har danskurser på alla nivåer och håller workshops, socialdanser, fester och evenemang.
           </p>
         </div>
 
