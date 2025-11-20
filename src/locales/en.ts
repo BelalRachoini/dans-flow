@@ -111,6 +111,19 @@ export const en = {
     upcomingEventsTitle: "Don't miss our upcoming events!",
     upcomingEventsDescription: 'From social dances to workshops and special evenings - discover all the exciting events we have to offer.',
     viewAllEvents: 'View all events',
+    lessons: {
+      manual: 'Manual',
+      recurring: 'Recurring',
+      dayOfWeek: 'Day of Week',
+      startTime: 'Start Time',
+      endTime: 'End Time',
+      generateLessons: 'Generate Lessons',
+      lessonsWillBeCreated: 'This will create {count} lessons',
+      titleTemplate: 'Lesson {n}',
+      lessonsGenerated: '{count} lessons generated',
+      needCourseDates: 'Course must have start and end dates',
+      endTimeAfterStart: 'End time must be after start time',
+    },
   },
 
   // Events

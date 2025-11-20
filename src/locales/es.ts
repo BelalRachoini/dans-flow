@@ -111,6 +111,19 @@ export const es = {
     upcomingEventsTitle: '¡No te pierdas nuestros próximos eventos!',
     upcomingEventsDescription: 'Desde bailes sociales hasta talleres y noches especiales: descubre todos los emocionantes eventos que tenemos para ofrecer.',
     viewAllEvents: 'Ver todos los eventos',
+    lessons: {
+      manual: 'Manual',
+      recurring: 'Recurrente',
+      dayOfWeek: 'Día de la Semana',
+      startTime: 'Hora de Inicio',
+      endTime: 'Hora de Fin',
+      generateLessons: 'Generar Clases',
+      lessonsWillBeCreated: 'Esto creará {count} clases',
+      titleTemplate: 'Clase {n}',
+      lessonsGenerated: '{count} clases generadas',
+      needCourseDates: 'El curso debe tener fechas de inicio y fin',
+      endTimeAfterStart: 'La hora de fin debe ser después de la hora de inicio',
+    },
   },
 
   // Events

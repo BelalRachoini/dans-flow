@@ -473,7 +473,11 @@ export default function Courses() {
 
                 {editingCourse && (
                   <div className="pt-4 border-t">
-                    <CourseLessons courseId={editingCourse.id} />
+                    <CourseLessons 
+                      courseId={editingCourse.id}
+                      courseStartDate={watch('starts_at')}
+                      courseEndDate={watch('ends_at')}
+                    />
                   </div>
                 )}
 
