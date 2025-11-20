@@ -433,6 +433,29 @@ export const sv = {
     event: "Event",
   },
 
+  // Schedule/Schema Page
+  schedule: {
+    title: "Schema",
+    subtitle: "Kurser och event 08:00 - 23:00",
+    noEventsToday: "Inga klasser eller event denna dag",
+    time: "Tid",
+    day: "Dag",
+    week: "Vecka",
+    month: "Månad",
+    today: "Idag",
+    colorCoding: "Färgkodning",
+    moreItems: "mer",
+    weekdays: {
+      mon: "Mån",
+      tue: "Tis",
+      wed: "Ons",
+      thu: "Tor",
+      fri: "Fre",
+      sat: "Lör",
+      sun: "Sön",
+    },
+  },
+
   // CRM
   crm: {
     title: "Medlemmar CRM",

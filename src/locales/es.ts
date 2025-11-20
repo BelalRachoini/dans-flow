@@ -433,6 +433,29 @@ export const es = {
     event: "Evento",
   },
 
+  // Schedule/Schema Page
+  schedule: {
+    title: "Horario",
+    subtitle: "Cursos y eventos 08:00 - 23:00",
+    noEventsToday: "No hay clases ni eventos este día",
+    time: "Hora",
+    day: "Día",
+    week: "Semana",
+    month: "Mes",
+    today: "Hoy",
+    colorCoding: "Código de Colores",
+    moreItems: "más",
+    weekdays: {
+      mon: "Lun",
+      tue: "Mar",
+      wed: "Mié",
+      thu: "Jue",
+      fri: "Vie",
+      sat: "Sáb",
+      sun: "Dom",
+    },
+  },
+
   // CRM
   crm: {
     title: "CRM de Miembros",
