@@ -8,6 +8,50 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Trash2 } from 'lucide-react';
 import { useLanguageStore } from '@/store/languageStore';
 
+// Helper function to extract and normalize video URLs from various formats
+const extractVideoUrl = (input: string): { url: string; extracted: boolean } => {
+  const trimmedInput = input.trim();
+  
+  // If it's an iframe, extract the src
+  const iframeSrcMatch = trimmedInput.match(/src=["']([^"']+)["']/);
+  if (iframeSrcMatch) {
+    const cleanUrl = iframeSrcMatch[1].split('?')[0]; // Remove query params
+    return { url: cleanUrl, extracted: true };
+  }
+  
+  // If it's a YouTube watch URL, convert to embed
+  const youtubeWatchMatch = trimmedInput.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([^&?]+)/);
+  if (youtubeWatchMatch) {
+    return { url: `https://www.youtube.com/embed/${youtubeWatchMatch[1]}`, extracted: true };
+  }
+  
+  // If it's a YouTube short URL, convert to embed
+  const youtubeShortMatch = trimmedInput.match(/youtu\.be\/([^?]+)/);
+  if (youtubeShortMatch) {
+    return { url: `https://www.youtube.com/embed/${youtubeShortMatch[1]}`, extracted: true };
+  }
+  
+  // If it's a YouTube Shorts URL, convert to embed
+  const youtubeShortsMatch = trimmedInput.match(/youtube\.com\/shorts\/([^?]+)/);
+  if (youtubeShortsMatch) {
+    return { url: `https://www.youtube.com/embed/${youtubeShortsMatch[1]}`, extracted: true };
+  }
+  
+  // If it's a Vimeo URL, extract video ID
+  const vimeoMatch = trimmedInput.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) {
+    return { url: `https://player.vimeo.com/video/${vimeoMatch[1]}`, extracted: true };
+  }
+  
+  // If it's already an embed URL, keep as is
+  if (trimmedInput.includes('youtube.com/embed/') || trimmedInput.includes('player.vimeo.com/video/')) {
+    return { url: trimmedInput, extracted: false };
+  }
+  
+  // Otherwise, return as is
+  return { url: trimmedInput, extracted: false };
+};
+
 interface CourseSectionEditorProps {
   section: any | null;
   course: any;
@@ -21,6 +65,7 @@ export function CourseSectionEditor({ section, course, open, onClose, onSave }: 
   const [sectionType, setSectionType] = useState('text');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState<any>({});
+  const [videoUrlExtracted, setVideoUrlExtracted] = useState(false);
 
   useEffect(() => {
     if (section) {
@@ -104,14 +149,45 @@ export function CourseSectionEditor({ section, course, open, onClose, onSave }: 
       case 'video':
         return (
           <div className="space-y-4">
-            <div>
-              <Label>{t.course.pageEditor?.videoUrl || 'Video URL (YouTube/Vimeo embed)'}</Label>
+            <div className="space-y-2">
+              <Label htmlFor="videoUrl">{t.course.pageEditor?.videoUrl || 'Video URL'}</Label>
               <Input
+                id="videoUrl"
                 value={content.videoUrl || ''}
-                onChange={(e) => setContent({ ...content, videoUrl: e.target.value })}
-                placeholder="https://www.youtube.com/embed/..."
+                onChange={(e) => {
+                  const input = e.target.value;
+                  const { url, extracted } = extractVideoUrl(input);
+                  setContent({ ...content, videoUrl: url });
+                  setVideoUrlExtracted(extracted);
+                }}
+                onBlur={() => {
+                  setTimeout(() => setVideoUrlExtracted(false), 3000);
+                }}
+                placeholder="https://www.youtube.com/watch?v=... or paste embed code"
               />
+              <p className="text-xs text-muted-foreground">
+                {t.course.pageEditor?.videoUrlHelp || 'Paste YouTube or Vimeo URL, or full embed code'}
+              </p>
+              {videoUrlExtracted && (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <span>✓</span>
+                  {t.course.pageEditor?.videoUrlExtracted || 'Video URL extracted from embed code'}
+                </p>
+              )}
             </div>
+            {content.videoUrl && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Preview:</Label>
+                <div className="mt-2 aspect-video rounded-lg overflow-hidden border">
+                  <iframe
+                    src={content.videoUrl}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            )}
             <div>
               <Label>{t.course.pageEditor?.aspectRatio || 'Aspect Ratio'}</Label>
               <Select
