@@ -11,8 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
 import { useAuthStore } from '@/store/authStore';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
-import { sv as svLocale } from 'date-fns/locale';
-import { sv } from '@/locales/sv';
+import { sv as svLocale, enUS as enLocale, es as esLocale } from 'date-fns/locale';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -29,13 +28,25 @@ type CalendarItem = {
 };
 
 export default function Schema() {
-  const { t } = useLanguageStore();
+  const { t, language } = useLanguageStore();
   const { userId } = useAuthStore();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Get the appropriate date-fns locale based on current language
+  const getDateLocale = () => {
+    switch (language) {
+      case 'en':
+        return enLocale;
+      case 'es':
+        return esLocale;
+      default:
+        return svLocale;
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -93,7 +104,7 @@ export default function Schema() {
           const endDate = lesson.ends_at ? new Date(lesson.ends_at) : addDays(startDate, 2);
           return {
             id: lesson.id,
-            title: lesson.title || 'Lektion',
+            title: lesson.title || t.calendar.lesson,
             type: 'lesson' as const,
             startTime: format(startDate, 'HH:mm'),
             endTime: format(endDate, 'HH:mm'),
@@ -215,14 +226,14 @@ export default function Schema() {
     return (
       <div className="space-y-4">
         <div className="text-center py-4 border-b">
-          <h3 className="text-2xl font-bold">{format(currentDate, 'EEEE', { locale: svLocale })}</h3>
-          <p className="text-muted-foreground">{format(currentDate, 'd MMMM yyyy', { locale: svLocale })}</p>
+          <h3 className="text-2xl font-bold">{format(currentDate, 'EEEE', { locale: getDateLocale() })}</h3>
+          <p className="text-muted-foreground">{format(currentDate, 'd MMMM yyyy', { locale: getDateLocale() })}</p>
         </div>
         
         {items.length === 0 ? (
           <div className="text-center py-12">
             <CalendarIcon className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-muted-foreground">Inga klasser eller event denna dag</p>
+            <p className="text-muted-foreground">{t.schedule.noEventsToday}</p>
           </div>
         ) : (
           <div className="border rounded-lg overflow-hidden">
@@ -303,7 +314,7 @@ export default function Schema() {
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="sticky left-0 bg-muted/30 w-20 p-2 text-xs font-medium text-muted-foreground text-right border-r">
-                    Tid
+                    {t.schedule.time}
                   </th>
                   {days.map((day) => {
                     const isToday = isSameDay(day, today);
@@ -315,7 +326,7 @@ export default function Schema() {
                         }`}
                       >
                         <div className={`text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
-                          {format(day, 'EEE', { locale: svLocale })}
+                          {format(day, 'EEE', { locale: getDateLocale() })}
                         </div>
                         <div className={`text-2xl font-bold ${isToday ? 'text-primary' : ''}`}>
                           {format(day, 'd')}
@@ -392,7 +403,15 @@ export default function Schema() {
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
     
     const weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
-    const weekdays = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
+    const weekdays = [
+      t.schedule.weekdays.mon,
+      t.schedule.weekdays.tue,
+      t.schedule.weekdays.wed,
+      t.schedule.weekdays.thu,
+      t.schedule.weekdays.fri,
+      t.schedule.weekdays.sat,
+      t.schedule.weekdays.sun,
+    ];
     const today = new Date();
 
     return (
@@ -460,7 +479,7 @@ export default function Schema() {
                         ))}
                         {items.length > 3 && (
                           <div className="text-xs text-muted-foreground font-medium">
-                            +{items.length - 3} mer
+                            +{items.length - 3} {t.schedule.moreItems}
                           </div>
                         )}
                       </div>
@@ -477,18 +496,18 @@ export default function Schema() {
 
   const getViewTitle = () => {
     if (viewMode === 'day') {
-      return format(currentDate, 'd MMMM yyyy', { locale: svLocale });
+      return format(currentDate, 'd MMMM yyyy', { locale: getDateLocale() });
     } else if (viewMode === 'week') {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-      return `${format(weekStart, 'd MMM', { locale: svLocale })} - ${format(weekEnd, 'd MMM yyyy', { locale: svLocale })}`;
+      return `${format(weekStart, 'd MMM', { locale: getDateLocale() })} - ${format(weekEnd, 'd MMM yyyy', { locale: getDateLocale() })}`;
     } else {
-      return format(currentDate, 'MMMM yyyy', { locale: svLocale });
+      return format(currentDate, 'MMMM yyyy', { locale: getDateLocale() });
     }
   };
 
   if (loading) {
-    return <div className="text-center py-12">{sv.common.loading}</div>;
+    return <div className="text-center py-12">{t.common.loading}</div>;
   }
 
   return (
@@ -497,9 +516,9 @@ export default function Schema() {
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Schema</h1>
+            <h1 className="text-3xl font-bold">{t.schedule.title}</h1>
             <p className="mt-1 text-muted-foreground">
-              Kurser och event 08:00 - 23:00
+              {t.schedule.subtitle}
             </p>
           </div>
           
@@ -510,21 +529,21 @@ export default function Schema() {
               onClick={() => setViewMode('day')}
               size="sm"
             >
-              Dag
+              {t.schedule.day}
             </Button>
             <Button
               variant={viewMode === 'week' ? 'default' : 'outline'}
               onClick={() => setViewMode('week')}
               size="sm"
             >
-              Vecka
+              {t.schedule.week}
             </Button>
             <Button
               variant={viewMode === 'month' ? 'default' : 'outline'}
               onClick={() => setViewMode('month')}
               size="sm"
             >
-              Månad
+              {t.schedule.month}
             </Button>
           </div>
         </div>
@@ -539,7 +558,7 @@ export default function Schema() {
               
               <div className="flex items-center gap-3">
                 <Button variant="outline" onClick={handleToday} size="sm">
-                  Idag
+                  {t.schedule.today}
                 </Button>
                 <h2 className="text-lg font-semibold">{getViewTitle()}</h2>
               </div>
@@ -564,15 +583,15 @@ export default function Schema() {
       {/* Legend */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle className="text-base">Färgkodning</CardTitle>
+          <CardTitle className="text-base">{t.schedule.colorCoding}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            <Badge className={getStyleColor('Salsa')}>Salsa</Badge>
-            <Badge className={getStyleColor('Bachata')}>Bachata</Badge>
-            <Badge className={getStyleColor('Kizomba')}>Kizomba</Badge>
-            <Badge className={getStyleColor('HipHop')}>HipHop</Badge>
-            <Badge className="bg-secondary">Event</Badge>
+            <Badge className={getStyleColor('Salsa')}>{t.styles.Salsa}</Badge>
+            <Badge className={getStyleColor('Bachata')}>{t.styles.Bachata}</Badge>
+            <Badge className={getStyleColor('Kizomba')}>{t.styles.Kizomba}</Badge>
+            <Badge className={getStyleColor('HipHop')}>{t.styles.HipHop}</Badge>
+            <Badge className="bg-secondary">{t.calendar.event}</Badge>
           </div>
         </CardContent>
       </Card>
