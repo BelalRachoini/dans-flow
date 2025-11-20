@@ -10,8 +10,10 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
 import { useAuthStore } from '@/store/authStore';
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, startOfDay, isSameMonth } from 'date-fns';
 import { sv as svLocale, enUS as enLocale, es as esLocale } from 'date-fns/locale';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -31,6 +33,7 @@ export default function Schema() {
   const { t, language } = useLanguageStore();
   const { userId } = useAuthStore();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([]);
@@ -300,6 +303,75 @@ export default function Schema() {
     );
   };
 
+  const renderWeekViewMobile = () => {
+    const today = startOfDay(currentDate);
+    const yesterday = addDays(today, -1);
+    const tomorrow = addDays(today, 1);
+    const threeDays = [yesterday, today, tomorrow];
+
+    const timeSlots = [];
+    for (let hour = 8; hour <= 23; hour++) {
+      timeSlots.push(`${hour.toString().padStart(2, "0")}:00`);
+    }
+
+    return (
+      <ScrollArea className="w-full">
+        <div className="flex gap-3 p-4 pb-6">
+          {threeDays.map((day, dayIdx) => {
+            const isToday = isSameDay(day, new Date());
+            const dayItems = getCalendarItems(day);
+            
+            return (
+              <Card 
+                key={day.toString()} 
+                className={`min-w-[280px] flex-shrink-0 ${isToday ? 'ring-2 ring-primary' : ''}`}
+              >
+                <CardContent className="p-3">
+                  <div className="text-center mb-3 pb-2 border-b">
+                    <div className="text-xs text-muted-foreground uppercase">
+                      {format(day, "EEE", { locale: getDateLocale() })}
+                    </div>
+                    <div className={`text-2xl font-bold ${isToday ? 'text-primary' : ''}`}>
+                      {format(day, "d")}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {format(day, "MMM", { locale: getDateLocale() })}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {dayItems.length === 0 ? (
+                      <div className="text-center py-8 text-sm text-muted-foreground">
+                        {t.schedule.noEventsToday}
+                      </div>
+                    ) : (
+                      dayItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`p-3 rounded-lg border-l-4 ${getStyleColor(item.style)} bg-card hover:shadow-md transition-shadow cursor-pointer`}
+                        >
+                          <div className="font-medium text-sm line-clamp-2">{item.title}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {item.startTime} - {item.endTime}
+                          </div>
+                          {item.location && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              📍 {item.location}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    );
+  };
+
   const renderWeekView = () => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -391,6 +463,87 @@ export default function Schema() {
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMonthViewMobile = () => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+    const weeks: Date[] = [];
+    let currentWeekStart = calendarStart;
+    while (currentWeekStart <= calendarEnd) {
+      weeks.push(currentWeekStart);
+      currentWeekStart = addWeeks(currentWeekStart, 1);
+    }
+
+    const weekdays = ["M", "T", "W", "T", "F", "S", "S"];
+
+    return (
+      <div className="space-y-1">
+        <div className="grid grid-cols-7 border rounded-t-lg overflow-hidden bg-muted/30">
+          {weekdays.map((day, idx) => (
+            <div
+              key={idx}
+              className="text-center text-xs font-medium p-2 border-r last:border-r-0"
+            >
+              {day}
+            </div>
+          ))}
+        </div>
+        <div className="border rounded-b-lg overflow-hidden">
+          {weeks.map((weekStart, weekIdx) => {
+            const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+            
+            return (
+              <div key={weekIdx} className="grid grid-cols-7 border-b last:border-b-0">
+                {days.map((day, dayIdx) => {
+                  const isCurrentMonth = isSameMonth(day, currentDate);
+                  const isToday = isSameDay(day, new Date());
+                  const items = getCalendarItems(day);
+                  
+                  return (
+                    <div
+                      key={dayIdx}
+                      className={`min-h-14 p-1 border-r last:border-r-0 ${
+                        !isCurrentMonth ? "bg-muted/20" : ""
+                      } ${isToday ? "bg-primary/10" : ""} hover:bg-accent/50 transition-colors cursor-pointer`}
+                    >
+                      <div
+                        className={`text-xs font-medium ${
+                          isToday
+                            ? "bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center mx-auto"
+                            : isCurrentMonth
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {format(day, "d")}
+                      </div>
+                      <div className="flex flex-wrap gap-0.5 mt-1 justify-center">
+                        {items.slice(0, 3).map((item) => (
+                          <div
+                            key={item.id}
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              item.type === "lesson" ? "bg-blue-500" : "bg-purple-500"
+                            }`}
+                            title={item.title}
+                          />
+                        ))}
+                        {items.length > 3 && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" title={`+${items.length - 3} more`} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -575,8 +728,8 @@ export default function Schema() {
       <Card className="shadow-lg">
         <CardContent className="p-4 md:p-6">
           {viewMode === 'day' && renderDayView()}
-          {viewMode === 'week' && renderWeekView()}
-          {viewMode === 'month' && renderMonthView()}
+          {viewMode === 'week' && (isMobile ? renderWeekViewMobile() : renderWeekView())}
+          {viewMode === 'month' && (isMobile ? renderMonthViewMobile() : renderMonthView())}
         </CardContent>
       </Card>
 
