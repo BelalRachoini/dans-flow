@@ -212,13 +212,17 @@ export const Layout = () => {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <UserCircle className="mr-2 h-4 w-4" />
-                    {t.members.profile}
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="cursor-pointer">
+                      <UserCircle className="mr-2 h-4 w-4" />
+                      {t.members.profile}
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Ticket className="mr-2 h-4 w-4" />
-                    {t.tickets.myTickets}
+                  <DropdownMenuItem asChild>
+                    <Link to="/biljetter" className="cursor-pointer">
+                      <Ticket className="mr-2 h-4 w-4" />
+                      {t.tickets.myTickets}
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>

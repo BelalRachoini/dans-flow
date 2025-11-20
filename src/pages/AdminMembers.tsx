@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Select,
   SelectContent,
@@ -34,6 +35,14 @@ import { toast } from 'sonner';
 
 type Role = 'member' | 'instructor' | 'admin';
 type DanceRole = 'follower' | 'leader' | null;
+type DanceLevel = 'beginner' | 'intermediate' | 'pro';
+
+interface DanceExperience {
+  salsa?: DanceLevel;
+  bachata?: DanceLevel;
+  kizomba?: DanceLevel;
+  zouk?: DanceLevel;
+}
 
 interface Member {
   id: string;
@@ -41,6 +50,8 @@ interface Member {
   email: string;
   role: Role;
   dance_role: DanceRole;
+  avatar_url: string | null;
+  dance_experience: DanceExperience | null;
   created_at: string;
 }
 
@@ -71,6 +82,8 @@ export default function AdminMembers() {
           id,
           full_name,
           email,
+          avatar_url,
+          dance_experience,
           created_at,
           dance_role,
           user_roles!inner(role)
@@ -87,6 +100,8 @@ export default function AdminMembers() {
         id: profile.id,
         full_name: profile.full_name || 'Okänd',
         email: profile.email || '-',
+        avatar_url: profile.avatar_url,
+        dance_experience: profile.dance_experience as DanceExperience,
         role: profile.user_roles[0]?.role || 'member',
         dance_role: profile.dance_role as DanceRole,
         created_at: profile.created_at,
@@ -238,6 +253,7 @@ export default function AdminMembers() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Profil</TableHead>
                   <TableHead>Namn</TableHead>
                   <TableHead>E-post</TableHead>
                   <TableHead>Roll</TableHead>
@@ -249,7 +265,7 @@ export default function AdminMembers() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       </div>
@@ -257,13 +273,21 @@ export default function AdminMembers() {
                   </TableRow>
                 ) : filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Inga medlemmar hittades
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredMembers.map((member) => (
                     <TableRow key={member.id}>
+                      <TableCell>
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={member.avatar_url || ''} alt={member.full_name} />
+                          <AvatarFallback>
+                            {member.full_name?.charAt(0)?.toUpperCase() || '?'}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TableCell>
                       <TableCell className="font-medium">{member.full_name}</TableCell>
                       <TableCell>{member.email}</TableCell>
                       <TableCell>
