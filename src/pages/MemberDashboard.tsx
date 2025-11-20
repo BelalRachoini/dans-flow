@@ -29,7 +29,7 @@ export default function MemberDashboard() {
         .from('tickets')
         .select(`
           *,
-          courses (
+          courses!tickets_source_course_id_fkey (
             id,
             title,
             starts_at,
@@ -38,6 +38,7 @@ export default function MemberDashboard() {
         `)
         .eq('member_id', userId)
         .eq('status', 'valid')
+        .gt('expires_at', new Date().toISOString())
         .order('purchased_at', { ascending: false })
         .limit(5);
 
@@ -151,7 +152,7 @@ export default function MemberDashboard() {
                           new Date(ticket.courses.starts_at).toLocaleDateString(getLocale())}
                       </p>
                     </div>
-                    <Badge variant="secondary">{ticket.status === 'valid' ? t.tickets.filterValid : ticket.status}</Badge>
+                    <Badge variant="secondary">{ticket.status === 'valid' ? 'Giltig' : ticket.status}</Badge>
                   </div>
                 ))}
                 <Button asChild variant="outline" className="w-full">
