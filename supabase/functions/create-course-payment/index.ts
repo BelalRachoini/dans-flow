@@ -63,6 +63,14 @@ serve(async (req) => {
       const product = products.data[0];
       console.log("Found existing product:", product.id);
       
+      // Update product to remove description if it exists
+      if (product.description) {
+        await stripe.products.update(product.id, {
+          description: '',
+        });
+        console.log("Cleared description for existing product");
+      }
+      
       const prices = await stripe.prices.list({ product: product.id, limit: 1 });
       if (prices.data.length === 0) {
         throw new Error("No price found for existing product");
@@ -73,7 +81,6 @@ serve(async (req) => {
       console.log("Creating new product for course");
       const product = await stripe.products.create({
         name: course.title,
-        description: course.description || undefined,
         metadata: { course_id: course_id },
       });
 
