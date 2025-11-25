@@ -159,7 +159,6 @@ Deno.serve(async (req) => {
           level,
           role,
           status: 'active',
-          points: 0,
         },
         { onConflict: 'id' }
       );
