@@ -401,40 +401,115 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
         {lessons.map((lesson, index) => (
           <Card key={index}>
             <CardContent className="pt-6">
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex-1 space-y-4">
-                  <Input value={lesson.title || ''} onChange={(e) => updateLesson(index, 'title', e.target.value)} placeholder="Lektion titel" />
-                  <div className="grid grid-cols-3 gap-2">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                  #{index + 1}
+                </div>
+                <div className="flex-1 space-y-3">
+                  <Input 
+                    value={lesson.title || ''} 
+                    onChange={(e) => updateLesson(index, 'title', e.target.value)} 
+                    placeholder="Lektion titel"
+                    className="font-medium"
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-3">
                     <div>
-                      <Label className="text-sm">Datum</Label>
+                      <Label className="text-xs text-muted-foreground">Datum</Label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{lesson.starts_at ? format(lesson.starts_at, "PPP", { locale: svLocale }) : "Välj"}</Button>
+                          <Button variant="outline" className="w-full justify-start text-sm h-9">
+                            <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                            {lesson.starts_at ? format(lesson.starts_at, "d MMM yyyy", { locale: svLocale }) : "Välj"}
+                          </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={lesson.starts_at} onSelect={(date) => { if (date) { const newDate = new Date(date); if (lesson.starts_at) newDate.setHours(lesson.starts_at.getHours(), lesson.starts_at.getMinutes()); updateLesson(index, 'starts_at', newDate); if (lesson.ends_at) { const newEnd = new Date(date); newEnd.setHours(lesson.ends_at.getHours(), lesson.ends_at.getMinutes()); updateLesson(index, 'ends_at', newEnd); }}}} className={cn("p-3 pointer-events-auto")} />
+                          <Calendar 
+                            mode="single" 
+                            selected={lesson.starts_at} 
+                            onSelect={(date) => { 
+                              if (date) { 
+                                const newDate = new Date(date); 
+                                if (lesson.starts_at) newDate.setHours(lesson.starts_at.getHours(), lesson.starts_at.getMinutes()); 
+                                updateLesson(index, 'starts_at', newDate); 
+                                if (lesson.ends_at) { 
+                                  const newEnd = new Date(date); 
+                                  newEnd.setHours(lesson.ends_at.getHours(), lesson.ends_at.getMinutes()); 
+                                  updateLesson(index, 'ends_at', newEnd); 
+                                }
+                              }
+                            }} 
+                            className={cn("p-3 pointer-events-auto")} 
+                          />
                         </PopoverContent>
                       </Popover>
                     </div>
                     <div>
-                      <Label className="text-sm">Starttid</Label>
-                      <Select value={lesson.starts_at ? format(lesson.starts_at, 'HH:mm') : '18:00'} onValueChange={(time) => { const [h, m] = time.split(':'); const date = new Date(lesson.starts_at || new Date()); date.setHours(parseInt(h), parseInt(m)); updateLesson(index, 'starts_at', date); }}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent>
+                      <Label className="text-xs text-muted-foreground">Starttid</Label>
+                      <Select 
+                        value={lesson.starts_at ? format(lesson.starts_at, 'HH:mm') : '18:00'} 
+                        onValueChange={(time) => { 
+                          const [h, m] = time.split(':'); 
+                          const date = new Date(lesson.starts_at || new Date()); 
+                          date.setHours(parseInt(h), parseInt(m)); 
+                          updateLesson(index, 'starts_at', date); 
+                        }}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}
+                        </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-sm">Sluttid</Label>
-                      <Select value={lesson.ends_at ? format(lesson.ends_at, 'HH:mm') : '20:00'} onValueChange={(time) => { const [h, m] = time.split(':'); const date = new Date(lesson.starts_at || new Date()); date.setHours(parseInt(h), parseInt(m)); updateLesson(index, 'ends_at', date); }}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent>
+                      <Label className="text-xs text-muted-foreground">Sluttid</Label>
+                      <Select 
+                        value={lesson.ends_at ? format(lesson.ends_at, 'HH:mm') : '20:00'} 
+                        onValueChange={(time) => { 
+                          const [h, m] = time.split(':'); 
+                          const date = new Date(lesson.starts_at || new Date()); 
+                          date.setHours(parseInt(h), parseInt(m)); 
+                          updateLesson(index, 'ends_at', date); 
+                        }}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}
+                        </SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <Input value={lesson.venue || ''} onChange={(e) => updateLesson(index, 'venue', e.target.value)} placeholder="Plats" />
-                  <Textarea value={lesson.notes || ''} onChange={(e) => updateLesson(index, 'notes', e.target.value)} placeholder="Anteckningar" rows={2} />
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Plats</Label>
+                    <Input 
+                      value={lesson.venue || ''} 
+                      onChange={(e) => updateLesson(index, 'venue', e.target.value)} 
+                      placeholder="Dans Vida Studio"
+                      className="h-9"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Anteckningar</Label>
+                    <Textarea 
+                      value={lesson.notes || ''} 
+                      onChange={(e) => updateLesson(index, 'notes', e.target.value)} 
+                      placeholder="Valfria anteckningar..." 
+                      rows={2}
+                      className="resize-none"
+                    />
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => removeLesson(index)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => removeLesson(index)} 
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
