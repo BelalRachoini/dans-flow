@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  Clock, MapPin, Users, Ticket, BookOpen
+  Clock, MapPin, Users, Ticket, BookOpen, ArrowRight
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
 import { useAuthStore } from '@/store/authStore';
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, startOfDay, isSameMonth, isToday, addHours } from 'date-fns';
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, startOfDay, isSameMonth, isToday, addHours, addMonths, isAfter } from 'date-fns';
 import { sv as svLocale, enUS as enLocale, es as esLocale } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -57,7 +57,7 @@ export default function Schema() {
     const loadData = async () => {
       try {
         const startDate = startOfMonth(subWeeks(currentDate, 2)).toISOString();
-        const endDate = endOfMonth(addWeeks(currentDate, 2)).toISOString();
+        const endDate = endOfMonth(addMonths(currentDate, 3)).toISOString();
 
         console.log('🔍 Loading Schema data...', {
           userId,
@@ -151,20 +151,37 @@ export default function Schema() {
       }
     };
 
-    // Only load data if user is authenticated
-    if (!userId) {
-      console.warn('⚠️ No userId found, waiting for authentication...');
-      setLoading(false);
-      return;
-    }
-
     loadData();
-  }, [currentDate, userId]);
+  }, [currentDate]);
 
   const getCalendarItems = (date: Date): CalendarItem[] => {
     return calendarItems
       .filter(item => isSameDay(item.date, date))
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  };
+
+  const hasItems = (date: Date): boolean => {
+    return calendarItems.some(item => isSameDay(item.date, date));
+  };
+
+  const getNextUpcoming = () => {
+    const now = new Date();
+    const upcoming = calendarItems
+      .filter(item => isAfter(item.date, now))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    const nextLesson = upcoming.find(item => item.type === 'lesson');
+    const nextEvent = upcoming.find(item => item.type === 'event');
+    
+    return { nextLesson, nextEvent, hasAny: upcoming.length > 0 };
+  };
+
+  const handleJumpToNext = () => {
+    const { nextLesson, nextEvent } = getNextUpcoming();
+    const next = nextLesson || nextEvent;
+    if (next) {
+      setCurrentDate(next.date);
+    }
   };
 
   const getStyleColor = (style?: string) => {
@@ -408,20 +425,25 @@ export default function Schema() {
             const isTodayDate = isToday(day);
             
             return (
-              <div 
-                key={day.toString()} 
-                className={`min-w-[90px] flex-shrink-0 border rounded-lg overflow-hidden ${
-                  isTodayDate ? 'ring-2 ring-primary' : ''
-                }`}
-              >
-                <div className={`text-center p-2 border-b ${isTodayDate ? 'bg-primary/10' : 'bg-muted/30'}`}>
-                  <div className="text-xs font-medium uppercase">
-                    {format(day, 'EEE', { locale: getDateLocale() })}
+                <div 
+                  key={day.toString()} 
+                  className={`min-w-[90px] flex-shrink-0 border rounded-lg overflow-hidden ${
+                    isTodayDate ? 'ring-2 ring-primary' : ''
+                  }`}
+                >
+                  <div className={`text-center p-2 border-b ${isTodayDate ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                    <div className="text-xs font-medium uppercase">
+                      {format(day, 'EEE', { locale: getDateLocale() })}
+                    </div>
+                    <div className={`text-lg font-bold ${isTodayDate ? 'text-primary' : ''}`}>
+                      {format(day, 'd')}
+                    </div>
+                    {hasItems(day) && (
+                      <div className="flex gap-0.5 justify-center mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      </div>
+                    )}
                   </div>
-                  <div className={`text-lg font-bold ${isTodayDate ? 'text-primary' : ''}`}>
-                    {format(day, 'd')}
-                  </div>
-                </div>
                 
                 <div className="p-2 space-y-1 min-h-[200px]">
                   {dayItems.length === 0 ? (
@@ -490,6 +512,11 @@ export default function Schema() {
                         <div className={`text-2xl font-bold ${isToday ? 'text-primary' : ''}`}>
                           {format(day, 'd')}
                         </div>
+                        {hasItems(day) && (
+                          <div className="flex gap-0.5 justify-center mt-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          </div>
+                        )}
                       </th>
                     );
                   })}
@@ -742,6 +769,13 @@ export default function Schema() {
     }
   };
 
+  const { nextLesson, nextEvent, hasAny } = getNextUpcoming();
+  const currentViewHasItems = viewMode === 'day' 
+    ? getCalendarItems(currentDate).length > 0
+    : viewMode === 'week'
+    ? eachDayOfInterval({ start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), 6) }).some(day => hasItems(day))
+    : true;
+
   if (loading) {
     return <div className="text-center py-12">{t.common.loading}</div>;
   }
@@ -796,6 +830,12 @@ export default function Schema() {
                 <Button variant="outline" onClick={handleToday} size="sm">
                   {t.schedule.today}
                 </Button>
+                {hasAny && (
+                  <Button variant="outline" onClick={handleJumpToNext} size="sm">
+                    <ArrowRight className="h-4 w-4 mr-1" />
+                    {t.schedule.next || 'Next'}
+                  </Button>
+                )}
                 <h2 className="text-lg font-semibold">{getViewTitle()}</h2>
               </div>
               
@@ -806,6 +846,49 @@ export default function Schema() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Upcoming Section */}
+      {!currentViewHasItems && hasAny && (
+        <Card className="shadow-md bg-muted/30">
+          <CardHeader>
+            <CardTitle className="text-lg">{t.schedule.upcoming || 'Upcoming'}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {nextLesson && (
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-center gap-3">
+                  <BookOpen className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="font-semibold text-sm">{nextLesson.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(nextLesson.date, 'd MMM yyyy', { locale: getDateLocale() })} • {nextLesson.startTime}
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setCurrentDate(nextLesson.date)}>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            {nextEvent && (
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="flex items-center gap-3">
+                  <Ticket className="h-5 w-5 text-purple-600" />
+                  <div>
+                    <p className="font-semibold text-sm">{nextEvent.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(nextEvent.date, 'd MMM yyyy', { locale: getDateLocale() })} • {nextEvent.startTime}
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setCurrentDate(nextEvent.date)}>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Calendar View */}
       <Card className="shadow-lg">

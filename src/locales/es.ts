@@ -556,6 +556,8 @@ export const es = {
     week: "Semana",
     month: "Mes",
     today: "Hoy",
+    next: "Siguiente",
+    upcoming: "Próximos",
     colorCoding: "Código de Colores",
     moreItems: "más",
     bookNow: "Reservar ahora",
