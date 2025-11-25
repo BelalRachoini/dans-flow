@@ -556,6 +556,8 @@ export const sv = {
     week: "Vecka",
     month: "Månad",
     today: "Idag",
+    next: "Nästa",
+    upcoming: "Kommande",
     colorCoding: "Färgkodning",
     moreItems: "mer",
     bookNow: "Boka nu",
