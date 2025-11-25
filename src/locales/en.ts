@@ -26,6 +26,23 @@ export const en = {
     name: 'Name',
     phone: 'Phone',
     pleaseLogin: 'Please log in to enroll',
+    loginRequired: 'You must be logged in',
+  },
+
+  // Lesson Booking
+  lessonBooking: {
+    title: 'Book Lesson',
+    description: 'Choose how you want to book this lesson',
+    lessonDetails: 'Lesson Details',
+    availableTickets: 'Available Tickets',
+    useTicket: 'Use 1 Ticket',
+    or: 'or',
+    buyDropIn: 'Buy Drop-in',
+    single: 'Single',
+    couple: 'Couple',
+    bookingSuccess: 'Booking successful!',
+    bookingError: 'Could not create booking',
+    paymentError: 'Could not create payment',
   },
 
   // Common

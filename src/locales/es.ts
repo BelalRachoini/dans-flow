@@ -26,6 +26,23 @@ export const es = {
     name: 'Nombre',
     phone: 'Teléfono',
     pleaseLogin: 'Por favor inicia sesión para inscribirte',
+    loginRequired: 'Debes iniciar sesión',
+  },
+
+  // Lesson Booking
+  lessonBooking: {
+    title: 'Reservar Lección',
+    description: 'Elige cómo quieres reservar esta lección',
+    lessonDetails: 'Detalles de la Lección',
+    availableTickets: 'Tickets Disponibles',
+    useTicket: 'Usar 1 Ticket',
+    or: 'o',
+    buyDropIn: 'Comprar Drop-in',
+    single: 'Individual',
+    couple: 'Pareja',
+    bookingSuccess: '¡Reserva exitosa!',
+    bookingError: 'No se pudo crear la reserva',
+    paymentError: 'No se pudo crear el pago',
   },
 
   // Common
