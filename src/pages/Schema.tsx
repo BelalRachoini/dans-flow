@@ -231,16 +231,36 @@ export default function Schema() {
     }
   };
 
-  // Handle payment success redirect
+  // Handle payment success redirect and verify payment
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paymentStatus = params.get('payment');
-    
-    if (paymentStatus === 'success') {
-      toast.success('Payment successful! Your drop-in booking is confirmed.');
-      // Clean up URL
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    const handlePaymentSuccess = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const paymentStatus = params.get('payment');
+      const sessionId = params.get('session_id');
+      
+      if (paymentStatus === 'success' && sessionId) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) return;
+
+          const { data, error } = await supabase.functions.invoke('verify-lesson-payment', {
+            body: { session_id: sessionId }
+          });
+
+          if (error) throw error;
+
+          toast.success(t.lessonBooking.bookingSuccess);
+        } catch (error: any) {
+          console.error('Error verifying payment:', error);
+          toast.error(error.message || 'Could not verify payment');
+        } finally {
+          // Clean up URL
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      }
+    };
+
+    handlePaymentSuccess();
   }, []);
 
   const timeSlots = [

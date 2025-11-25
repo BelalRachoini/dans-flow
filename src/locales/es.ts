@@ -252,6 +252,7 @@ export const es = {
     expired: 'Vencido',
     courseTickets: 'Tarjetas de Punche',
     eventTickets: 'Entradas de Eventos',
+    dropInTickets: 'Entradas Drop-in',
     noTickets: '¡Aún no hay tarjetas de punche. Compra un curso para obtener tarjetas de punche!',
     noEventTickets: 'Aún no hay entradas de eventos.',
     purchasedOn: 'Comprado',
