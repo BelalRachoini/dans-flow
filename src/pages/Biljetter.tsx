@@ -61,6 +61,25 @@ interface EventTicket {
   };
 }
 
+interface LessonBooking {
+  id: string;
+  member_id: string;
+  lesson_id: string;
+  ticket_type: string;
+  checkins_allowed: number;
+  checkins_used: number;
+  status: string;
+  qr_payload: string;
+  purchased_at: string;
+  course_lessons: {
+    id: string;
+    title: string | null;
+    starts_at: string;
+    ends_at: string | null;
+    venue: string | null;
+  };
+}
+
 type AllTickets = (TicketWithCourse & { type: 'course' }) | (EventTicket & { type: 'event' });
 
 export default function Biljetter() {
@@ -71,6 +90,7 @@ export default function Biljetter() {
   const isAdmin = role === 'admin';
   
   const [tickets, setTickets] = useState<AllTickets[]>([]);
+  const [lessonBookings, setLessonBookings] = useState<LessonBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -174,6 +194,32 @@ export default function Biljetter() {
             loadTickets();
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'lesson_bookings',
+            filter: `member_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('New lesson booking detected:', payload);
+            loadTickets();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'lesson_bookings',
+            filter: `member_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('Lesson booking updated:', payload);
+            loadTickets();
+          }
+        )
         .subscribe();
 
       return () => {
@@ -232,6 +278,25 @@ export default function Biljetter() {
 
       if (eventError) throw eventError;
 
+      // Load lesson bookings (drop-in tickets)
+      const { data: lessonBookingsData, error: lessonError } = await supabase
+        .from('lesson_bookings')
+        .select(`
+          *,
+          course_lessons (
+            id,
+            title,
+            starts_at,
+            ends_at,
+            venue
+          )
+        `)
+        .eq('member_id', user.id)
+        .order('purchased_at', { ascending: false });
+
+      if (lessonError) throw lessonError;
+      setLessonBookings(lessonBookingsData || []);
+
       // Combine and type tickets
       const allTickets: AllTickets[] = [
         ...(courseTickets || []).map(t => ({ ...t, type: 'course' as const })),
@@ -240,9 +305,12 @@ export default function Biljetter() {
 
       setTickets(allTickets);
 
-      // Pre-generate QR codes for all tickets
+      // Pre-generate QR codes for all tickets and lesson bookings
       for (const ticket of allTickets) {
         generateQRCode(ticket.qr_payload);
+      }
+      for (const booking of (lessonBookingsData || [])) {
+        generateQRCode(booking.qr_payload);
       }
     } catch (error: any) {
       toast({
@@ -976,6 +1044,98 @@ export default function Biljetter() {
             Inga biljetter matchar dina filter
           </p>
         </Card>
+      )}
+
+      {/* Drop-in Tickets Section */}
+      {lessonBookings.length > 0 && (
+        <div className="space-y-4 mt-8">
+          <h2 className="text-2xl font-bold">Drop-in Biljetter</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            {lessonBookings.map((booking) => {
+              const lessonDate = new Date(booking.course_lessons.starts_at);
+              const statusBadge = getStatusBadge(booking.status);
+              
+              return (
+                <Card key={booking.id} className="shadow-md overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 text-white">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <h3 className="text-xl font-bold truncate">
+                          {booking.course_lessons.title || 'Drop-in Lesson'}
+                        </h3>
+                        <div className="flex items-center gap-2 text-sm text-white/90">
+                          <Calendar className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{formatDate(booking.course_lessons.starts_at)}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {booking.ticket_type === 'single' ? 'Single' : booking.ticket_type === 'couple' ? 'Couple' : 'Existing Ticket'}
+                        </Badge>
+                      </div>
+                      <Badge 
+                        variant={statusBadge.variant}
+                        className="shrink-0"
+                      >
+                        {statusBadge.label}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <CardContent className="p-6 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span>{formatTime(booking.course_lessons.starts_at)}</span>
+                      </div>
+                      {booking.course_lessons.venue && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="truncate">{booking.course_lessons.venue}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* QR Code Preview */}
+                    {booking.status === 'valid' && qrCanvasRef.current[booking.qr_payload] && (
+                      <div className="pt-4 border-t">
+                        <div className="bg-white p-3 rounded-lg border inline-block mx-auto block w-full text-center">
+                          <img 
+                            src={qrCanvasRef.current[booking.qr_payload]} 
+                            alt="QR Code"
+                            className="w-32 h-32 mx-auto"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-muted-foreground">Check-ins använda</div>
+                        <div className="font-semibold">
+                          {booking.checkins_used} / {booking.checkins_allowed}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      {booking.status === 'valid' && (
+                        <>
+                          <Button
+                            onClick={() => openQRModal(booking as any)}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            <QrCode className="mr-2 h-4 w-4" />
+                            {t.tickets.showQR}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* QR Modal */}

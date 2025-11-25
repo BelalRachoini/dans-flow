@@ -108,7 +108,7 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${req.headers.get("origin")}/schema?payment=success`,
+      success_url: `${req.headers.get("origin")}/schema?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get("origin")}/schema`,
       metadata: {
         lesson_id: lesson_id,

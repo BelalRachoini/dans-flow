@@ -252,6 +252,7 @@ export const sv = {
     expired: 'Utgånget',
     courseTickets: 'Klippkort',
     eventTickets: 'Evenemangsbiljetter',
+    dropInTickets: 'Drop-in Biljetter',
     noTickets: 'Inga klippkort ännu. Köp en kurs för att få klippkort!',
     noEventTickets: 'Inga evenemangsbiljetter ännu.',
     purchasedOn: 'Köpt',

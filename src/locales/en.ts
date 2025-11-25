@@ -252,6 +252,7 @@ export const en = {
     expired: 'Expired',
     courseTickets: 'Punch Cards',
     eventTickets: 'Event Tickets',
+    dropInTickets: 'Drop-in Tickets',
     noTickets: 'No punch cards yet. Buy a course to get punch cards!',
     noEventTickets: 'No event tickets yet.',
     purchasedOn: 'Purchased',
