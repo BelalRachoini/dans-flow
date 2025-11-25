@@ -550,6 +550,67 @@ export type Database = {
           },
         ]
       }
+      lesson_bookings: {
+        Row: {
+          checkins_allowed: number
+          checkins_used: number
+          created_at: string
+          id: string
+          lesson_id: string
+          member_id: string
+          purchased_at: string
+          qr_payload: string
+          status: string
+          ticket_type: string
+        }
+        Insert: {
+          checkins_allowed?: number
+          checkins_used?: number
+          created_at?: string
+          id?: string
+          lesson_id: string
+          member_id: string
+          purchased_at?: string
+          qr_payload?: string
+          status?: string
+          ticket_type: string
+        }
+        Update: {
+          checkins_allowed?: number
+          checkins_used?: number
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          member_id?: string
+          purchased_at?: string
+          qr_payload?: string
+          status?: string
+          ticket_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_lesson_bookings_lesson"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "course_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_lesson_bookings_member"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_lesson_bookings_member"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
       member_notes: {
         Row: {
           author_id: string

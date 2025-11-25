@@ -15,6 +15,8 @@ import { sv as svLocale, enUS as enLocale, es as esLocale } from 'date-fns/local
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { LessonBookingDialog } from '@/components/LessonBookingDialog';
+import { toast } from 'sonner';
 
 type ViewMode = 'day' | 'week' | 'month';
 
@@ -28,6 +30,7 @@ type CalendarItem = {
   style?: string;
   description?: string;
   date: Date;
+  course_id?: string;
 };
 
 export default function Schema() {
@@ -40,6 +43,15 @@ export default function Schema() {
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<{
+    id: string;
+    title: string | null;
+    starts_at: string;
+    ends_at: string | null;
+    venue: string | null;
+    course_id: string;
+  } | null>(null);
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
 
   // Get the appropriate date-fns locale based on current language
   const getDateLocale = () => {
@@ -66,10 +78,10 @@ export default function Schema() {
           currentDate
         });
 
-        // Fetch course lessons
+        // Fetch course lessons with course_id
         const { data: lessons, error: lessonsError } = await supabase
           .from('course_lessons')
-          .select('*')
+          .select('*, course_id')
           .gte('starts_at', startDate)
           .lte('starts_at', endDate);
 
@@ -116,6 +128,7 @@ export default function Schema() {
             location: lesson.venue || '',
             description: lesson.notes || '',
             date: startDate,
+            course_id: lesson.course_id,
           };
         });
 
@@ -197,13 +210,38 @@ export default function Schema() {
     return colors[style] || 'bg-accent text-accent-foreground';
   };
 
-  const handleBooking = (item: CalendarItem) => {
+  const handleBooking = async (item: CalendarItem) => {
     if (item.type === 'lesson') {
-      navigate(`/courses/${item.id}`);
+      // Fetch full lesson details for the booking dialog
+      const { data: lesson, error } = await supabase
+        .from('course_lessons')
+        .select('*')
+        .eq('id', item.id)
+        .single();
+
+      if (error || !lesson) {
+        toast.error('Could not load lesson details');
+        return;
+      }
+
+      setSelectedLesson(lesson);
+      setBookingDialogOpen(true);
     } else {
       navigate(`/event/${item.id}`);
     }
   };
+
+  // Handle payment success redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    
+    if (paymentStatus === 'success') {
+      toast.success('Payment successful! Your drop-in booking is confirmed.');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const timeSlots = [
     '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00',
@@ -917,6 +955,13 @@ export default function Schema() {
 
       {/* Day Details Dialog */}
       {renderDayDetailsDialog()}
+
+      {/* Lesson Booking Dialog */}
+      <LessonBookingDialog
+        open={bookingDialogOpen}
+        onOpenChange={setBookingDialogOpen}
+        lesson={selectedLesson}
+      />
     </div>
   );
 }

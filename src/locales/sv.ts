@@ -26,6 +26,23 @@ export const sv = {
     name: 'Namn',
     phone: 'Telefon',
     pleaseLogin: 'Vänligen logga in för att anmäla dig',
+    loginRequired: 'Du måste vara inloggad',
+  },
+
+  // Lesson Booking
+  lessonBooking: {
+    title: 'Boka Lektion',
+    description: 'Välj hur du vill boka denna lektion',
+    lessonDetails: 'Lektionsdetaljer',
+    availableTickets: 'Tillgängliga klipp',
+    useTicket: 'Använd 1 Klipp',
+    or: 'eller',
+    buyDropIn: 'Köp Drop-in',
+    single: 'Singel',
+    couple: 'Par',
+    bookingSuccess: 'Bokning lyckades!',
+    bookingError: 'Kunde inte skapa bokning',
+    paymentError: 'Kunde inte skapa betalning',
   },
 
   // Common
