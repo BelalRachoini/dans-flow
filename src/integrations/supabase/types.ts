@@ -63,6 +63,52 @@ export type Database = {
           },
         ]
       }
+      course_instructors: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          id: string
+          instructor_id: string
+          is_primary: boolean | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          id?: string
+          instructor_id: string
+          is_primary?: boolean | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          id?: string
+          instructor_id?: string
+          is_primary?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_instructors_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_instructors_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_instructors_instructor_id_fkey"
+            columns: ["instructor_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
       course_lessons: {
         Row: {
           course_id: string
