@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,6 +43,7 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'manual' | 'recurring'>('manual');
+  const lessonsListRef = useRef<HTMLDivElement>(null);
   
   const [recurringForm, setRecurringForm] = useState({
     dayOfWeek: 1,
@@ -212,6 +213,14 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
     setLessons([...lessons, ...newLessons]);
     toast.success((t.courses.lessons?.lessonsGenerated || '{count} lektioner genererade').replace('{count}', newLessons.length.toString()));
     
+    // Switch to manual tab to show generated lessons
+    setMode('manual');
+    
+    // Scroll to lessons list
+    setTimeout(() => {
+      lessonsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    
     setRecurringForm({
       dayOfWeek: 1,
       startTime: '18:00',
@@ -316,7 +325,14 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Lektioner ({lessons.length})</h3>
+      <div className="flex items-center gap-3">
+        <h3 className="text-lg font-semibold">Lektioner</h3>
+        {lessons.length > 0 && (
+          <span className="inline-flex items-center justify-center rounded-full bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground">
+            {lessons.length}
+          </span>
+        )}
+      </div>
 
       <Tabs value={mode} onValueChange={(v) => setMode(v as 'manual' | 'recurring')}>
         <TabsList className="grid w-full grid-cols-2">
@@ -381,7 +397,7 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
         </TabsContent>
       </Tabs>
 
-      <div className="space-y-3 max-h-[500px] overflow-y-auto">
+      <div ref={lessonsListRef} className="space-y-3 max-h-[500px] overflow-y-auto">
         {lessons.map((lesson, index) => (
           <Card key={index}>
             <CardContent className="pt-6">
