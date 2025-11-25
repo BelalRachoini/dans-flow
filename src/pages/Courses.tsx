@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CourseLessons } from '@/components/CourseLessons';
 import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock } from 'lucide-react';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -39,6 +40,7 @@ const courseSchema = z.object({
   level: z.enum(['beginner', 'intermediate', 'advanced']),
   price: z.number().min(1),
   capacity: z.number().min(1),
+  instructors: z.array(z.string()).default([]),
   primary_instructor: z.string().optional(),
   status: z.enum(['draft', 'published', 'archived']),
   starts_at: z.date().optional(),
@@ -58,6 +60,7 @@ type DbCourse = {
   primary_instructor: string | null;
   status: string;
   lesson_count?: number;
+  instructors?: Array<{ id: string; full_name: string; is_primary: boolean }>;
 };
 
 export default function Courses() {
@@ -78,6 +81,7 @@ export default function Courses() {
       status: 'published',
       capacity: 20,
       price: 1000,
+      instructors: [],
     }
   });
 
@@ -91,16 +95,29 @@ export default function Courses() {
 
       if (coursesError) throw coursesError;
 
-      // Get lesson counts separately
+      // Get lesson counts and instructors
       const coursesWithCounts = await Promise.all(((coursesData as any[]) || []).map(async (course: any) => {
         const { count } = await supabase
           .from('course_lessons' as any)
           .select('*', { count: 'exact', head: true })
           .eq('course_id', course.id);
         
+        // Get course instructors
+        const { data: courseInstructors } = await supabase
+          .from('course_instructors' as any)
+          .select('instructor_id, is_primary, profiles:instructor_id(id, full_name)')
+          .eq('course_id', course.id);
+        
+        const instructors = courseInstructors?.map((ci: any) => ({
+          id: ci.profiles.id,
+          full_name: ci.profiles.full_name,
+          is_primary: ci.is_primary
+        })) || [];
+        
         return {
           ...course,
-          lesson_count: count || 0
+          lesson_count: count || 0,
+          instructors
         } as DbCourse;
       }));
 
@@ -161,6 +178,8 @@ export default function Courses() {
         created_by: (await supabase.auth.getUser()).data.user?.id,
       };
 
+      let courseId: string;
+
       if (editingCourse) {
         const { error } = await supabase
           .from('courses' as any)
@@ -168,14 +187,41 @@ export default function Courses() {
           .eq('id', editingCourse.id);
 
         if (error) throw error;
+        courseId = editingCourse.id;
         toast.success(t.course.saved);
       } else {
-        const { error } = await supabase
+        const { data: newCourse, error } = await supabase
           .from('courses' as any)
-          .insert([courseData]);
+          .insert([courseData])
+          .select()
+          .single();
 
         if (error) throw error;
+        if (!newCourse) throw new Error('Failed to create course');
+        courseId = (newCourse as any).id;
         toast.success(t.course.saved);
+      }
+
+      // Update course instructors
+      // Delete existing instructors for this course
+      await supabase
+        .from('course_instructors' as any)
+        .delete()
+        .eq('course_id', courseId);
+
+      // Insert new instructors
+      if (data.instructors.length > 0) {
+        const instructorsToInsert = data.instructors.map((instructorId) => ({
+          course_id: courseId,
+          instructor_id: instructorId,
+          is_primary: instructorId === data.primary_instructor
+        }));
+
+        const { error: instructorsError } = await supabase
+          .from('course_instructors' as any)
+          .insert(instructorsToInsert);
+
+        if (instructorsError) throw instructorsError;
       }
 
       setSheetOpen(false);
@@ -196,7 +242,8 @@ export default function Courses() {
     setValue('level', course.level as 'beginner' | 'intermediate' | 'advanced');
     setValue('price', course.price_cents / 100);
     setValue('capacity', course.capacity);
-    setValue('primary_instructor', course.primary_instructor || undefined);
+    setValue('instructors', course.instructors?.map(i => i.id) || []);
+    setValue('primary_instructor', course.instructors?.find(i => i.is_primary)?.id || undefined);
     setValue('status', course.status as 'draft' | 'published' | 'archived');
     setValue('starts_at', (course as any).starts_at ? new Date((course as any).starts_at) : undefined);
     setValue('ends_at', (course as any).ends_at ? new Date((course as any).ends_at) : undefined);
@@ -305,21 +352,52 @@ export default function Courses() {
                 </div>
 
                 <div>
-                  <Label htmlFor="primary_instructor">{t.course.instructor}</Label>
-                  <Select onValueChange={(value) => setValue('primary_instructor', value === 'none' ? undefined : value)} value={watch('primary_instructor') || 'none'}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t.courses.selectInstructor} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">{t.courses.noInstructor}</SelectItem>
-                      {instructors.map((instructor) => (
-                        <SelectItem key={instructor.id} value={instructor.id}>
-                          {instructor.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="instructors">{t.courses.instructors}</Label>
+                  <MultiSelect
+                    options={instructors.map((instructor) => ({
+                      label: instructor.full_name,
+                      value: instructor.id
+                    }))}
+                    selected={watch('instructors') || []}
+                    onChange={(values) => {
+                      setValue('instructors', values);
+                      // Reset primary instructor if it's not in the selected list
+                      if (watch('primary_instructor') && !values.includes(watch('primary_instructor')!)) {
+                        setValue('primary_instructor', undefined);
+                      }
+                    }}
+                    placeholder={t.courses.selectInstructors}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {watch('instructors')?.length || 0} {t.courses.selectedInstructors}
+                  </p>
                 </div>
+
+                {watch('instructors') && watch('instructors').length > 1 && (
+                  <div>
+                    <Label htmlFor="primary_instructor">{t.courses.primaryInstructor}</Label>
+                    <Select 
+                      onValueChange={(value) => setValue('primary_instructor', value === 'none' ? undefined : value)} 
+                      value={watch('primary_instructor') || 'none'}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t.courses.selectPrimaryInstructor} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t.courses.noPrimary}</SelectItem>
+                        {watch('instructors')?.map((instructorId) => {
+                          const instructor = instructors.find((i) => i.id === instructorId);
+                          return instructor ? (
+                            <SelectItem key={instructor.id} value={instructor.id}>
+                              {instructor.full_name}
+                            </SelectItem>
+                          ) : null;
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground mt-1">{t.courses.primaryInstructorHelp}</p>
+                  </div>
+                )}
 
                 <div>
                   <Label htmlFor="status">{t.course.status}</Label>
@@ -547,9 +625,24 @@ export default function Courses() {
                 </Badge>
               </CardHeader>
               <CardContent className="p-3 sm:p-4 md:p-6 pt-0 flex-1 flex flex-col justify-between space-y-3">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm sm:text-base">{course.lesson_count || 0} {t.courses.lessonsCount}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm sm:text-base">{course.lesson_count || 0} {t.courses.lessonsCount}</span>
+                  </div>
+                  {course.instructors && course.instructors.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {course.instructors.map((instructor) => (
+                        <Badge 
+                          key={instructor.id} 
+                          variant={instructor.is_primary ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {instructor.full_name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="pt-3 border-t mt-auto">
                   <div className="space-y-2">
