@@ -82,13 +82,18 @@ serve(async (req) => {
       );
     }
 
-    // Count course lessons to determine max_checkins
+    // Count course lessons to determine total_tickets
     const { count: lessonsCount } = await supabaseClient
       .from("course_lessons")
       .select("*", { count: "exact", head: true })
       .eq("course_id", course_id);
 
-    const max_checkins = lessonsCount || 10;
+    const total_tickets = lessonsCount || 10;
+
+    // Calculate expiry date based on course end date (or 3 months if no end date)
+    const expires_at = course.ends_at 
+      ? new Date(course.ends_at).toISOString()
+      : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
 
     // Create ticket with QR code
     const { data: ticket, error: ticketError } = await supabaseClient
@@ -96,9 +101,11 @@ serve(async (req) => {
       .insert({
         member_id: user.id,
         course_id: course_id,
+        source_course_id: course_id,
         status: "valid",
-        max_checkins: max_checkins,
-        checked_in_count: 0,
+        total_tickets: total_tickets,
+        tickets_used: 0,
+        expires_at: expires_at,
       })
       .select()
       .single();
@@ -112,7 +119,7 @@ serve(async (req) => {
         success: true, 
         ticket_id: ticket.id,
         qr_payload: ticket.qr_payload,
-        max_checkins: max_checkins
+        total_tickets: total_tickets
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
