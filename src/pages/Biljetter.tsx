@@ -25,7 +25,7 @@ interface TicketWithCourse {
   id: string;
   member_id: string;
   course_id: string | null;
-  source_course_id: string;
+  source_course_id: string | null;
   purchased_at: string;
   status: string;
   qr_payload: string;
@@ -40,7 +40,7 @@ interface TicketWithCourse {
     ends_at: string | null;
     venue: string | null;
     description: string | null;
-  };
+  } | null;
 }
 
 interface EventTicket {
@@ -580,7 +580,7 @@ export default function Biljetter() {
 
   const filteredTickets = tickets.filter((ticket) => {
     const title = ticket.type === 'course' 
-      ? ticket.courses.title 
+      ? (ticket.courses?.title || 'Free Ticket (Admin Gift)')
       : ticket.events.title;
     const matchesSearch = title
       .toLowerCase()
@@ -932,9 +932,15 @@ export default function Biljetter() {
         {filteredTickets.map((ticket) => {
           const statusBadge = getStatusBadge(ticket.status);
           const isCourseTicket = ticket.type === 'course';
-          const title = isCourseTicket ? ticket.courses.title : ticket.events.title;
-          const startDate = isCourseTicket ? ticket.courses.starts_at : ticket.events.start_at;
-          const venue = isCourseTicket ? ticket.courses.venue : ticket.events.venue;
+          const title = isCourseTicket 
+            ? (ticket.courses?.title || 'Free Ticket (Admin Gift)')
+            : ticket.events.title;
+          const startDate = isCourseTicket 
+            ? (ticket.courses?.starts_at || ticket.purchased_at)
+            : ticket.events.start_at;
+          const venue = isCourseTicket 
+            ? (ticket.courses?.venue || 'N/A')
+            : ticket.events.venue;
           
           return (
             <Card key={ticket.id} className="shadow-md overflow-hidden">
