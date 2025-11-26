@@ -294,6 +294,7 @@ export const sv = {
     ticketsRemaining: 'Klipp Kvar',
     checkInStatus: 'Incheckningsstatus',
     noAttendees: 'Inga deltagare hittades',
+    buyTickets: 'Köp klippkort',
   },
 
   // Memberships

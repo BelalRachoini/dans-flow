@@ -21,6 +21,7 @@ import { useAuthStore } from '@/store/authStore';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
+import { StandaloneTicketPurchaseDialog } from '@/components/StandaloneTicketPurchaseDialog';
 
 interface TicketWithCourse {
   id: string;
@@ -114,6 +115,7 @@ export default function Biljetter() {
     notSet: 0,
     checkedIn: 0
   });
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -743,9 +745,9 @@ export default function Biljetter() {
             Hantera dina klippkort och evenemangsbiljetter
           </p>
         </div>
-        <Button variant="hero" onClick={() => navigate('/kurser-poang')}>
+        <Button variant="hero" onClick={() => setTicketDialogOpen(true)}>
           <ShoppingCart className="mr-2 h-4 w-4" />
-          {t.tickets.buyCourses}
+          {t.tickets.buyTickets}
         </Button>
       </div>
 
@@ -1307,6 +1309,12 @@ export default function Biljetter() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Standalone Ticket Purchase Dialog */}
+      <StandaloneTicketPurchaseDialog 
+        open={ticketDialogOpen}
+        onOpenChange={setTicketDialogOpen}
+      />
 
     </div>
   );

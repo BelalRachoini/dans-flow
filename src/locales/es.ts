@@ -294,6 +294,7 @@ export const es = {
     ticketsRemaining: 'Entradas Restantes',
     checkInStatus: 'Estado de Registro',
     noAttendees: 'No se encontraron asistentes',
+    buyTickets: 'Comprar Entradas',
   },
 
   // Memberships

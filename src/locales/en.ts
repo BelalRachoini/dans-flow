@@ -294,6 +294,7 @@ export const en = {
     ticketsRemaining: 'Tickets Remaining',
     checkInStatus: 'Check-in Status',
     noAttendees: 'No attendees found',
+    buyTickets: 'Buy Tickets',
   },
 
   // Memberships
