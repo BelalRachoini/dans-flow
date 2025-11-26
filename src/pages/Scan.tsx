@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Camera, CheckCircle2, XCircle, Info, Loader2,
   User, Calendar, Clock, MapPin, AlertTriangle
@@ -58,6 +59,9 @@ export default function Scan() {
   const [recentCheckins, setRecentCheckins] = useState<RecentCheckin[]>([]);
   const [cameras, setCameras] = useState<QrScanner.Camera[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string>('');
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  const [scanCooldown, setScanCooldown] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
@@ -210,10 +214,14 @@ export default function Scan() {
   };
 
   const handleScan = async (qrPayload: string) => {
-    if (processing) return;
-    if (!qrPayload || !qrPayload.trim()) return; // Ignore empty/noisy scans
+    // Skip if already processing, on cooldown, or same code as last scan
+    if (processing || scanCooldown) return;
+    if (!qrPayload || !qrPayload.trim()) return;
+    if (lastScannedCode === qrPayload.trim()) return;
     
     setProcessing(true);
+    setLastScannedCode(qrPayload.trim());
+    
     try {
       const { data, error } = await supabase.rpc('check_in_with_qr', {
         qr: qrPayload.trim(),
@@ -227,22 +235,18 @@ export default function Scan() {
       setLastResult(result);
 
       if (result.success) {
-        toast({
-          title: '✅ Incheckning lyckades!',
-          description: `${result.member_name} - ${result.course_title}`,
-        });
+        // Pause the scanner
+        scannerRef.current?.pause();
+        setShowSuccessDialog(true);
         loadRecentCheckins();
-        
-        // Clear result after 5 seconds
-        setTimeout(() => {
-          setLastResult(null);
-        }, 5000);
       } else {
         toast({
           title: 'Fel vid incheckning',
           description: result.message || 'Något gick fel',
           variant: 'destructive',
         });
+        // Allow scanning again after error
+        setLastScannedCode(null);
       }
     } catch (error: any) {
       toast({
@@ -250,9 +254,23 @@ export default function Scan() {
         description: error.message || 'Kunde inte checka in',
         variant: 'destructive',
       });
+      setLastScannedCode(null);
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handleSuccessConfirm = () => {
+    setShowSuccessDialog(false);
+    setLastResult(null);
+    setLastScannedCode(null);
+    
+    // Start cooldown to prevent immediate re-scan
+    setScanCooldown(true);
+    setTimeout(() => setScanCooldown(false), 1500);
+    
+    // Resume scanner
+    scannerRef.current?.start();
   };
 
   const handleManualCheckin = async () => {
@@ -467,6 +485,40 @@ export default function Scan() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Success Confirmation Dialog */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-6 w-6" />
+              Incheckning lyckades!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-3">
+              <User className="h-5 w-5 text-muted-foreground" />
+              <span className="text-lg font-semibold">{lastResult?.member_name}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <span>{lastResult?.course_title}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              <span>{lastResult?.scanned_at ? formatDate(lastResult.scanned_at) : formatDate(new Date().toISOString())}</span>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Klipp kvar: {(lastResult?.max_checkins || 0) - (lastResult?.checked_in_count || 0)}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSuccessConfirm} className="w-full">
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
