@@ -13,7 +13,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CourseLessons } from '@/components/CourseLessons';
-import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock } from 'lucide-react';
+import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock, Copy } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -265,6 +265,87 @@ export default function Courses() {
       toast.error(t.courses.errorDelete);
     }
     setDeleteDialog(null);
+  };
+
+  const handleDuplicate = async (course: DbCourse) => {
+    try {
+      toast.loading(t.common.duplicating, { id: 'duplicate-course' });
+
+      // Create duplicate course with modified title and reset dates
+      const courseData = {
+        title: `${course.title} (Kopia)`,
+        image_url: course.image_url,
+        description: course.description,
+        level: course.level,
+        price_cents: course.price_cents,
+        capacity: course.capacity,
+        primary_instructor: course.primary_instructor,
+        status: 'draft', // Set to draft so admin can review before publishing
+        starts_at: null,
+        ends_at: null,
+        created_by: (await supabase.auth.getUser()).data.user?.id,
+      };
+
+      const { data: newCourse, error: courseError } = await supabase
+        .from('courses' as any)
+        .insert([courseData])
+        .select()
+        .single();
+
+      if (courseError) throw courseError;
+      if (!newCourse) throw new Error('Failed to create course');
+
+      const newCourseId = (newCourse as any).id;
+
+      // Duplicate course instructors
+      if (course.instructors && course.instructors.length > 0) {
+        const instructorsToInsert = course.instructors.map((instructor) => ({
+          course_id: newCourseId,
+          instructor_id: instructor.id,
+          is_primary: instructor.is_primary
+        }));
+
+        const { error: instructorsError } = await supabase
+          .from('course_instructors' as any)
+          .insert(instructorsToInsert);
+
+        if (instructorsError) throw instructorsError;
+      }
+
+      // Duplicate course page sections
+      const { data: sections, error: sectionsError } = await supabase
+        .from('course_page_sections' as any)
+        .select('*')
+        .eq('course_id', course.id);
+
+      if (sectionsError) throw sectionsError;
+
+      if (sections && sections.length > 0) {
+        const sectionsToInsert = sections.map((section: any) => ({
+          course_id: newCourseId,
+          section_type: section.section_type,
+          title: section.title,
+          content: section.content,
+          position: section.position,
+          is_visible: section.is_visible
+        }));
+
+        const { error: insertSectionsError } = await supabase
+          .from('course_page_sections' as any)
+          .insert(sectionsToInsert);
+
+        if (insertSectionsError) throw insertSectionsError;
+      }
+
+      toast.success(t.common.duplicated, { id: 'duplicate-course' });
+      loadData();
+      
+      // Navigate to the new course detail page
+      navigate(`/course/${newCourseId}`);
+    } catch (error) {
+      console.error('Error duplicating course:', error);
+      toast.error(t.common.error, { id: 'duplicate-course' });
+    }
   };
 
   const getLevelBadge = (level: string) => {
@@ -609,6 +690,13 @@ export default function Courses() {
                         onClick={(e) => { e.stopPropagation(); handleEdit(course); }}
                       >
                         <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); handleDuplicate(course); }}
+                      >
+                        <Copy className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
