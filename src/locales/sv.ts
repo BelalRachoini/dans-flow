@@ -63,6 +63,10 @@ export const sv = {
     duplicate: 'Duplicera',
     duplicating: 'Duplicerar...',
     duplicated: 'Duplicerad!',
+    giveTickets: 'Ge klipp',
+    ticketCount: 'Antal klipp',
+    ticketExpiry: 'Utgångsdatum',
+    ticketsGiven: '{count} klipp har givits!',
   },
 
   // Dashboard

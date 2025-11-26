@@ -41,7 +41,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Mail, Phone, Award, DollarSign, ShoppingBag, Clock, X, Edit, Trash2, UserCog, CheckCircle } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Mail, Phone, Award, DollarSign, ShoppingBag, Clock, X, Edit, Trash2, UserCog, CheckCircle, CalendarIcon, Gift } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface MemberDetailDrawerProps {
@@ -65,8 +67,11 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
   
   // State
   const [newNote, setNewNote] = useState('');
-  const [pointsDelta, setPointsDelta] = useState('');
   const [newLevel, setNewLevel] = useState('');
+  const [ticketCount, setTicketCount] = useState<string>('1');
+  const [ticketExpiry, setTicketExpiry] = useState<Date | undefined>(
+    new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months from now
+  );
   const [newRole, setNewRole] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -227,13 +232,35 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     enabled: open,
   });
 
-  // Update member mutation (for level, points, status)
+  // Give free tickets mutation
+  const giveTicketsMutation = useMutation({
+    mutationFn: async (data: { ticketCount: number; expiresAt?: string }) => {
+      const { data: result, error } = await supabase.rpc("admin_give_free_tickets", {
+        p_member_id: memberId,
+        p_ticket_count: data.ticketCount,
+        p_expires_at: data.expiresAt,
+      });
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (result: any) => {
+      toast.success(t.common.ticketsGiven.replace("{count}", result.tickets.toString()));
+      setTicketCount("1");
+      queryClient.invalidateQueries({ queryKey: ["tickets", memberId] });
+    },
+    onError: (error: any) => {
+      console.error("Give tickets error:", error);
+      toast.error("Kunde inte ge klipp: " + error.message);
+    },
+  });
+
+  // Update member mutation (for level, status)
   const updateMemberMutation = useMutation({
-    mutationFn: async (params: { new_level?: string; points_delta?: number; new_status?: string }) => {
+    mutationFn: async (params: { new_level?: string; new_status?: string }) => {
       const { data, error } = await supabase.rpc('admin_update_member', {
         target: memberId,
         new_level: params.new_level || null,
-        points_delta: params.points_delta || null,
         new_status: params.new_status || null,
       });
       if (error) throw error;
@@ -243,7 +270,6 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
       queryClient.invalidateQueries({ queryKey: ['member-profile', memberId] });
       queryClient.invalidateQueries({ queryKey: ['crm-members'] });
       toast.success(t.crm.updated);
-      setPointsDelta('');
       setNewLevel('');
     },
     onError: () => {
@@ -551,26 +577,63 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                           </div>
                         </div>
 
-                        {/* Adjust points */}
+                        {/* Give Free Tickets */}
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">{t.crm.actions.adjustPoints}</label>
+                          <label className="text-sm font-medium">{t.common.giveTickets}</label>
                           <div className="flex flex-col sm:flex-row gap-2">
                             <Input
                               type="number"
-                              placeholder={t.crm.enterPoints}
-                              value={pointsDelta}
-                              onChange={(e) => setPointsDelta(e.target.value)}
+                              min="1"
+                              max="50"
+                              placeholder={t.common.ticketCount}
+                              value={ticketCount}
+                              onChange={(e) => setTicketCount(e.target.value)}
                               className="w-full sm:w-auto"
                             />
                             <Button
                               className="w-full sm:w-auto"
                               onClick={() =>
-                                updateMemberMutation.mutate({ points_delta: parseInt(pointsDelta) })
+                                giveTicketsMutation.mutate({
+                                  ticketCount: parseInt(ticketCount),
+                                  expiresAt: ticketExpiry?.toISOString(),
+                                })
                               }
-                              disabled={!pointsDelta || updateMemberMutation.isPending}
+                              disabled={
+                                !ticketCount ||
+                                parseInt(ticketCount) < 1 ||
+                                giveTicketsMutation.isPending
+                              }
                             >
-                              {t.common.save}
+                              {giveTicketsMutation.isPending ? 'Ger...' : t.common.giveTickets}
                             </Button>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">
+                              {t.common.ticketExpiry}
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start text-left font-normal"
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {ticketExpiry ? (
+                                    format(ticketExpiry, "PPP")
+                                  ) : (
+                                    <span>Välj datum</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                  mode="single"
+                                  selected={ticketExpiry}
+                                  onSelect={setTicketExpiry}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         </div>
 
