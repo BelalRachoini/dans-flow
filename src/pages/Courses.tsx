@@ -108,11 +108,13 @@ export default function Courses() {
           .select('instructor_id, is_primary, profiles:instructor_id(id, full_name)')
           .eq('course_id', course.id);
         
-        const instructors = courseInstructors?.map((ci: any) => ({
-          id: ci.profiles.id,
-          full_name: ci.profiles.full_name,
-          is_primary: ci.is_primary
-        })) || [];
+        const instructors = courseInstructors
+          ?.filter((ci: any) => ci.profiles !== null)
+          .map((ci: any) => ({
+            id: ci.profiles.id,
+            full_name: ci.profiles.full_name,
+            is_primary: ci.is_primary
+          })) || [];
         
         return {
           ...course,
