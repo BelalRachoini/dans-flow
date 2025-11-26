@@ -387,13 +387,13 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
                 <Textarea value={recurringForm.notes} onChange={(e) => setRecurringForm({ ...recurringForm, notes: e.target.value })} placeholder="Valfria anteckningar..." />
               </div>
               <RecurringPreview />
-              <Button onClick={generateRecurringLessons} className="w-full">{t.courses.lessons?.generateLessons || 'Generera Lektioner'}</Button>
+              <Button type="button" onClick={generateRecurringLessons} className="w-full">{t.courses.lessons?.generateLessons || 'Generera Lektioner'}</Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="manual" className="space-y-4">
-          <Button onClick={addLesson} variant="outline" size="sm"><Plus className="h-4 w-4 mr-2" />Lägg till lektion</Button>
+          <Button type="button" onClick={addLesson} variant="outline" size="sm"><Plus className="h-4 w-4 mr-2" />Lägg till lektion</Button>
         </TabsContent>
       </Tabs>
 
@@ -503,6 +503,7 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
                   </div>
                 </div>
                 <Button 
+                  type="button"
                   variant="ghost" 
                   size="icon" 
                   onClick={() => removeLesson(index)} 
@@ -516,7 +517,7 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
         ))}
       </div>
 
-      {courseId && lessons.length > 0 && <Button onClick={saveLessons} disabled={loading} className="w-full">{loading ? 'Sparar...' : 'Spara lektioner'}</Button>}
+      {courseId && lessons.length > 0 && <Button type="button" onClick={saveLessons} disabled={loading} className="w-full">{loading ? 'Sparar...' : 'Spara lektioner'}</Button>}
       {!courseId && lessons.length > 0 && <p className="text-sm text-muted-foreground text-center">Spara kursen först för att kunna spara lektionerna</p>}
     </div>
   );
