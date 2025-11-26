@@ -25,7 +25,7 @@ interface MemberWithRevenue {
   role: string;
   dance_role: 'follower' | 'leader' | null;
   level: string;
-  points: number;
+  available_tickets: number;
   status: string;
   created_at: string;
   revenue_cents: number;
@@ -88,6 +88,26 @@ export default function MedlemmarCRM() {
         throw revenuesError;
       }
 
+      // Fetch available tickets for each member
+      const { data: ticketsData, error: ticketsError } = await supabase
+        .from('tickets')
+        .select('member_id, total_tickets, tickets_used, expires_at, status');
+
+      if (ticketsError) {
+        console.error('Error fetching tickets:', ticketsError);
+      }
+
+      // Calculate available tickets per member
+      const ticketsMap = new Map<string, number>();
+      (ticketsData || []).forEach(ticket => {
+        if (ticket.status === 'valid' && 
+            (!ticket.expires_at || new Date(ticket.expires_at) > new Date())) {
+          const available = ticket.total_tickets - ticket.tickets_used;
+          const current = ticketsMap.get(ticket.member_id) || 0;
+          ticketsMap.set(ticket.member_id, current + available);
+        }
+      });
+
       const revenueMap = new Map(revenues?.map(r => [r.member_id, r]) || []);
 
       return (userRolesData || []).map(ur => {
@@ -100,7 +120,7 @@ export default function MedlemmarCRM() {
           role: ur.role,
           dance_role: profile.dance_role,
           level: profile.level,
-          points: profile.points,
+          available_tickets: ticketsMap.get(profile.id) || 0,
           status: profile.status,
           created_at: profile.created_at,
           revenue_cents: revenueMap.get(profile.id)?.revenue_cents || 0,
@@ -156,8 +176,8 @@ export default function MedlemmarCRM() {
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         case 'oldest':
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        case 'points':
-          return (b.points || 0) - (a.points || 0);
+        case 'tickets':
+          return (b.available_tickets || 0) - (a.available_tickets || 0);
         case 'name':
           return (a.full_name || '').localeCompare(b.full_name || '');
         default:
@@ -411,7 +431,7 @@ export default function MedlemmarCRM() {
                   <SelectItem value="revenue">{t.crm.sort.revenue}</SelectItem>
                   <SelectItem value="recent">{t.crm.sort.recent}</SelectItem>
                   <SelectItem value="oldest">{t.crm.sort.oldest}</SelectItem>
-                  <SelectItem value="points">{t.crm.sort.points}</SelectItem>
+                  <SelectItem value="tickets">{t.crm.sort.tickets || 'Klipp'}</SelectItem>
                   <SelectItem value="name">{t.crm.sort.name}</SelectItem>
                 </SelectContent>
               </Select>
@@ -439,7 +459,7 @@ export default function MedlemmarCRM() {
                     <TableHead>Roll</TableHead>
                     <TableHead>Dans Roll</TableHead>
                     <TableHead>{t.crm.table.level}</TableHead>
-                    <TableHead className="text-right hidden md:table-cell">{t.crm.table.points}</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">{t.crm.table.tickets || 'Klipp'}</TableHead>
                     <TableHead className="text-right">{t.crm.table.revenue}</TableHead>
                     <TableHead className="hidden lg:table-cell">{t.crm.table.since}</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
@@ -494,7 +514,7 @@ export default function MedlemmarCRM() {
                           {t.crm.level[member.level as keyof typeof t.crm.level]}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right hidden md:table-cell">{member.points || 0}</TableCell>
+                      <TableCell className="text-right hidden md:table-cell">{member.available_tickets || 0}</TableCell>
                       <TableCell className="text-right font-medium whitespace-nowrap">
                         {formatCurrency(member.revenue_cents || 0)}
                       </TableCell>
