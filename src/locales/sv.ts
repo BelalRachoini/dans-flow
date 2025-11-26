@@ -96,7 +96,7 @@ export const sv = {
     title: 'Kurser & Poäng',
     subtitle: 'Köp kurser, samla poäng och delta i lektioner',
     buyPoints: 'Köp poäng',
-    pointsBalance: 'Poängsaldo',
+    ticketsRemaining: 'Klipp kvar',
     pointsHistory: 'Poänghistorik',
     totalLessons: 'Totalt antal lektioner',
     checkIn: 'Checka in',

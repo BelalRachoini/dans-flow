@@ -96,7 +96,7 @@ export const es = {
     title: 'Cursos y Puntos',
     subtitle: 'Compra cursos, colecciona puntos y asiste a clases',
     buyPoints: 'Comprar puntos',
-    pointsBalance: 'Saldo de puntos',
+    ticketsRemaining: 'Entradas Restantes',
     pointsHistory: 'Historial de puntos',
     totalLessons: 'Total de lecciones',
     checkIn: 'Registrarse',
