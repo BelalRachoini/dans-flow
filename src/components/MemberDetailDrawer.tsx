@@ -173,8 +173,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
         .from('tickets')
         .select(`
           *,
-          course:courses(title),
-          checkins(*)
+          source_course:courses!source_course_id(title, price_cents)
         `)
         .eq('member_id', memberId)
         .order('purchased_at', { ascending: false });
@@ -735,26 +734,69 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                         <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
                       ) : (
                         <div className="overflow-x-auto -mx-4 md:mx-0">
-                          <Table className="min-w-[520px]">
+                          <Table className="min-w-[600px]">
                             <TableHeader>
                               <TableRow>
-                                <TableHead>{t.courses.title}</TableHead>
-                                <TableHead>{t.qr.checkedIn}</TableHead>
-                                <TableHead>{t.events.date}</TableHead>
+                                <TableHead>{t.tickets.fromCourse}</TableHead>
+                                <TableHead>{t.tickets.ticketsRemaining}</TableHead>
+                                <TableHead>{t.tickets.purchasedOn}</TableHead>
+                                <TableHead>{t.tickets.expiresAt}</TableHead>
+                                <TableHead>{t.courses.price}</TableHead>
+                                <TableHead>{t.tickets.checkInStatus}</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {tickets.map((ticket: any) => (
-                                <TableRow key={ticket.id}>
-                                  <TableCell>{ticket.course?.title || '—'}</TableCell>
-                                  <TableCell>
-                                    {ticket.checked_in_count} / {ticket.max_checkins}
-                                  </TableCell>
-                                  <TableCell>
-                                    {format(new Date(ticket.purchased_at), 'yyyy-MM-dd')}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                              {tickets.map((ticket: any) => {
+                                const isAdminGift = ticket.order_id?.startsWith('admin_gift:');
+                                const isExpired = ticket.expires_at && new Date(ticket.expires_at) < new Date();
+                                const statusColor = 
+                                  ticket.status === 'used' ? 'text-muted-foreground' :
+                                  isExpired ? 'text-destructive' :
+                                  'text-green-600';
+                                const statusText = 
+                                  ticket.status === 'used' ? t.tickets.expired :
+                                  isExpired ? t.tickets.expired :
+                                  '✓ Valid';
+                                
+                                return (
+                                  <TableRow key={ticket.id}>
+                                    <TableCell>
+                                      {isAdminGift ? (
+                                        <div className="flex items-center gap-2">
+                                          <span>🎁</span>
+                                          <span className="text-sm font-medium">{t.crm.adminGift}</span>
+                                        </div>
+                                      ) : (
+                                        ticket.source_course?.title || '—'
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <span className="font-medium">
+                                        {ticket.tickets_used} / {ticket.total_tickets}
+                                      </span>
+                                      <span className="text-muted-foreground text-sm ml-2">
+                                        ({ticket.total_tickets - ticket.tickets_used} {t.tickets.remainingTickets})
+                                      </span>
+                                    </TableCell>
+                                    <TableCell>
+                                      {format(new Date(ticket.purchased_at), 'yyyy-MM-dd')}
+                                    </TableCell>
+                                    <TableCell>
+                                      {ticket.expires_at ? format(new Date(ticket.expires_at), 'yyyy-MM-dd') : '—'}
+                                    </TableCell>
+                                    <TableCell>
+                                      {isAdminGift ? (
+                                        <span className="text-green-600 font-medium">{t.crm.freeTicket}</span>
+                                      ) : (
+                                        formatCurrency(ticket.source_course?.price_cents || 0)
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <span className={statusColor}>{statusText}</span>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
                             </TableBody>
                           </Table>
                         </div>

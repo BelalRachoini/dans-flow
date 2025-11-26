@@ -712,6 +712,8 @@ export const en = {
     noteBody: "Note",
     enterPoints: "Enter points (+/- for adjustment)",
     selectLevel: "Select level",
+    adminGift: 'Admin Gift',
+    freeTicket: 'Free',
     selectRole: "Select role",
     selectCourse: "Select course",
     role: "Role",
