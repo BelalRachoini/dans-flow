@@ -89,6 +89,13 @@ export const es = {
     buyCourse: 'Comprar curso',
     shortcuts: 'Atajos',
     shortcutsDescription: 'Acceso rápido a tus funciones más importantes',
+    upcoming: 'Próximos',
+    upcomingDescription: 'Próximas lecciones y eventos',
+    noUpcoming: 'No hay lecciones o eventos próximos',
+    myBookings: 'Mis Reservas',
+    myBookingsDescription: 'Tus lecciones reservadas',
+    noBookings: 'No hay lecciones reservadas',
+    bookNow: 'Reservar Ahora',
   },
 
   // Courses & Points

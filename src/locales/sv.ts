@@ -89,6 +89,13 @@ export const sv = {
     buyCourse: 'Köp kurs',
     shortcuts: 'Snabbgenvägar',
     shortcutsDescription: 'Snabb tillgång till dina viktigaste funktioner',
+    upcoming: 'Kommande',
+    upcomingDescription: 'Nästa lektioner och event',
+    noUpcoming: 'Inga kommande lektioner eller event',
+    myBookings: 'Mina Bokningar',
+    myBookingsDescription: 'Dina bokade lektioner',
+    noBookings: 'Inga bokade lektioner',
+    bookNow: 'Boka nu',
   },
 
   // Courses & Points
