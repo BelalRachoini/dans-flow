@@ -16,6 +16,8 @@ export default function PaymentSuccess() {
   useEffect(() => {
     const verifyPayment = async () => {
       const sessionId = searchParams.get("session_id");
+      const paymentType = searchParams.get("type");
+      
       if (!sessionId) {
         setError("Ingen betalningssession hittades");
         setVerifying(false);
@@ -23,6 +25,24 @@ export default function PaymentSuccess() {
       }
 
       try {
+        // Check if it's standalone ticket payment
+        if (paymentType === "standalone_tickets") {
+          const ticketCount = searchParams.get("count");
+          const { data, error } = await supabase.functions.invoke(
+            "verify-standalone-ticket-payment",
+            { body: { sessionId } }
+          );
+
+          if (!error && data?.success) {
+            toast({
+              title: "Betalning genomförd!",
+              description: `Du har köpt ${ticketCount} klippkort som nu finns i Biljetter.`,
+            });
+            setVerifying(false);
+            return;
+          }
+        }
+
         // Try to verify as event payment first
         const { data: eventData, error: eventError } = await supabase.functions.invoke(
           "verify-event-payment",
@@ -53,7 +73,7 @@ export default function PaymentSuccess() {
           return;
         }
 
-        // If both failed
+        // If all failed
         throw new Error(eventError?.message || courseError?.message || "Kunde inte verifiera betalning");
       } catch (err) {
         console.error("Payment verification error:", err);
