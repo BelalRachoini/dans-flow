@@ -29,7 +29,7 @@ export default function CourseDetail() {
       if (!id) return;
 
       try {
-        // Load course
+        // Load course with instructor info
         const { data: courseData, error: courseError } = await supabase
           .from('courses')
           .select(`
