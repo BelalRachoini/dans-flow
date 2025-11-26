@@ -24,6 +24,7 @@ import logo from '@/assets/dance-vida-logo.png';
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string>('User');
+  const [ticketsRemaining, setTicketsRemaining] = useState<number>(0);
   const location = useLocation();
   const navigate = useNavigate();
   const { userId, role, logout } = useAuthStore();
@@ -47,6 +48,29 @@ export const Layout = () => {
     };
 
     fetchUserProfile();
+  }, [userId]);
+
+  // Fetch remaining tickets
+  useEffect(() => {
+    const fetchTickets = async () => {
+      if (!userId) return;
+      
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('total_tickets, tickets_used, expires_at, status')
+        .eq('member_id', userId)
+        .neq('status', 'used')
+        .gt('expires_at', new Date().toISOString());
+      
+      if (data) {
+        const remaining = data.reduce((sum, ticket) => 
+          sum + (ticket.total_tickets - ticket.tickets_used), 0
+        );
+        setTicketsRemaining(remaining);
+      }
+    };
+
+    fetchTickets();
   }, [userId]);
 
   // Get the correct overview path based on role
@@ -226,8 +250,8 @@ export const Layout = () => {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
-                    <span className="mr-2 font-semibold text-primary">{t.courses.pointsBalance}:</span>
-                    0
+                    <span className="mr-2 font-semibold text-primary">{t.courses.ticketsRemaining}:</span>
+                    {ticketsRemaining}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout}>

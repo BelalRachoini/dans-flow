@@ -96,7 +96,7 @@ export const en = {
     title: 'Courses & Points',
     subtitle: 'Buy courses, collect points and attend lessons',
     buyPoints: 'Buy points',
-    pointsBalance: 'Points balance',
+    ticketsRemaining: 'Tickets Remaining',
     pointsHistory: 'Points history',
     totalLessons: 'Total lessons',
     checkIn: 'Check in',
