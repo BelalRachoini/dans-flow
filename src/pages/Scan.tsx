@@ -21,12 +21,36 @@ interface CheckinResult {
   error?: string;
   message?: string;
   member_name?: string;
+  member_id?: string;
+  
+  // Lesson bookings
+  lesson_id?: string;
+  lesson_title?: string;
+  is_lesson?: boolean;
+  checkins_used?: number;
+  checkins_allowed?: number;
+  
+  // Course tickets
+  course_id?: string;
   course_title?: string;
+  tickets_used?: number;
+  total_tickets?: number;
   course_starts_at?: string;
-  status_after?: string;
+  
+  // Event bookings
+  event_id?: string;
+  event_title?: string;
+  event_start_at?: string;
+  is_event?: boolean;
+  
+  // Common
+  scanned_at?: string;
+  is_self_checkin?: boolean;
+  
+  // Legacy fields
   checked_in_count?: number;
   max_checkins?: number;
-  scanned_at?: string;
+  status_after?: string;
 }
 
 interface RecentCheckin {
@@ -375,7 +399,7 @@ export default function Scan() {
               </div>
 
               {/* Last Result */}
-              {lastResult && (
+              {lastResult && !showSuccessDialog && (
                 <Alert variant={lastResult.success ? "default" : "destructive"}>
                   <div className="flex gap-3">
                     {lastResult.success ? (
@@ -446,7 +470,7 @@ export default function Scan() {
               </div>
 
               {/* Last Result */}
-              {lastResult && (
+              {lastResult && !showSuccessDialog && (
                 <Alert variant={lastResult.success ? "default" : "destructive"}>
                   <div className="flex gap-3">
                     {lastResult.success ? (
@@ -496,21 +520,38 @@ export default function Scan() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Member Name */}
             <div className="flex items-center gap-3">
               <User className="h-5 w-5 text-muted-foreground" />
-              <span className="text-lg font-semibold">{lastResult?.member_name}</span>
+              <span className="text-lg font-semibold">{lastResult?.member_name || 'Okänd medlem'}</span>
             </div>
+            
+            {/* Title - dynamic based on type */}
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground" />
-              <span>{lastResult?.course_title}</span>
+              <span>
+                {lastResult?.is_lesson 
+                  ? lastResult?.lesson_title 
+                  : lastResult?.is_event 
+                    ? lastResult?.event_title 
+                    : lastResult?.course_title || 'Okänt'}
+              </span>
             </div>
+            
+            {/* Date/Time */}
             <div className="flex items-center gap-3">
               <Clock className="h-5 w-5 text-muted-foreground" />
               <span>{lastResult?.scanned_at ? formatDate(lastResult.scanned_at) : formatDate(new Date().toISOString())}</span>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Klipp kvar: {(lastResult?.max_checkins || 0) - (lastResult?.checked_in_count || 0)}
-            </div>
+            
+            {/* Remaining Tickets - only for non-events */}
+            {!lastResult?.is_event && (
+              <div className="text-sm text-muted-foreground">
+                Klipp kvar: {lastResult?.is_lesson 
+                  ? (lastResult.checkins_allowed || 0) - (lastResult.checkins_used || 0)
+                  : (lastResult?.total_tickets || 0) - (lastResult?.tickets_used || 0)}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button onClick={handleSuccessConfirm} className="w-full">
