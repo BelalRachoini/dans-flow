@@ -416,11 +416,17 @@ export default function Scan() {
                           <div className="text-sm space-y-1">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4" />
-                              <span>{lastResult.member_name}</span>
+                              <span>{lastResult.member_name || 'Okänd medlem'}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4" />
-                              <span>{lastResult.course_title}</span>
+                              <span>
+                                {lastResult.is_lesson 
+                                  ? (lastResult.lesson_title || 'Lektion')
+                                  : lastResult.is_event 
+                                    ? (lastResult.event_title || 'Event') 
+                                    : (lastResult.course_title || 'Klippkort (flexibel biljett)')}
+                              </span>
                             </div>
                             <div className="text-muted-foreground">
                               Incheckningar: {lastResult.checked_in_count} / {lastResult.max_checkins}
@@ -487,11 +493,17 @@ export default function Scan() {
                           <div className="text-sm space-y-1">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4" />
-                              <span>{lastResult.member_name}</span>
+                              <span>{lastResult.member_name || 'Okänd medlem'}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4" />
-                              <span>{lastResult.course_title}</span>
+                              <span>
+                                {lastResult.is_lesson 
+                                  ? (lastResult.lesson_title || 'Lektion')
+                                  : lastResult.is_event 
+                                    ? (lastResult.event_title || 'Event') 
+                                    : (lastResult.course_title || 'Klippkort (flexibel biljett)')}
+                              </span>
                             </div>
                           </div>
                         </>
@@ -531,10 +543,10 @@ export default function Scan() {
               <Calendar className="h-5 w-5 text-muted-foreground" />
               <span>
                 {lastResult?.is_lesson 
-                  ? lastResult?.lesson_title 
+                  ? (lastResult?.lesson_title || 'Lektion')
                   : lastResult?.is_event 
-                    ? lastResult?.event_title 
-                    : lastResult?.course_title || 'Okänt'}
+                    ? (lastResult?.event_title || 'Event') 
+                    : (lastResult?.course_title || 'Klippkort (flexibel biljett)')}
               </span>
             </div>
             
