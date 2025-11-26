@@ -63,6 +63,10 @@ export const en = {
     duplicate: 'Duplicate',
     duplicating: 'Duplicating...',
     duplicated: 'Duplicated!',
+    giveTickets: 'Give Tickets',
+    ticketCount: 'Number of tickets',
+    ticketExpiry: 'Expiry date',
+    ticketsGiven: '{count} tickets given!',
   },
 
   // Dashboard

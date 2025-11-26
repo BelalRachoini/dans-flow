@@ -956,6 +956,14 @@ export type Database = {
         Returns: Json
       }
       admin_delete_member: { Args: { target_user_id: string }; Returns: Json }
+      admin_give_free_tickets: {
+        Args: {
+          p_expires_at?: string
+          p_member_id: string
+          p_ticket_count: number
+        }
+        Returns: Json
+      }
       admin_manual_checkin: {
         Args: { p_course_id: string; p_member_id: string; p_note?: string }
         Returns: Json
