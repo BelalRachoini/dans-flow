@@ -6,10 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   Ticket, Calendar, MapPin, Clock, QrCode, 
   PartyPopper, ShoppingCart, Search, X, Info, Check,
-  Users, GraduationCap
+  Users, GraduationCap, ChevronDown, AlertCircle, CalendarDays
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -604,8 +605,24 @@ export default function Biljetter() {
     );
   }
 
+  // Calculate ticket balance from course tickets
+  const ticketPackages = tickets.filter(t => t.type === 'course') as TicketWithCourse[];
+  const validPackages = ticketPackages.filter(p => p.status === 'valid' && p.tickets_used < p.total_tickets);
+  const totalAvailableTickets = validPackages.reduce((sum, p) => sum + (p.total_tickets - p.tickets_used), 0);
+  
+  // Separate valid and used/expired lesson bookings
+  const validLessonBookings = lessonBookings.filter(b => b.status === 'valid' && b.checkins_used < b.checkins_allowed);
+  const historyLessonBookings = lessonBookings.filter(b => b.status === 'used' || b.checkins_used >= b.checkins_allowed);
+  
+  // Event tickets (with type discriminator)
+  const eventTicketsTyped = tickets.filter(t => t.type === 'event') as (EventTicket & { type: 'event' })[];
+  const validEventTickets = eventTicketsTyped.filter(e => e.status === 'confirmed' || e.status === 'checked_in');
+  
+  // History items (used/expired packages)
+  const historyPackages = ticketPackages.filter(p => p.status !== 'valid' || p.tickets_used >= p.total_tickets);
+  
   // Empty state when user has no tickets (only for non-admins)
-  if (tickets.length === 0 && !isAdmin) {
+  if (tickets.length === 0 && lessonBookings.length === 0 && !isAdmin) {
     return (
       <div className="space-y-6">
         <div>
@@ -657,6 +674,63 @@ export default function Biljetter() {
       </div>
     );
   }
+
+  const openLessonQRModal = async (booking: LessonBooking) => {
+    try {
+      const dataUrl = await QRCodeLib.toDataURL(booking.qr_payload, {
+        width: 600,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
+      });
+      setQrDataUrl(dataUrl);
+      setSelectedTicket(null); // Clear ticket, we're using lesson booking
+    } catch (error) {
+      toast({
+        title: 'Fel',
+        description: 'Kunde inte generera QR-kod',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleLessonCheckIn = async (booking: LessonBooking) => {
+    setCheckingIn(booking.id);
+    try {
+      const { data, error } = await supabase.rpc('check_in_with_qr', {
+        qr: booking.qr_payload,
+        p_location: 'Self Check-in',
+        p_device_info: navigator.userAgent
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+
+      if (result?.success) {
+        sonnerToast.success(
+          'Incheckning lyckades!',
+          {
+            description: `Du är nu incheckad för ${result.lesson_title || booking.course_lessons.title}`
+          }
+        );
+        await loadTickets();
+      } else {
+        sonnerToast.error('Incheckning misslyckades', {
+          description: result?.message || 'Ett fel uppstod'
+        });
+      }
+    } catch (error) {
+      console.error('Check-in error:', error);
+      sonnerToast.error('Ett fel uppstod', {
+        description: 'Kunde inte checka in. Försök igen.'
+      });
+    } finally {
+      setCheckingIn(null);
+    }
+  };
 
   // Main view (shows admin section + member tickets)
   return (
@@ -858,339 +932,382 @@ export default function Biljetter() {
         </div>
       )}
 
-      {/* Member's Personal Tickets Section - Only show for non-admins or when admin has tickets */}
-      {(!isAdmin || tickets.length > 0) && (
-        <div className="space-y-4">
-          {tickets.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center space-y-4">
-                <Ticket className="h-12 w-12 text-muted-foreground mx-auto" />
-                <div>
-                  <p className="text-muted-foreground font-medium">
-                    Du har inga personliga biljetter
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Köp en kurs eller evenemangsbiljett för att komma igång
-                  </p>
-                </div>
-                <div className="flex gap-2 justify-center mt-4">
-                  <Button variant="outline" onClick={() => navigate('/kurser-poang')}>
-                    <ShoppingCart className="mr-2 h-4 w-4" />
-                    Köp kurser
-                  </Button>
-                  <Button variant="outline" onClick={() => navigate('/event')}>
-                    <PartyPopper className="mr-2 h-4 w-4" />
-                    Se event
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              {/* Info Box */}
-              <Card className="bg-primary/5 border-primary/20">
-                <CardContent className="p-4 flex gap-3">
-                  <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                  <div className="text-sm space-y-1">
-                    <p className="font-semibold">Så här fungerar det:</p>
-                    <p className="text-muted-foreground">
-                      Du kan checka in dig själv genom att klicka på "Checka in nu"-knappen, eller visa din QR-kod för instruktören att skanna. 
-                      Klicka på "Visa QR i helskärm" för en större kod som är lättare att skanna.
-                    </p>
+      {/* Member's Personal Tickets Section */}
+      {!isAdmin && (
+        <div className="space-y-6">
+          {/* 1. TICKET BALANCE SUMMARY - TOP */}
+          {totalAvailableTickets > 0 && (
+            <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                    <Ticket className="h-6 w-6 text-primary" />
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Filters */}
-              <div className="flex gap-3 flex-wrap">
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Sök kurs..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alla</SelectItem>
-                    <SelectItem value="valid">Giltiga</SelectItem>
-                    <SelectItem value="checked_in">Incheckade</SelectItem>
-                    <SelectItem value="cancelled">Avbrutna</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Tickets Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {filteredTickets.map((ticket) => {
-          const statusBadge = getStatusBadge(ticket.status);
-          const isCourseTicket = ticket.type === 'course';
-          const title = isCourseTicket 
-            ? (ticket.courses?.title || 'Free Ticket (Admin Gift)')
-            : (ticket.events?.title || 'Event Ticket');
-          const startDate = isCourseTicket 
-            ? (ticket.courses?.starts_at || ticket.purchased_at)
-            : (ticket.events?.start_at || ticket.booked_at);
-          const venue = isCourseTicket 
-            ? (ticket.courses?.venue || 'N/A')
-            : (ticket.events?.venue || 'N/A');
-          
-          return (
-            <Card key={ticket.id} className="shadow-md overflow-hidden">
-              <div className="gradient-primary p-4 text-white">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <h3 className="text-xl font-bold truncate">{title}</h3>
-                    <div className="flex items-center gap-2 text-sm text-white/90">
-                      <Calendar className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{formatDate(startDate)}</span>
-                    </div>
-                    {!isCourseTicket && (
-                      <Badge variant="secondary" className="text-xs">
-                        Event
-                      </Badge>
-                    )}
-                  </div>
-                  <Badge 
-                    variant={statusBadge.variant}
-                    className="shrink-0"
-                  >
-                    {statusBadge.label}
-                  </Badge>
-                </div>
-              </div>
-
-              <CardContent className="p-6 space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{formatTime(startDate)}</span>
-                  </div>
-                  {venue && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="truncate">{venue}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* QR Code Preview */}
-                {(ticket.status === 'valid' || ticket.status === 'confirmed') && qrCanvasRef.current[ticket.qr_payload] && (
-                  <div className="pt-4 border-t">
-                    <div className="bg-white p-3 rounded-lg border inline-block mx-auto block w-full text-center">
-                      <img 
-                        src={qrCanvasRef.current[ticket.qr_payload]} 
-                        alt="QR Code"
-                        className="w-32 h-32 mx-auto"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {isCourseTicket && (
-                  <div className="pt-2 border-t">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="text-muted-foreground">Klipp använda</div>
-                      <div className="font-semibold">
-                        {ticket.tickets_used} / {ticket.total_tickets}
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Tillgängliga Klipp</h3>
+                    <p className="text-4xl font-bold text-primary mb-3">{totalAvailableTickets}</p>
+                    
+                    {validPackages.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">Utgår snart:</p>
+                        <div className="space-y-1.5">
+                          {validPackages
+                            .sort((a, b) => new Date(a.expires_at).getTime() - new Date(b.expires_at).getTime())
+                            .slice(0, 3)
+                            .map((pkg) => {
+                              const remaining = pkg.total_tickets - pkg.tickets_used;
+                              const expiryDate = new Date(pkg.expires_at);
+                              const daysUntilExpiry = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                              const isExpiringSoon = daysUntilExpiry <= 30;
+                              
+                              return (
+                                <div key={pkg.id} className="flex items-center gap-2 text-sm">
+                                  {isExpiringSoon && <AlertCircle className="h-4 w-4 text-orange-500 shrink-0" />}
+                                  <span className={isExpiringSoon ? 'text-orange-600 font-medium' : ''}>
+                                    {remaining} klipp utgår {expiryDate.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                {(ticket.status === 'valid' || ticket.status === 'confirmed') && (
-                  <div className="space-y-2">
-                    {canCheckIn(ticket) && (
-                      <Button 
-                        className="w-full" 
-                        variant="default"
-                        onClick={() => handleSelfCheckIn(ticket)}
-                        disabled={checkingIn === ticket.id}
-                      >
-                        {checkingIn === ticket.id ? (
-                          <>Checkar in...</>
-                        ) : (
-                          <>
-                            <Check className="mr-2 h-4 w-4" />
-                            Checka in nu
-                          </>
-                        )}
-                      </Button>
                     )}
+                    
                     <Button 
-                      className="w-full" 
-                      variant="outline"
-                      onClick={() => openQRModal(ticket)}
+                      variant="default" 
+                      className="mt-4 w-full sm:w-auto"
+                      onClick={() => navigate('/schema')}
                     >
-                      <QrCode className="mr-2 h-4 w-4" />
-                      Visa QR i helskärm
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      Boka en lektion
                     </Button>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
-          );
-        })}
-            </div>
-          </>
-        )}
-        </div>
-      )}
+          )}
 
-      {filteredTickets.length === 0 && tickets.length > 0 && (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground">
-            Inga biljetter matchar dina filter
-          </p>
-        </Card>
-      )}
-
-      {/* Drop-in Tickets Section */}
-      {lessonBookings.length > 0 && (
-        <div className="space-y-4 mt-8">
-          <h2 className="text-2xl font-bold">Drop-in Biljetter</h2>
-          <div className="grid gap-6 md:grid-cols-2">
-            {lessonBookings.map((booking) => {
-              const lessonDate = new Date(booking.course_lessons.starts_at);
-              const statusBadge = getStatusBadge(booking.status);
-              
-              return (
-                <Card key={booking.id} className="shadow-md overflow-hidden">
-                  <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 text-white">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1 flex-1 min-w-0">
-                        <h3 className="text-xl font-bold truncate">
-                          {booking.course_lessons.title || 'Drop-in Lesson'}
-                        </h3>
-                        <div className="flex items-center gap-2 text-sm text-white/90">
-                          <Calendar className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{formatDate(booking.course_lessons.starts_at)}</span>
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {booking.ticket_type === 'single' ? 'Single' : booking.ticket_type === 'couple' ? 'Couple' : 'Existing Ticket'}
-                        </Badge>
-                      </div>
-                      <Badge 
-                        variant={statusBadge.variant}
-                        className="shrink-0"
-                      >
-                        {statusBadge.label}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <CardContent className="p-6 space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span>{formatTime(booking.course_lessons.starts_at)}</span>
-                      </div>
-                      {booking.course_lessons.venue && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="truncate">{booking.course_lessons.venue}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* QR Code Preview */}
-                    {booking.status === 'valid' && qrCanvasRef.current[booking.qr_payload] && (
-                      <div className="pt-4 border-t">
-                        <div className="bg-white p-3 rounded-lg border inline-block mx-auto block w-full text-center">
-                          <img 
-                            src={qrCanvasRef.current[booking.qr_payload]} 
-                            alt="QR Code"
-                            className="w-32 h-32 mx-auto"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="text-muted-foreground">Check-ins använda</div>
-                        <div className="font-semibold">
-                          {booking.checkins_used} / {booking.checkins_allowed}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 pt-2">
-                      {booking.status === 'valid' && (
-                        <>
-                          <Button
-                            onClick={() => openQRModal(booking as any)}
-                            variant="outline"
-                            className="flex-1"
-                          >
-                            <QrCode className="mr-2 h-4 w-4" />
-                            {t.tickets.showQR}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* QR Modal */}
-      <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>QR-kod för incheckning</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSelectedTicket(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogTitle>
-          </DialogHeader>
-          {selectedTicket && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <h3 className="font-bold text-lg mb-2">
-                  {selectedTicket.type === 'course' 
-                    ? (selectedTicket.courses?.title || 'Course Ticket')
-                    : (selectedTicket.events?.title || 'Event Ticket')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {selectedTicket.type === 'course'
-                    ? (selectedTicket.courses?.starts_at ? `${formatDate(selectedTicket.courses.starts_at)} • ${formatTime(selectedTicket.courses.starts_at)}` : 'Date TBD')
-                    : (selectedTicket.events?.start_at ? `${formatDate(selectedTicket.events.start_at)} • ${formatTime(selectedTicket.events.start_at)}` : 'Date TBD')}
+          {/* Info Box */}
+          <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+            <CardContent className="p-4 flex gap-3">
+              <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div className="text-sm space-y-1">
+                <p className="font-semibold text-blue-900 dark:text-blue-100">Så här fungerar det:</p>
+                <p className="text-blue-800 dark:text-blue-200">
+                  Du kan checka in dig själv genom att klicka på "Checka in nu"-knappen, eller visa din QR-kod för instruktören att skanna.
                 </p>
               </div>
-              
-              <div className="bg-white p-6 rounded-lg border">
-                {qrDataUrl && (
-                  <img 
-                    src={qrDataUrl} 
-                    alt="QR Code"
-                    className="w-full h-auto"
-                  />
-                )}
-              </div>
+            </CardContent>
+          </Card>
 
-              <div className="text-center text-sm text-muted-foreground">
-                Visa denna kod för instruktören
+          {/* 2. BOKADE LEKTIONER SECTION - MIDDLE */}
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Bokade Lektioner
+            </h2>
+            
+            {validLessonBookings.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center space-y-4">
+                  <Calendar className="h-12 w-12 text-muted-foreground mx-auto opacity-50" />
+                  <div>
+                    <p className="font-medium text-muted-foreground">
+                      Du har inga bokade lektioner
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Gå till schemat för att boka en plats med dina klipp
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate('/schema')}
+                    className="gap-2"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    Visa schema
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {validLessonBookings.map((booking) => {
+                  const lesson = booking.course_lessons;
+                  const lessonDate = new Date(lesson.starts_at);
+                  const lessonEndDate = lesson.ends_at ? new Date(lesson.ends_at) : null;
+                  const isToday = lessonDate.toDateString() === new Date().toDateString();
+                  const canCheckInNow = isToday; // You can add more logic here for check-in window
+                  const remaining = booking.checkins_allowed - booking.checkins_used;
+                  
+                  return (
+                    <Card key={booking.id} className="overflow-hidden">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          {/* Left: Lesson Info */}
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <h3 className="font-semibold text-lg">{lesson.title || 'Lektion'}</h3>
+                              <Badge variant="secondary" className="mt-1">
+                                {remaining} incheckningar kvar
+                              </Badge>
+                            </div>
+                            
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Calendar className="h-4 w-4 shrink-0" />
+                                <span>{formatDate(lesson.starts_at)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Clock className="h-4 w-4 shrink-0" />
+                                <span>
+                                  {formatTime(lesson.starts_at)}
+                                  {lessonEndDate && ` - ${formatTime(lesson.ends_at!)}`}
+                                </span>
+                              </div>
+                              {lesson.venue && (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <MapPin className="h-4 w-4 shrink-0" />
+                                  <span>{lesson.venue}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-2 pt-2">
+                              {canCheckInNow && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleLessonCheckIn(booking)}
+                                  disabled={checkingIn === booking.id}
+                                  className="gap-2"
+                                >
+                                  <Check className="h-4 w-4" />
+                                  {checkingIn === booking.id ? 'Checkar in...' : 'Checka in nu'}
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openLessonQRModal(booking)}
+                                className="gap-2"
+                              >
+                                <QrCode className="h-4 w-4" />
+                                Visa QR i helskärm
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Right: QR Code Preview */}
+                          <div className="flex items-center justify-center sm:justify-end">
+                            <div className="bg-white p-2 rounded-lg border">
+                              {qrCanvasRef.current[booking.qr_payload] ? (
+                                <img 
+                                  src={qrCanvasRef.current[booking.qr_payload]} 
+                                  alt="QR Code"
+                                  className="w-24 h-24"
+                                />
+                              ) : (
+                                <div className="w-24 h-24 bg-muted animate-pulse rounded" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 3. EVENT BILJETTER SECTION */}
+          {validEventTickets.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <PartyPopper className="h-5 w-5" />
+                Evenemangsbiljetter
+              </h2>
+              
+              <div className="space-y-3">
+                {validEventTickets.map((ticket) => {
+                  const event = ticket.events;
+                  const eventDate = new Date(event.start_at);
+                  const eventEndDate = event.end_at ? new Date(event.end_at) : null;
+                  const isToday = eventDate.toDateString() === new Date().toDateString();
+                  const statusBadge = getStatusBadge(ticket.status);
+                  
+                  return (
+                    <Card key={ticket.id} className="overflow-hidden">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          {/* Left: Event Info */}
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <h3 className="font-semibold text-lg">{event.title}</h3>
+                              <Badge variant={statusBadge.variant} className="mt-1">
+                                {statusBadge.label}
+                              </Badge>
+                            </div>
+                            
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Calendar className="h-4 w-4 shrink-0" />
+                                <span>{formatDate(event.start_at)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Clock className="h-4 w-4 shrink-0" />
+                                <span>
+                                  {formatTime(event.start_at)}
+                                  {eventEndDate && ` - ${formatTime(event.end_at!)}`}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <MapPin className="h-4 w-4 shrink-0" />
+                                <span>{event.venue}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-2 pt-2">
+                              {canCheckIn(ticket) && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSelfCheckIn(ticket)}
+                                  disabled={checkingIn === ticket.id}
+                                  className="gap-2"
+                                >
+                                  <Check className="h-4 w-4" />
+                                  {checkingIn === ticket.id ? 'Checkar in...' : 'Checka in nu'}
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openQRModal(ticket)}
+                                className="gap-2"
+                              >
+                                <QrCode className="h-4 w-4" />
+                                Visa QR i helskärm
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Right: QR Code Preview */}
+                          <div className="flex items-center justify-center sm:justify-end">
+                            <div className="bg-white p-2 rounded-lg border">
+                              {qrCanvasRef.current[ticket.qr_payload] ? (
+                                <img 
+                                  src={qrCanvasRef.current[ticket.qr_payload]} 
+                                  alt="QR Code"
+                                  className="w-24 h-24"
+                                />
+                              ) : (
+                                <div className="w-24 h-24 bg-muted animate-pulse rounded" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}
+
+          {/* 4. BILJETTHISTORIK - BOTTOM COLLAPSIBLE */}
+          {(historyLessonBookings.length > 0 || historyPackages.length > 0) && (
+            <Collapsible className="space-y-2">
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-4 h-auto">
+                    <span className="text-lg font-semibold">
+                      Biljetthistorik ({historyLessonBookings.length + historyPackages.length})
+                    </span>
+                    <ChevronDown className="h-5 w-5 transition-transform duration-200 data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0 pb-4">
+                    <div className="space-y-2">
+                      {/* Used Lesson Bookings */}
+                      {historyLessonBookings.map((booking) => {
+                        const lesson = booking.course_lessons;
+                        return (
+                          <div key={booking.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg text-sm">
+                            <Check className="h-4 w-4 text-green-600 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{lesson.title || 'Lektion'}</p>
+                              <p className="text-muted-foreground text-xs">
+                                {formatDate(lesson.starts_at)}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="shrink-0">Använd</Badge>
+                          </div>
+                        );
+                      })}
+                      
+                      {/* Expired/Used Packages */}
+                      {historyPackages.map((pkg) => {
+                        const isExpired = new Date(pkg.expires_at) < new Date();
+                        const isUsed = pkg.tickets_used >= pkg.total_tickets;
+                        return (
+                          <div key={pkg.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg text-sm">
+                            <X className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">
+                                {pkg.courses?.title || 'Klippkort (Admin Gift)'}
+                              </p>
+                              <p className="text-muted-foreground text-xs">
+                                {pkg.total_tickets} klipp - {isExpired ? 'Utgått' : 'Använt'}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="shrink-0">
+                              {isExpired ? 'Utgått' : 'Använt'}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          )}
+        </div>
+      )}
+
+      {/* QR Code Fullscreen Modal */}
+      <Dialog open={!!selectedTicket || !!qrDataUrl} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedTicket(null);
+          setQrDataUrl('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              {selectedTicket 
+                ? (selectedTicket.type === 'event' 
+                    ? selectedTicket.events.title
+                    : selectedTicket.courses?.title || 'Biljett')
+                : 'QR-kod'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrDataUrl && (
+              <>
+                <div className="bg-white p-4 rounded-lg">
+                  <img src={qrDataUrl} alt="QR Code" className="w-full max-w-sm" />
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  Visa denna kod för instruktören att skanna
+                </p>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
