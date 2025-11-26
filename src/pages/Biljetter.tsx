@@ -581,7 +581,7 @@ export default function Biljetter() {
   const filteredTickets = tickets.filter((ticket) => {
     const title = ticket.type === 'course' 
       ? (ticket.courses?.title || 'Free Ticket (Admin Gift)')
-      : ticket.events.title;
+      : (ticket.events?.title || 'Event Ticket');
     const matchesSearch = title
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
@@ -934,13 +934,13 @@ export default function Biljetter() {
           const isCourseTicket = ticket.type === 'course';
           const title = isCourseTicket 
             ? (ticket.courses?.title || 'Free Ticket (Admin Gift)')
-            : ticket.events.title;
+            : (ticket.events?.title || 'Event Ticket');
           const startDate = isCourseTicket 
             ? (ticket.courses?.starts_at || ticket.purchased_at)
-            : ticket.events.start_at;
+            : (ticket.events?.start_at || ticket.booked_at);
           const venue = isCourseTicket 
             ? (ticket.courses?.venue || 'N/A')
-            : ticket.events.venue;
+            : (ticket.events?.venue || 'N/A');
           
           return (
             <Card key={ticket.id} className="shadow-md overflow-hidden">
@@ -1164,13 +1164,13 @@ export default function Biljetter() {
               <div className="text-center">
                 <h3 className="font-bold text-lg mb-2">
                   {selectedTicket.type === 'course' 
-                    ? selectedTicket.courses.title 
-                    : selectedTicket.events.title}
+                    ? (selectedTicket.courses?.title || 'Course Ticket')
+                    : (selectedTicket.events?.title || 'Event Ticket')}
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {selectedTicket.type === 'course'
-                    ? `${formatDate(selectedTicket.courses.starts_at)} • ${formatTime(selectedTicket.courses.starts_at)}`
-                    : `${formatDate(selectedTicket.events.start_at)} • ${formatTime(selectedTicket.events.start_at)}`}
+                    ? (selectedTicket.courses?.starts_at ? `${formatDate(selectedTicket.courses.starts_at)} • ${formatTime(selectedTicket.courses.starts_at)}` : 'Date TBD')
+                    : (selectedTicket.events?.start_at ? `${formatDate(selectedTicket.events.start_at)} • ${formatTime(selectedTicket.events.start_at)}` : 'Date TBD')}
                 </p>
               </div>
               
