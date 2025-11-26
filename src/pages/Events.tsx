@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Ticket, Image as ImageIcon, Users } from 'lucide-react';
+import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Ticket, Image as ImageIcon, Users, Copy } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
 import { toast } from 'sonner';
@@ -296,6 +296,80 @@ export default function EventsPage() {
       setEditingEvent(null);
       reset();
       setDiscountEnabled(false);
+    }
+  };
+
+  const handleDuplicate = async (event: EventData) => {
+    try {
+      toast.loading(t.common.duplicating, { id: 'duplicate-event' });
+
+      // Set start date to tomorrow at the same time
+      const originalDate = new Date(event.start_at);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(originalDate.getHours(), originalDate.getMinutes(), 0, 0);
+
+      // Create duplicate event with modified title and reset fields
+      const eventData = {
+        title: `${event.title} (Kopia)`,
+        image_url: event.image_url,
+        description: event.description,
+        venue: event.venue,
+        start_at: tomorrow.toISOString(),
+        end_at: event.end_at ? new Date(new Date(event.end_at).getTime() + (24 * 60 * 60 * 1000)).toISOString() : null,
+        price_cents: event.price_cents,
+        capacity: event.capacity,
+        discount_type: event.discount_type,
+        discount_value: event.discount_value,
+        status: 'draft', // Set to draft so admin can review before publishing
+        sold_count: 0, // Reset sold count
+        created_by: userId!,
+      };
+
+      const { data: newEvent, error: eventError } = await supabase
+        .from('events')
+        .insert([eventData])
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+      if (!newEvent) throw new Error('Failed to create event');
+
+      const newEventId = newEvent.id;
+
+      // Duplicate event page sections
+      const { data: sections, error: sectionsError } = await supabase
+        .from('event_page_sections' as any)
+        .select('*')
+        .eq('event_id', event.id);
+
+      if (sectionsError) throw sectionsError;
+
+      if (sections && sections.length > 0) {
+        const sectionsToInsert = sections.map((section: any) => ({
+          event_id: newEventId,
+          section_type: section.section_type,
+          title: section.title,
+          content: section.content,
+          position: section.position,
+          is_visible: section.is_visible
+        }));
+
+        const { error: insertSectionsError } = await supabase
+          .from('event_page_sections' as any)
+          .insert(sectionsToInsert);
+
+        if (insertSectionsError) throw insertSectionsError;
+      }
+
+      toast.success(t.common.duplicated, { id: 'duplicate-event' });
+      loadEvents();
+      
+      // Navigate to the new event detail page
+      navigate(`/event/${newEventId}`);
+    } catch (error) {
+      console.error('Error duplicating event:', error);
+      toast.error(t.common.error, { id: 'duplicate-event' });
     }
   };
 
@@ -765,6 +839,16 @@ export default function EventsPage() {
                         }}
                       >
                         <Edit size={16} />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicate(event);
+                        }}
+                      >
+                        <Copy size={16} />
                       </Button>
                       <Button 
                         variant="outline" 

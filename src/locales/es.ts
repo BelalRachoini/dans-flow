@@ -60,6 +60,9 @@ export const es = {
     error: 'Ocurrió un error',
     success: 'Acción exitosa',
     done: 'Hecho',
+    duplicate: 'Duplicar',
+    duplicating: 'Duplicando...',
+    duplicated: '¡Duplicado!',
   },
 
   // Dashboard

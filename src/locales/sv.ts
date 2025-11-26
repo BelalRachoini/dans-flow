@@ -60,6 +60,9 @@ export const sv = {
     error: 'Ett fel uppstod',
     success: 'Åtgärden lyckades',
     done: 'Klar',
+    duplicate: 'Duplicera',
+    duplicating: 'Duplicerar...',
+    duplicated: 'Duplicerad!',
   },
 
   // Dashboard
