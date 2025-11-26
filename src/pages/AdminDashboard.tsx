@@ -7,19 +7,20 @@ import {
   Music, 
   Users, 
   CreditCard, 
-  Settings, 
   BookOpen,
-  CalendarDays,
-  Plus,
-  QrCode
+  CalendarDays
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
 
 export default function AdminDashboard() {
   const { t } = useLanguageStore();
-  const [upcomingCourses, setUpcomingCourses] = useState<any[]>([]);
+  const [upcomingLessons, setUpcomingLessons] = useState<any[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [totalMembers, setTotalMembers] = useState(0);
+  const [activeTickets, setActiveTickets] = useState(0);
+  const [lessonsThisWeek, setLessonsThisWeek] = useState(0);
+  const [eventsThisWeek, setEventsThisWeek] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,16 +32,58 @@ export default function AdminDashboard() {
       const today = new Date().toISOString();
       const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Fetch upcoming courses
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('*')
+      // Fetch upcoming lessons (with course title)
+      const { data: lessonsData } = await supabase
+        .from('course_lessons')
+        .select('*, courses(title)')
         .gte('starts_at', today)
-        .lte('starts_at', nextWeek)
         .order('starts_at', { ascending: true })
-        .limit(5);
+        .limit(10);
 
-      setUpcomingCourses(coursesData || []);
+      // Fetch lessons this week count
+      const { count: lessonsCount } = await supabase
+        .from('course_lessons')
+        .select('*', { count: 'exact', head: true })
+        .gte('starts_at', today)
+        .lte('starts_at', nextWeek);
+
+      // Fetch upcoming events
+      const { data: eventsData } = await supabase
+        .from('events')
+        .select('*')
+        .eq('status', 'published')
+        .gte('start_at', today)
+        .order('start_at', { ascending: true })
+        .limit(10);
+
+      // Fetch events this week count
+      const { count: eventsCount } = await supabase
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'published')
+        .gte('start_at', today)
+        .lte('start_at', nextWeek);
+
+      // Fetch total members
+      const { count: membersCount } = await supabase
+        .from('user_roles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'member');
+
+      // Fetch active tickets
+      const { count: ticketsCount } = await supabase
+        .from('tickets')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'valid')
+        .gt('expires_at', today)
+        .gt('total_tickets', 0);
+
+      setUpcomingLessons(lessonsData || []);
+      setUpcomingEvents(eventsData || []);
+      setTotalMembers(membersCount || 0);
+      setActiveTickets(ticketsCount || 0);
+      setLessonsThisWeek(lessonsCount || 0);
+      setEventsThisWeek(eventsCount || 0);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -81,11 +124,11 @@ export default function AdminDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{ad.coursesThisWeek}</CardTitle>
+            <CardTitle className="text-sm font-medium">Lessons this week</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{upcomingCourses.length}</div>
+            <div className="text-2xl font-bold">{lessonsThisWeek}</div>
           </CardContent>
         </Card>
         <Card>
@@ -94,7 +137,7 @@ export default function AdminDashboard() {
             <Music className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{eventsThisWeek}</div>
           </CardContent>
         </Card>
         <Card>
@@ -103,7 +146,7 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">-</div>
+            <div className="text-2xl font-bold">{totalMembers}</div>
           </CardContent>
         </Card>
         <Card>
@@ -112,19 +155,19 @@ export default function AdminDashboard() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">-</div>
+            <div className="text-2xl font-bold">{activeTickets}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Upcoming Events */}
+      {/* Upcoming Classes & Events */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5" />
             {ad.upcomingClasses}
           </CardTitle>
-          <CardDescription>{ad.nextWeek}</CardDescription>
+          <CardDescription>Next 10 upcoming lessons and events</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -132,85 +175,57 @@ export default function AdminDashboard() {
               <div className="h-16 bg-muted animate-pulse rounded" />
               <div className="h-16 bg-muted animate-pulse rounded" />
             </div>
-          ) : upcomingCourses.length > 0 ? (
-            <div className="space-y-3">
-              {upcomingCourses.map((course: any) => (
-                <div key={course.id} className="flex items-start justify-between p-3 rounded-lg border">
-                  <div>
-                    <p className="font-medium">{course.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(course.starts_at).toLocaleDateString('sv-SE', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{course.venue}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              {ad.noUpcomingClasses}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          ) : (() => {
+            // Combine lessons and events
+            const combinedItems = [
+              ...upcomingLessons.map((lesson: any) => ({
+                id: `lesson-${lesson.id}`,
+                type: 'lesson',
+                title: lesson.courses?.title || lesson.title || 'Lesson',
+                date: lesson.starts_at,
+                venue: lesson.venue,
+              })),
+              ...upcomingEvents.map((event: any) => ({
+                id: `event-${event.id}`,
+                type: 'event',
+                title: event.title,
+                date: event.start_at,
+                venue: event.venue,
+              })),
+            ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{ad.quickActions}</CardTitle>
-          <CardDescription>{ad.quickActionsDesc}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/scan" className="flex flex-col items-center gap-2">
-                <QrCode className="h-5 w-5" />
-                <span>{ad.scanQR}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/admin/kurser-poang" className="flex flex-col items-center gap-2">
-                <Plus className="h-5 w-5" />
-                <span>{ad.createCourse}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/admin/event" className="flex flex-col items-center gap-2">
-                <Music className="h-5 w-5" />
-                <span>{ad.createEvent}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/admin/schema" className="flex flex-col items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                <span>{ad.openSchedule}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/admin/medlemmar" className="flex flex-col items-center gap-2">
-                <Users className="h-5 w-5" />
-                <span>{ad.manageMembers}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/admin/betalningar" className="flex flex-col items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                <span>{ad.payments}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/admin" className="flex flex-col items-center gap-2">
-                <Settings className="h-5 w-5" />
-                <span>{ad.settings}</span>
-              </Link>
-            </Button>
-          </div>
+            return combinedItems.length > 0 ? (
+              <div className="space-y-3">
+                {combinedItems.map((item: any) => (
+                  <div key={item.id} className="flex items-start justify-between p-3 rounded-lg border">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{item.type === 'lesson' ? '📚' : '🎉'}</span>
+                        <p className="font-medium">{item.title}</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(item.date).toLocaleDateString('sv-SE', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      {item.venue && <p className="text-xs text-muted-foreground">{item.venue}</p>}
+                    </div>
+                    <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded">
+                      {item.type === 'lesson' ? 'Lesson' : 'Event'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {ad.noUpcomingClasses}
+              </p>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>
