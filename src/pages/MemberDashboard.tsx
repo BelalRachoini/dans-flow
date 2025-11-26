@@ -1,20 +1,34 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CalendarDays, Ticket, ShoppingCart, Calendar, Music, Info } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CalendarDays, Ticket, Clock, MapPin, QrCode, Calendar as CalendarIcon, PartyPopper } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
+import { LessonBookingDialog } from '@/components/LessonBookingDialog';
+import QRCodeLib from 'qrcode';
+import { toast as sonnerToast } from 'sonner';
 
 export default function MemberDashboard() {
+  const navigate = useNavigate();
   const { userId } = useAuthStore();
   const { t, language } = useLanguageStore();
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [todayCourses, setTodayCourses] = useState<any[]>([]);
+  const [upcomingItems, setUpcomingItems] = useState<any[]>([]);
+  const [myBookings, setMyBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Lesson booking dialog state
+  const [selectedLesson, setSelectedLesson] = useState<any>(null);
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  
+  // QR modal state
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [checkingIn, setCheckingIn] = useState<string | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -24,49 +38,134 @@ export default function MemberDashboard() {
 
   const fetchData = async () => {
     try {
-      // Fetch tickets with courses
-      const { data: ticketsData } = await supabase
-        .from('tickets')
-        .select(`
-          *,
-          courses!tickets_source_course_id_fkey (
-            id,
-            title,
-            starts_at,
-            venue
-          )
-        `)
-        .eq('member_id', userId)
-        .eq('status', 'valid')
-        .gt('expires_at', new Date().toISOString())
-        .order('purchased_at', { ascending: false })
-        .limit(5);
-
-      setTickets(ticketsData || []);
-
-      // Fetch today's courses
-      const today = new Date().toISOString().split('T')[0];
-      const { data: coursesData } = await supabase
-        .from('tickets')
-        .select(`
-          courses!inner (
-            id,
-            title,
-            starts_at,
-            venue
-          )
-        `)
-        .eq('member_id', userId)
-        .gte('courses.starts_at', `${today}T00:00:00`)
-        .lte('courses.starts_at', `${today}T23:59:59`)
-        .limit(3);
-
-      setTodayCourses(coursesData?.map(t => t.courses).filter(Boolean) || []);
+      await Promise.all([fetchUpcomingItems(), fetchMyBookings()]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchUpcomingItems = async () => {
+    // Fetch upcoming lessons
+    const { data: lessonsData } = await supabase
+      .from('course_lessons')
+      .select('*, courses!inner(id, title)')
+      .gte('starts_at', new Date().toISOString())
+      .order('starts_at', { ascending: true })
+      .limit(5);
+
+    // Fetch upcoming events
+    const { data: eventsData } = await supabase
+      .from('events')
+      .select('*')
+      .gte('start_at', new Date().toISOString())
+      .eq('status', 'published')
+      .order('start_at', { ascending: true })
+      .limit(5);
+
+    // Combine and sort by date, take first 3
+    const combinedItems = [
+      ...(lessonsData || []).map(l => ({
+        ...l,
+        type: 'lesson',
+        date: l.starts_at,
+        title: l.title || l.courses?.title,
+      })),
+      ...(eventsData || []).map(e => ({
+        ...e,
+        type: 'event',
+        date: e.start_at,
+      }))
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 3);
+
+    setUpcomingItems(combinedItems);
+  };
+
+  const fetchMyBookings = async () => {
+    if (!userId) return;
+
+    const { data } = await supabase
+      .from('lesson_bookings')
+      .select(`
+        *,
+        course_lessons (
+          id, title, starts_at, ends_at, venue
+        )
+      `)
+      .eq('member_id', userId)
+      .eq('status', 'valid')
+      .order('purchased_at', { ascending: false })
+      .limit(5);
+
+    setMyBookings(data || []);
+  };
+
+  const handleBookLesson = (lesson: any) => {
+    setSelectedLesson(lesson);
+    setBookingDialogOpen(true);
+  };
+
+  const openQRModal = async (booking: any) => {
+    setSelectedBooking(booking);
+    try {
+      const dataUrl = await QRCodeLib.toDataURL(booking.qr_payload, {
+        width: 600,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
+      });
+      setQrDataUrl(dataUrl);
+      setQrModalOpen(true);
+    } catch (error) {
+      console.error('QR generation error:', error);
+    }
+  };
+
+  const handleSelfCheckIn = async (booking: any) => {
+    setCheckingIn(booking.id);
+    try {
+      const { data, error } = await supabase.rpc('check_in_with_qr', {
+        qr: booking.qr_payload,
+        p_location: 'Self Check-in',
+        p_device_info: navigator.userAgent
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+
+      if (result?.success) {
+        sonnerToast.success(
+          t.qr.success,
+          {
+            description: `${result.lesson_title || 'Lektion'}`
+          }
+        );
+        await fetchMyBookings();
+      } else {
+        sonnerToast.error('Incheckning misslyckades', {
+          description: result?.message || 'Ett fel uppstod'
+        });
+      }
+    } catch (error) {
+      console.error('Check-in error:', error);
+      sonnerToast.error('Ett fel uppstod', {
+        description: 'Kunde inte checka in. Försök igen.'
+      });
+    } finally {
+      setCheckingIn(null);
+    }
+  };
+
+  const isWithinCheckInWindow = (startsAt: string) => {
+    const lessonStart = new Date(startsAt);
+    const now = new Date();
+    const diffMinutes = (lessonStart.getTime() - now.getTime()) / (1000 * 60);
+    return diffMinutes <= 30 && diffMinutes >= -60;
   };
 
   const getLocale = () => {
@@ -79,133 +178,198 @@ export default function MemberDashboard() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">{t.dashboard.overview}</h1>
-        <p className="text-muted-foreground">{t.dashboard.overviewDescription}</p>
-      </div>
+    <>
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold">{t.dashboard.overview}</h1>
+          <p className="text-muted-foreground">{t.dashboard.overviewDescription}</p>
+        </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Today's Classes */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" />
-              {t.dashboard.myClassesToday}
-            </CardTitle>
-            <CardDescription>{t.dashboard.scheduledClassesToday}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                <div className="h-16 bg-muted animate-pulse rounded" />
-                <div className="h-16 bg-muted animate-pulse rounded" />
-              </div>
-            ) : todayCourses.length > 0 ? (
-              <div className="space-y-3">
-                {todayCourses.map((course: any) => (
-                  <div key={course.id} className="flex items-start justify-between p-3 rounded-lg border">
-                    <div>
-                      <p className="font-medium">{course.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(course.starts_at).toLocaleTimeString(getLocale(), { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{course.venue}</p>
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Upcoming Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5" />
+                {t.dashboard.upcoming}
+              </CardTitle>
+              <CardDescription>{t.dashboard.upcomingDescription}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  <div className="h-20 bg-muted animate-pulse rounded" />
+                  <div className="h-20 bg-muted animate-pulse rounded" />
+                </div>
+              ) : upcomingItems.length > 0 ? (
+                <div className="space-y-3">
+                  {upcomingItems.map((item: any) => (
+                    <div key={item.id} className="p-3 rounded-lg border space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.title}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(item.date).toLocaleDateString(getLocale(), {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric'
+                            })} {new Date(item.date).toLocaleTimeString(getLocale(), {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                          {item.venue && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                              <MapPin className="h-3 w-3" />
+                              {item.venue}
+                            </div>
+                          )}
+                        </div>
+                        <Badge variant={item.type === 'lesson' ? 'default' : 'secondary'}>
+                          {item.type === 'lesson' ? (
+                            <><CalendarIcon className="h-3 w-3 mr-1" />Lektion</>
+                          ) : (
+                            <><PartyPopper className="h-3 w-3 mr-1" />Event</>
+                          )}
+                        </Badge>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          if (item.type === 'lesson') {
+                            handleBookLesson(item);
+                          } else {
+                            navigate(`/event/${item.id}`);
+                          }
+                        }}
+                      >
+                        {t.dashboard.bookNow}
+                      </Button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {t.dashboard.noClassesToday}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {t.dashboard.noUpcoming}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* My Tickets */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Ticket className="h-5 w-5" />
-              {t.dashboard.myTickets}
-            </CardTitle>
-            <CardDescription>{t.dashboard.recentActiveTickets}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                <div className="h-16 bg-muted animate-pulse rounded" />
-                <div className="h-16 bg-muted animate-pulse rounded" />
-              </div>
-            ) : tickets.length > 0 ? (
-              <div className="space-y-3">
-                {tickets.slice(0, 3).map((ticket: any) => (
-                  <div key={ticket.id} className="flex items-start justify-between p-3 rounded-lg border">
-                    <div className="flex-1">
-                      <p className="font-medium">{ticket.courses?.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {ticket.courses?.starts_at && 
-                          new Date(ticket.courses.starts_at).toLocaleDateString(getLocale())}
-                      </p>
-                    </div>
-                    <Badge variant="secondary">{ticket.status === 'valid' ? 'Giltig' : ticket.status}</Badge>
-                  </div>
-                ))}
-                <Button asChild variant="outline" className="w-full">
-                  <Link to="/biljetter">{t.dashboard.viewAllTickets}</Link>
-                </Button>
-              </div>
-            ) : (
-              <div className="text-center py-8 space-y-3">
-                <p className="text-sm text-muted-foreground">{t.dashboard.noActiveTickets}</p>
-                <Button asChild variant="outline">
-                  <Link to="/kurser-poang">{t.dashboard.buyCourse}</Link>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.dashboard.shortcuts}</CardTitle>
-          <CardDescription>{t.dashboard.shortcutsDescription}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/kurser-poang" className="flex flex-col items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                <span>{t.dashboard.buyCourse}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/biljetter" className="flex flex-col items-center gap-2">
+          {/* My Bookings Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <Ticket className="h-5 w-5" />
-                <span>{t.dashboard.myTickets}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/schema" className="flex flex-col items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                <span>{t.nav.schema}</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-auto py-4">
-              <Link to="/event" className="flex flex-col items-center gap-2">
-                <Music className="h-5 w-5" />
-                <span>{t.nav.event}</span>
-              </Link>
-            </Button>
+                {t.dashboard.myBookings}
+              </CardTitle>
+              <CardDescription>{t.dashboard.myBookingsDescription}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  <div className="h-20 bg-muted animate-pulse rounded" />
+                  <div className="h-20 bg-muted animate-pulse rounded" />
+                </div>
+              ) : myBookings.length > 0 ? (
+                <div className="space-y-3">
+                  {myBookings.map((booking: any) => (
+                    <div key={booking.id} className="p-3 rounded-lg border space-y-2">
+                      <div>
+                        <p className="font-medium">{booking.course_lessons?.title || 'Lektion'}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(booking.course_lessons?.starts_at).toLocaleDateString(getLocale(), {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric'
+                          })} {new Date(booking.course_lessons?.starts_at).toLocaleTimeString(getLocale(), {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                        {booking.course_lessons?.venue && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                            <MapPin className="h-3 w-3" />
+                            {booking.course_lessons.venue}
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openQRModal(booking)}
+                        >
+                          <QrCode className="h-4 w-4 mr-1" />
+                          {t.tickets.showQR}
+                        </Button>
+                        {isWithinCheckInWindow(booking.course_lessons?.starts_at) && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleSelfCheckIn(booking)}
+                            disabled={checkingIn === booking.id}
+                          >
+                            {t.tickets.checkIn}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {t.dashboard.noBookings}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Lesson Booking Dialog */}
+      <LessonBookingDialog
+        lesson={selectedLesson}
+        open={bookingDialogOpen}
+        onOpenChange={(open) => {
+          setBookingDialogOpen(open);
+          if (!open) {
+            setSelectedLesson(null);
+            fetchMyBookings();
+          }
+        }}
+      />
+
+      {/* QR Code Modal */}
+      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.tickets.showQR}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 p-6">
+            {qrDataUrl && (
+              <img
+                src={qrDataUrl}
+                alt="QR Code"
+                className="w-full max-w-sm"
+              />
+            )}
+            {selectedBooking && (
+              <div className="text-center space-y-1">
+                <p className="font-medium">
+                  {selectedBooking.course_lessons?.title || 'Lektion'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(selectedBooking.course_lessons?.starts_at).toLocaleDateString(getLocale())}
+                </p>
+              </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
