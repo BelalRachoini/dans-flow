@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Ticket, Image as ImageIcon, Users, Copy } from 'lucide-react';
+import { Calendar, MapPin, Clock, Plus, Edit, Trash2, Ticket, Image as ImageIcon, Users, Copy, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
 import { toast } from 'sonner';
@@ -21,6 +21,7 @@ import type { Tables } from '@/integrations/supabase/types';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
 
 type EventData = Tables<'events'>;
 type EventBooking = Tables<'event_bookings'> & {
@@ -32,14 +33,18 @@ const eventSchema = z.object({
   image_url: z.string().url('Must be a valid URL').startsWith('http', 'Must start with http or https').max(1000).optional().or(z.literal('')),
   description: z.string().min(20, 'Description must be at least 20 characters').max(2000, 'Description must be less than 2000 characters'),
   venue: z.string().min(2, 'Venue must be at least 2 characters').max(120, 'Venue must be less than 120 characters'),
-  date: z.string().min(1, 'Date is required'),
-  time: z.string().min(1, 'Time is required'),
   price: z.number().min(1, 'Price must be at least 1 kr'),
   capacity: z.number().int().min(1, 'Capacity must be at least 1'),
   discount_enabled: z.boolean().default(false),
   discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
   discount_value: z.number().min(0).default(0),
 });
+
+interface EventDate {
+  id?: string;
+  date: string;
+  time: string;
+}
 
 type EventFormData = z.infer<typeof eventSchema>;
 
@@ -59,6 +64,7 @@ export default function EventsPage() {
   const [selectedEventAttendees, setSelectedEventAttendees] = useState<EventBooking[]>([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [eventDates, setEventDates] = useState<EventDate[]>([{ date: '', time: '' }]);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -174,7 +180,6 @@ export default function EventsPage() {
     if (!userId) return;
 
     try {
-      const dateTime = new Date(`${data.date}T${data.time}`);
       const price_cents = Math.round(data.price * 100);
       
       let discount_type = 'none';
@@ -199,12 +204,31 @@ export default function EventsPage() {
         }
       }
 
+      // Validate event dates
+      const validDates = eventDates.filter(d => d.date && d.time);
+      if (validDates.length === 0) {
+        toast.error('Please add at least one event date');
+        return;
+      }
+
+      // Use first date as primary start_at for backward compatibility
+      const primaryDateTime = new Date(`${validDates[0].date}T${validDates[0].time}`);
+      
+      // Validate all datetimes are in future
+      for (const dateItem of validDates) {
+        const dateTime = new Date(`${dateItem.date}T${dateItem.time}`);
+        if (dateTime < new Date()) {
+          toast.error('All event dates must be in the future');
+          return;
+        }
+      }
+
       const eventData = {
         title: data.title,
         image_url: data.image_url || null,
         description: data.description,
         venue: data.venue,
-        start_at: dateTime.toISOString(),
+        start_at: primaryDateTime.toISOString(),
         price_cents,
         capacity: data.capacity,
         discount_type,
@@ -219,13 +243,46 @@ export default function EventsPage() {
           .eq('id', editingEvent.id);
 
         if (error) throw error;
+
+        // Delete existing event dates and insert new ones
+        await supabase
+          .from('event_dates')
+          .delete()
+          .eq('event_id', editingEvent.id);
+
+        const datesToInsert = validDates.map(d => ({
+          event_id: editingEvent.id,
+          start_at: new Date(`${d.date}T${d.time}`).toISOString(),
+        }));
+
+        const { error: datesError } = await supabase
+          .from('event_dates')
+          .insert(datesToInsert);
+
+        if (datesError) throw datesError;
+
         toast.success(t.events.saved);
       } else {
-        const { error } = await supabase
+        const { data: newEvent, error } = await supabase
           .from('events')
-          .insert([eventData]);
+          .insert([eventData])
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Insert event dates
+        const datesToInsert = validDates.map(d => ({
+          event_id: newEvent.id,
+          start_at: new Date(`${d.date}T${d.time}`).toISOString(),
+        }));
+
+        const { error: datesError } = await supabase
+          .from('event_dates')
+          .insert(datesToInsert);
+
+        if (datesError) throw datesError;
+
         toast.success(t.events.saved);
       }
 
@@ -233,6 +290,7 @@ export default function EventsPage() {
       setEditingEvent(null);
       reset();
       setDiscountEnabled(false);
+      setEventDates([{ date: '', time: '' }]);
       loadEvents();
     } catch (error: any) {
       console.error('Error saving event:', error);
@@ -240,16 +298,11 @@ export default function EventsPage() {
     }
   };
 
-  const handleEdit = (event: EventData) => {
+  const handleEdit = async (event: EventData) => {
     setEditingEvent(event);
-    const startDate = new Date(event.start_at);
-    const dateStr = startDate.toISOString().split('T')[0];
-    const timeStr = startDate.toTimeString().slice(0, 5);
 
     setValue('title', event.title);
     setValue('description', event.description);
-    setValue('date', dateStr);
-    setValue('time', timeStr);
     setValue('venue', event.venue);
     setValue('image_url', event.image_url || '');
     setValue('price', event.price_cents / 100);
@@ -260,6 +313,32 @@ export default function EventsPage() {
     setValue('discount_enabled', hasDiscount);
     setValue('discount_type', event.discount_type as any);
     setValue('discount_value', event.discount_type === 'amount' ? event.discount_value / 100 : event.discount_value);
+
+    // Load event dates
+    const { data: dates } = await supabase
+      .from('event_dates')
+      .select('*')
+      .eq('event_id', event.id)
+      .order('start_at');
+
+    if (dates && dates.length > 0) {
+      const loadedDates = dates.map(d => {
+        const dateObj = new Date(d.start_at);
+        return {
+          id: d.id,
+          date: dateObj.toISOString().split('T')[0],
+          time: dateObj.toTimeString().slice(0, 5),
+        };
+      });
+      setEventDates(loadedDates);
+    } else {
+      // Fallback to main start_at if no event_dates found
+      const startDate = new Date(event.start_at);
+      setEventDates([{
+        date: startDate.toISOString().split('T')[0],
+        time: startDate.toTimeString().slice(0, 5),
+      }]);
+    }
     
     setDrawerOpen(true);
   };
@@ -296,7 +375,24 @@ export default function EventsPage() {
       setEditingEvent(null);
       reset();
       setDiscountEnabled(false);
+      setEventDates([{ date: '', time: '' }]);
     }
+  };
+
+  const addEventDate = () => {
+    setEventDates([...eventDates, { date: '', time: '' }]);
+  };
+
+  const removeEventDate = (index: number) => {
+    if (eventDates.length > 1) {
+      setEventDates(eventDates.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateEventDate = (index: number, field: 'date' | 'time', value: string) => {
+    const updated = [...eventDates];
+    updated[index][field] = value;
+    setEventDates(updated);
   };
 
   const handleDuplicate = async (event: EventData) => {
@@ -598,18 +694,53 @@ export default function EventsPage() {
                     {errors.description && <p className="text-sm text-destructive mt-1">{errors.description.message}</p>}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="date">{t.events.date}</Label>
-                      <Input id="date" type="date" {...register('date')} />
-                      {errors.date && <p className="text-sm text-destructive mt-1">{errors.date.message}</p>}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Event Dates</Label>
+                      <Button type="button" variant="outline" size="sm" onClick={addEventDate}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Date
+                      </Button>
                     </div>
-
-                    <div>
-                      <Label htmlFor="time">{t.events.time}</Label>
-                      <Input id="time" type="time" {...register('time')} />
-                      {errors.time && <p className="text-sm text-destructive mt-1">{errors.time.message}</p>}
-                    </div>
+                    
+                    {eventDates.map((eventDate, index) => (
+                      <div key={index} className="flex gap-2 items-start border rounded-lg p-3">
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs">Date {index + 1}</Label>
+                            <Input 
+                              type="date" 
+                              value={eventDate.date}
+                              onChange={(e) => updateEventDate(index, 'date', e.target.value)}
+                              className="h-9"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Time</Label>
+                            <Input 
+                              type="time" 
+                              value={eventDate.time}
+                              onChange={(e) => updateEventDate(index, 'time', e.target.value)}
+                              className="h-9"
+                            />
+                          </div>
+                        </div>
+                        {eventDates.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="mt-5 h-9 w-9"
+                            onClick={() => removeEventDate(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <p className="text-xs text-muted-foreground">
+                      Add multiple dates if the event occurs on different days. Each date can have its own time.
+                    </p>
                   </div>
 
                   <div>

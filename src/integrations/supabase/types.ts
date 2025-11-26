@@ -431,6 +431,35 @@ export type Database = {
           },
         ]
       }
+      event_dates: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          start_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          start_at: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          start_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_dates_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_page_sections: {
         Row: {
           content: Json
