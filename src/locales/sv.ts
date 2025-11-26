@@ -712,6 +712,8 @@ export const sv = {
     noteBody: "Anteckning",
     enterPoints: "Ange poäng (+/- för justering)",
     selectLevel: "Välj nivå",
+    adminGift: 'Adminpresent',
+    freeTicket: 'Gratis',
     selectRole: "Välj roll",
     selectCourse: "Välj kurs",
     role: "Roll",
