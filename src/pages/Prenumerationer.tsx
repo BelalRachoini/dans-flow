@@ -33,9 +33,8 @@ interface SubscriptionWithMember {
 
 const statusColors = {
   active: 'bg-green-100 text-green-800 border-green-200',
-  inactive: 'bg-gray-100 text-gray-800 border-gray-200',
-  cancelled: 'bg-red-100 text-red-800 border-red-200',
-  past_due: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  paused: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  canceled: 'bg-red-100 text-red-800 border-red-200',
 };
 
 export default function Prenumerationer() {
@@ -317,9 +316,8 @@ export default function Prenumerationer() {
                 <SelectContent>
                   <SelectItem value="all">Alla statusar</SelectItem>
                   <SelectItem value="active">Aktiv</SelectItem>
-                  <SelectItem value="inactive">Inaktiv</SelectItem>
-                  <SelectItem value="cancelled">Avbruten</SelectItem>
-                  <SelectItem value="past_due">Förfallen</SelectItem>
+                  <SelectItem value="paused">Pausad</SelectItem>
+                  <SelectItem value="canceled">Avbruten</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -392,9 +390,8 @@ export default function Prenumerationer() {
                       <TableCell>
                         <Badge variant="outline" className={`${statusColors[sub.status as keyof typeof statusColors] || 'bg-gray-100'} text-xs`}>
                           {sub.status === 'active' ? 'Aktiv' : 
-                           sub.status === 'inactive' ? 'Inaktiv' :
-                           sub.status === 'cancelled' ? 'Avbruten' :
-                           sub.status === 'past_due' ? 'Förfallen' : sub.status}
+                           sub.status === 'paused' ? 'Pausad' :
+                           sub.status === 'canceled' ? 'Avbruten' : sub.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -413,9 +410,8 @@ export default function Prenumerationer() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="active">Aktiv</SelectItem>
-                            <SelectItem value="inactive">Inaktiv</SelectItem>
-                            <SelectItem value="cancelled">Avbruten</SelectItem>
-                            <SelectItem value="past_due">Förfallen</SelectItem>
+                            <SelectItem value="paused">Pausad</SelectItem>
+                            <SelectItem value="canceled">Avbruten</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -474,9 +470,8 @@ export default function Prenumerationer() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Aktiv</SelectItem>
-                  <SelectItem value="inactive">Inaktiv</SelectItem>
-                  <SelectItem value="cancelled">Avbruten</SelectItem>
-                  <SelectItem value="past_due">Förfallen</SelectItem>
+                  <SelectItem value="paused">Pausad</SelectItem>
+                  <SelectItem value="canceled">Avbruten</SelectItem>
                 </SelectContent>
               </Select>
             </div>
