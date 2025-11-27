@@ -72,10 +72,25 @@ serve(async (req) => {
       }
       
       const prices = await stripe.prices.list({ product: product.id, limit: 1 });
-      if (prices.data.length === 0) {
-        throw new Error("No price found for existing product");
+      
+      // Check if existing price matches database price
+      if (prices.data.length > 0 && prices.data[0].unit_amount === course.price_cents) {
+        // Price matches - use existing price
+        priceId = prices.data[0].id;
+        console.log("Using existing price:", priceId);
+      } else {
+        // Price mismatch - create new price for existing product
+        console.log("Price mismatch detected. Creating new price...");
+        console.log("Old Stripe price:", prices.data[0]?.unit_amount, "New DB price:", course.price_cents);
+        
+        const newPrice = await stripe.prices.create({
+          product: product.id,
+          unit_amount: course.price_cents,
+          currency: "sek",
+        });
+        priceId = newPrice.id;
+        console.log("Created new price:", priceId);
       }
-      priceId = prices.data[0].id;
     } else {
       // Create new product and price
       console.log("Creating new product for course");
