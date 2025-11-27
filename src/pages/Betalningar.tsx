@@ -43,7 +43,7 @@ import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 
 type PaymentStatus = 'paid' | 'pending' | 'failed';
-type PaymentType = 'course' | 'event' | 'membership' | 'other';
+type PaymentType = 'course' | 'event' | 'membership' | 'tickets' | 'lesson' | 'other';
 
 type Payment = {
   id: string;
@@ -65,7 +65,7 @@ const paymentSchema = z.object({
   userName: z.string().min(1, 'Namn krävs'),
   userEmail: z.string().email('Ogiltig e-post'),
   amountSEK: z.number().min(1, 'Belopp måste vara större än 0'),
-  type: z.enum(['course', 'event', 'membership', 'other']),
+  type: z.enum(['course', 'event', 'membership', 'tickets', 'lesson', 'other']),
   status: z.enum(['paid', 'pending', 'failed']),
   description: z.string().min(1, 'Beskrivning krävs'),
   method: z.string().optional(),
@@ -318,6 +318,8 @@ export default function Betalningar() {
       course: 'Kurs',
       event: 'Event',
       membership: 'Medlemskap',
+      tickets: 'Klippkort',
+      lesson: 'Drop-in',
       other: 'Övrigt',
     };
     return labels[type];
@@ -398,6 +400,8 @@ export default function Betalningar() {
                       <SelectItem value="course">Kurs</SelectItem>
                       <SelectItem value="event">Event</SelectItem>
                       <SelectItem value="membership">Medlemskap</SelectItem>
+                      <SelectItem value="tickets">Klippkort</SelectItem>
+                      <SelectItem value="lesson">Drop-in</SelectItem>
                       <SelectItem value="other">Övrigt</SelectItem>
                     </SelectContent>
                   </Select>
@@ -529,6 +533,8 @@ export default function Betalningar() {
                 <SelectItem value="course">Kurs</SelectItem>
                 <SelectItem value="event">Event</SelectItem>
                 <SelectItem value="membership">Medlemskap</SelectItem>
+                <SelectItem value="tickets">Klippkort</SelectItem>
+                <SelectItem value="lesson">Drop-in</SelectItem>
                 <SelectItem value="other">Övrigt</SelectItem>
               </SelectContent>
             </Select>
