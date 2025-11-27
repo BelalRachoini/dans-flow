@@ -25,7 +25,7 @@ export default function PaymentSuccess() {
       }
 
       try {
-        // Check if it's standalone ticket payment
+        // Use type parameter to call the correct verification function directly
         if (paymentType === "standalone_tickets") {
           const ticketCount = searchParams.get("count");
           const { data, error } = await supabase.functions.invoke(
@@ -41,9 +41,46 @@ export default function PaymentSuccess() {
             setVerifying(false);
             return;
           }
+          throw new Error(error?.message || "Kunde inte verifiera klippkortsköp");
         }
 
-        // Try to verify as event payment first
+        if (paymentType === "course") {
+          const { data, error } = await supabase.functions.invoke(
+            "verify-course-payment",
+            { body: { session_id: sessionId } }
+          );
+
+          if (!error && data?.success) {
+            toast({
+              title: "Betalning genomförd!",
+              description: "Din kursbiljett har skapats och finns nu i Biljetter.",
+            });
+            setVerifying(false);
+            return;
+          }
+          throw new Error(error?.message || data?.error || "Kunde inte verifiera kursköp");
+        }
+
+        if (paymentType === "event") {
+          const { data, error } = await supabase.functions.invoke(
+            "verify-event-payment",
+            { body: { session_id: sessionId } }
+          );
+
+          if (!error && data?.success) {
+            toast({
+              title: "Betalning genomförd!",
+              description: "Din eventbiljett har skapats och finns nu i Biljetter.",
+            });
+            setVerifying(false);
+            return;
+          }
+          throw new Error(error?.message || data?.error || "Kunde inte verifiera eventköp");
+        }
+
+        // Fallback: try all verification methods if type is not specified
+        console.log("No payment type specified, trying all verification methods");
+        
         const { data: eventData, error: eventError } = await supabase.functions.invoke(
           "verify-event-payment",
           { body: { session_id: sessionId } }
@@ -58,7 +95,6 @@ export default function PaymentSuccess() {
           return;
         }
 
-        // If not event, try course payment
         const { data: courseData, error: courseError } = await supabase.functions.invoke(
           "verify-course-payment",
           { body: { session_id: sessionId } }
@@ -73,7 +109,6 @@ export default function PaymentSuccess() {
           return;
         }
 
-        // If all failed
         throw new Error(eventError?.message || courseError?.message || "Kunde inte verifiera betalning");
       } catch (err) {
         console.error("Payment verification error:", err);

@@ -142,7 +142,7 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&type=event`,
       cancel_url: `${origin}/payment-cancelled`,
       metadata: {
         event_id: event_id,
