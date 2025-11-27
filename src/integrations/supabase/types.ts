@@ -998,12 +998,7 @@ export type Database = {
         Returns: Json
       }
       admin_update_member: {
-        Args: {
-          new_level?: string
-          new_status?: string
-          points_delta?: number
-          target: string
-        }
+        Args: { new_level?: string; new_status?: string; target: string }
         Returns: Json
       }
       admin_update_member_profile: {

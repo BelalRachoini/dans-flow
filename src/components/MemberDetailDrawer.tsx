@@ -259,8 +259,8 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     mutationFn: async (params: { new_level?: string; new_status?: string }) => {
       const { data, error } = await supabase.rpc('admin_update_member', {
         target: memberId,
-        new_level: params.new_level || null,
-        new_status: params.new_status || null,
+        new_level: params.new_level,
+        new_status: params.new_status,
       });
       if (error) throw error;
       return data;
