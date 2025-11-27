@@ -10,8 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Repeat, TrendingUp, Users, DollarSign, Search, UserPlus } from 'lucide-react';
+import { Repeat, TrendingUp, Users, DollarSign, Search, UserPlus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 
@@ -47,6 +48,8 @@ export default function Prenumerationer() {
   const [planFilter, setPlanFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('recent');
   const [addSubOpen, setAddSubOpen] = useState(false);
+  const [deleteSubId, setDeleteSubId] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [newSub, setNewSub] = useState({
     member_id: '',
     plan: 'basic',
@@ -203,6 +206,25 @@ export default function Prenumerationer() {
     },
     onError: () => {
       toast.error('Misslyckades att uppdatera status');
+    },
+  });
+
+  const deleteSubMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('subscriptions')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
+      toast.success('Prenumeration raderad');
+      setDeleteConfirmOpen(false);
+      setDeleteSubId(null);
+    },
+    onError: () => {
+      toast.error('Misslyckades att radera prenumeration');
     },
   });
 
@@ -401,19 +423,32 @@ export default function Prenumerationer() {
                         {sub.current_period_end ? format(new Date(sub.current_period_end), 'yyyy-MM-dd') : '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Select
-                          value={sub.status}
-                          onValueChange={(value) => updateSubMutation.mutate({ id: sub.id, status: value })}
-                        >
-                          <SelectTrigger className="w-[120px] h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Aktiv</SelectItem>
-                            <SelectItem value="paused">Pausad</SelectItem>
-                            <SelectItem value="canceled">Avbruten</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center justify-end gap-2">
+                          <Select
+                            value={sub.status}
+                            onValueChange={(value) => updateSubMutation.mutate({ id: sub.id, status: value })}
+                          >
+                            <SelectTrigger className="w-[120px] h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Aktiv</SelectItem>
+                              <SelectItem value="paused">Pausad</SelectItem>
+                              <SelectItem value="canceled">Avbruten</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              setDeleteSubId(sub.id);
+                              setDeleteConfirmOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -498,6 +533,30 @@ export default function Prenumerationer() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Radera prenumeration</AlertDialogTitle>
+            <AlertDialogDescription>
+              Är du säker på att du vill radera denna prenumeration? Detta kan inte ångras.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteSubId) {
+                  deleteSubMutation.mutate(deleteSubId);
+                }
+              }}
+            >
+              Radera
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
