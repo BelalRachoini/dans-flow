@@ -103,6 +103,7 @@ serve(async (req) => {
         course_id: course_id,
         source_course_id: course_id,
         status: "valid",
+        qr_payload: crypto.randomUUID(),
         total_tickets: total_tickets,
         tickets_used: 0,
         expires_at: expires_at,
