@@ -368,9 +368,6 @@ export default function Courses() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t.nav.kurserPoang}</h1>
-          <p className="mt-1 text-muted-foreground">
-            {t.courses.subtitle}
-          </p>
         </div>
         {role === 'admin' && (
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -663,7 +660,7 @@ export default function Courses() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {courses.map((course) => (
             <Card
               key={course.id}
@@ -679,9 +676,9 @@ export default function Courses() {
                   />
                 </div>
               )}
-              <CardHeader className="p-3 sm:p-4 md:p-6 pb-2 sm:pb-3">
+              <CardHeader className="p-2 sm:p-3 md:p-4 pb-2 sm:pb-3">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base sm:text-lg md:text-xl line-clamp-2">
+                  <CardTitle className="text-sm sm:text-base md:text-lg line-clamp-2">
                     {course.title}
                   </CardTitle>
                   {role === 'admin' && (
@@ -714,7 +711,7 @@ export default function Courses() {
                   {getLevelBadge(course.level)}
                 </Badge>
               </CardHeader>
-              <CardContent className="p-3 sm:p-4 md:p-6 pt-0 flex-1 flex flex-col justify-between space-y-3">
+              <CardContent className="p-2 sm:p-3 md:p-4 pt-0 flex-1 flex flex-col justify-between space-y-3">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />

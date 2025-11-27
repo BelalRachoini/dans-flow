@@ -2,7 +2,7 @@ export const en = {
   // Navigation
   nav: {
     oversikt: 'Overview',
-    kurserPoang: 'Courses & Points',
+    kurserPoang: 'Courses',
     schema: 'Schedule',
     event: 'Events',
     biljetter: 'Tickets',
@@ -100,8 +100,8 @@ export const en = {
 
   // Courses & Points
   courses: {
-    title: 'Courses & Points',
-    subtitle: 'Buy courses, collect points and attend lessons',
+    title: 'Courses',
+    subtitle: '',
     buyPoints: 'Buy points',
     ticketsRemaining: 'Tickets Remaining',
     pointsHistory: 'Points history',
