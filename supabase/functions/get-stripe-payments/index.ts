@@ -103,9 +103,38 @@ serve(async (req) => {
         let paymentType = "other";
         let description = pi.description || "Payment";
 
-        if (metadata.event_id) {
+        // Check for standalone tickets FIRST
+        if (metadata.payment_type === 'standalone_tickets') {
+          paymentType = "tickets";
+          const ticketCount = metadata.ticket_count || "?";
+          description = `Klippkort: ${ticketCount} st`;
+        }
+        // Check for drop-in lesson payments
+        else if (metadata.lesson_id) {
+          paymentType = "lesson";
+          try {
+            const { data: lesson } = await supabaseClient
+              .from("course_lessons")
+              .select("title, courses!inner(title)")
+              .eq("id", metadata.lesson_id)
+              .single();
+            
+            if (lesson && lesson.courses) {
+              const ticketTypeLabel = metadata.ticket_type === 'couple' ? 'Par' : 'Singel';
+              const courseName = (lesson.courses as any).title || 'Okänd kurs';
+              const lessonName = lesson.title || 'Lektion';
+              description = `Drop-in (${ticketTypeLabel}): ${courseName} - ${lessonName}`;
+            } else {
+              description = `Drop-in: ${metadata.ticket_type === 'couple' ? 'Par' : 'Singel'}`;
+            }
+          } catch (error) {
+            console.error("[get-stripe-payments] Error fetching lesson:", error);
+            description = `Drop-in: ${metadata.ticket_type === 'couple' ? 'Par' : 'Singel'}`;
+          }
+        }
+        // Check for event payments
+        else if (metadata.event_id) {
           paymentType = "event";
-          // Try to fetch event title
           try {
             const { data: event } = await supabaseClient
               .from("events")
@@ -118,10 +147,31 @@ serve(async (req) => {
           } catch (error) {
             console.error("[get-stripe-payments] Error fetching event:", error);
           }
-        } else if (metadata.course_id) {
+        }
+        // Check for course payments
+        else if (metadata.course_id) {
           paymentType = "course";
-        } else if (metadata.subscription_id || pi.invoice) {
+          try {
+            const { data: course } = await supabaseClient
+              .from("courses")
+              .select("title")
+              .eq("id", metadata.course_id)
+              .single();
+            
+            if (course) {
+              description = `Kurs: ${course.title}`;
+            } else {
+              description = "Kurs";
+            }
+          } catch (error) {
+            console.error("[get-stripe-payments] Error fetching course:", error);
+            description = "Kurs";
+          }
+        }
+        // Check for membership/subscription
+        else if (metadata.subscription_id || pi.invoice) {
           paymentType = "membership";
+          description = "Medlemskap";
         }
 
         // Map Stripe status to our status
