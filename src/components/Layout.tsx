@@ -206,14 +206,23 @@ export const Layout = () => {
               {/* Language Menu */}
               <LanguageMenu />
 
-              {/* Quick actions for admin and instructor only - Hidden on small mobile */}
+              {/* Quick actions for admin and instructor only */}
               {(role === 'admin' || role === 'instructor') && (
-                <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
-                  <Link to="/scan">
-                    <QrCode size={16} className="mr-2" />
-                    {t.qr.scan}
-                  </Link>
-                </Button>
+                <>
+                  {/* Icon-only button on mobile */}
+                  <Button variant="outline" size="icon" className="sm:hidden" asChild>
+                    <Link to="/scan">
+                      <QrCode size={16} />
+                    </Link>
+                  </Button>
+                  {/* Full button with text on larger screens */}
+                  <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+                    <Link to="/scan">
+                      <QrCode size={16} className="mr-2" />
+                      {t.qr.scan}
+                    </Link>
+                  </Button>
+                </>
               )}
 
               {/* User menu */}
