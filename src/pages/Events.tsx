@@ -47,6 +47,7 @@ interface EventDate {
   id?: string;
   date: string;
   time: string;
+  endTime: string;
 }
 
 type EventFormData = z.infer<typeof eventSchema>;
@@ -67,7 +68,7 @@ export default function EventsPage() {
   const [selectedEventAttendees, setSelectedEventAttendees] = useState<EventBooking[]>([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
-  const [eventDates, setEventDates] = useState<EventDate[]>([{ date: '', time: '' }]);
+  const [eventDates, setEventDates] = useState<EventDate[]>([{ date: '', time: '', endTime: '' }]);
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [selectedEventForPurchase, setSelectedEventForPurchase] = useState<EventData | null>(null);
 
@@ -268,6 +269,7 @@ export default function EventsPage() {
         const datesToInsert = validDates.map(d => ({
           event_id: editingEvent.id,
           start_at: new Date(`${d.date}T${d.time}`).toISOString(),
+          end_at: d.endTime ? new Date(`${d.date}T${d.endTime}`).toISOString() : null,
         }));
 
         const { error: datesError } = await supabase
@@ -290,6 +292,7 @@ export default function EventsPage() {
         const datesToInsert = validDates.map(d => ({
           event_id: newEvent.id,
           start_at: new Date(`${d.date}T${d.time}`).toISOString(),
+          end_at: d.endTime ? new Date(`${d.date}T${d.endTime}`).toISOString() : null,
         }));
 
         const { error: datesError } = await supabase
@@ -305,7 +308,7 @@ export default function EventsPage() {
       setEditingEvent(null);
       reset();
       setDiscountEnabled(false);
-      setEventDates([{ date: '', time: '' }]);
+      setEventDates([{ date: '', time: '', endTime: '' }]);
       loadEvents();
     } catch (error: any) {
       console.error('Error saving event:', error);
@@ -339,21 +342,25 @@ export default function EventsPage() {
       .order('start_at');
 
     if (dates && dates.length > 0) {
-      const loadedDates = dates.map(d => {
+      const loadedDates = dates.map((d: any) => {
         const dateObj = new Date(d.start_at);
+        const endDateObj = d.end_at ? new Date(d.end_at) : null;
         return {
           id: d.id,
           date: dateObj.toISOString().split('T')[0],
           time: dateObj.toTimeString().slice(0, 5),
+          endTime: endDateObj ? endDateObj.toTimeString().slice(0, 5) : '',
         };
       });
       setEventDates(loadedDates);
     } else {
       // Fallback to main start_at if no event_dates found
       const startDate = new Date(event.start_at);
+      const endDate = event.end_at ? new Date(event.end_at) : null;
       setEventDates([{
         date: startDate.toISOString().split('T')[0],
         time: startDate.toTimeString().slice(0, 5),
+        endTime: endDate ? endDate.toTimeString().slice(0, 5) : '',
       }]);
     }
     
@@ -392,12 +399,12 @@ export default function EventsPage() {
       setEditingEvent(null);
       reset();
       setDiscountEnabled(false);
-      setEventDates([{ date: '', time: '' }]);
+      setEventDates([{ date: '', time: '', endTime: '' }]);
     }
   };
 
   const addEventDate = () => {
-    setEventDates([...eventDates, { date: '', time: '' }]);
+    setEventDates([...eventDates, { date: '', time: '', endTime: '' }]);
   };
 
   const removeEventDate = (index: number) => {
@@ -406,7 +413,7 @@ export default function EventsPage() {
     }
   };
 
-  const updateEventDate = (index: number, field: 'date' | 'time', value: string) => {
+  const updateEventDate = (index: number, field: 'date' | 'time' | 'endTime', value: string) => {
     const updated = [...eventDates];
     updated[index][field] = value;
     setEventDates(updated);
@@ -694,7 +701,7 @@ export default function EventsPage() {
                     
                     {eventDates.map((eventDate, index) => (
                       <div key={index} className="flex gap-2 items-start border rounded-lg p-3">
-                        <div className="flex-1 grid grid-cols-2 gap-2">
+                        <div className="flex-1 grid grid-cols-3 gap-2">
                           <div>
                             <Label className="text-xs">Date {index + 1}</Label>
                             <Input 
@@ -705,11 +712,20 @@ export default function EventsPage() {
                             />
                           </div>
                           <div>
-                            <Label className="text-xs">Time</Label>
+                            <Label className="text-xs">Start Time</Label>
                             <Input 
                               type="time" 
                               value={eventDate.time}
                               onChange={(e) => updateEventDate(index, 'time', e.target.value)}
+                              className="h-9"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">End Time</Label>
+                            <Input 
+                              type="time" 
+                              value={eventDate.endTime}
+                              onChange={(e) => updateEventDate(index, 'endTime', e.target.value)}
                               className="h-9"
                             />
                           </div>
@@ -728,7 +744,7 @@ export default function EventsPage() {
                       </div>
                     ))}
                     <p className="text-xs text-muted-foreground">
-                      Add multiple dates if the event occurs on different days. Each date can have its own time.
+                      Add multiple dates if the event occurs on different days. Each date can have its own start and end time.
                     </p>
                   </div>
 

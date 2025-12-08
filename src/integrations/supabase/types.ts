@@ -446,18 +446,21 @@ export type Database = {
       event_dates: {
         Row: {
           created_at: string
+          end_at: string | null
           event_id: string
           id: string
           start_at: string
         }
         Insert: {
           created_at?: string
+          end_at?: string | null
           event_id: string
           id?: string
           start_at: string
         }
         Update: {
           created_at?: string
+          end_at?: string | null
           event_id?: string
           id?: string
           start_at?: string
