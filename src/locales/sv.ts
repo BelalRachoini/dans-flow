@@ -738,4 +738,26 @@ export const sv = {
     exportSuccess: 'Medlemmar exporterade till CSV',
     exportError: 'Kunde inte exportera till CSV',
   },
+
+  // Event Tickets
+  eventTickets: {
+    buyTickets: 'Köp Biljetter',
+    singleTicket: '1 Biljett',
+    coupleTickets: '2 Biljetter (Par)',
+    trioTickets: '3 Biljetter',
+    save: 'Spara',
+    notEnoughSpots: 'Inte tillräckligt med platser',
+    attendeeNames: 'Deltagarnamn',
+    attendeeNamesDescription: 'Ange namn på varje person som deltar',
+    person: 'Person',
+    enterName: 'Ange namn',
+    fillAllNames: 'Vänligen fyll i alla deltagarnamn',
+    buyNow: 'Köp nu',
+    couplePrice: 'Parpris (2 biljetter)',
+    trioPrice: 'Pris för 3 biljetter',
+    couplePriceHelp: 'Lämna tomt för att använda dubbla enkelpriset',
+    trioPriceHelp: 'Lämna tomt för att använda tredubbla enkelpriset',
+    attendees: 'Deltagare',
+    checkinsProgress: 'Incheckningar',
+  },
 };

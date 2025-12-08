@@ -34,6 +34,8 @@ const eventSchema = z.object({
   description: z.string().min(20, 'Description must be at least 20 characters').max(2000, 'Description must be less than 2000 characters'),
   venue: z.string().min(2, 'Venue must be at least 2 characters').max(120, 'Venue must be less than 120 characters'),
   price: z.number().min(1, 'Price must be at least 1 kr'),
+  couple_price: z.number().min(0).optional(),
+  trio_price: z.number().min(0).optional(),
   capacity: z.number().int().min(1, 'Capacity must be at least 1'),
   discount_enabled: z.boolean().default(false),
   discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
@@ -223,6 +225,14 @@ export default function EventsPage() {
         }
       }
 
+      // Calculate couple and trio prices in cents
+      const couple_price_cents = data.couple_price && data.couple_price > 0 
+        ? Math.round(data.couple_price * 100) 
+        : null;
+      const trio_price_cents = data.trio_price && data.trio_price > 0 
+        ? Math.round(data.trio_price * 100) 
+        : null;
+
       const eventData = {
         title: data.title,
         image_url: data.image_url || null,
@@ -230,6 +240,8 @@ export default function EventsPage() {
         venue: data.venue,
         start_at: primaryDateTime.toISOString(),
         price_cents,
+        couple_price_cents,
+        trio_price_cents,
         capacity: data.capacity,
         discount_type,
         discount_value,
@@ -306,6 +318,8 @@ export default function EventsPage() {
     setValue('venue', event.venue);
     setValue('image_url', event.image_url || '');
     setValue('price', event.price_cents / 100);
+    setValue('couple_price', event.couple_price_cents ? event.couple_price_cents / 100 : undefined);
+    setValue('trio_price', event.trio_price_cents ? event.trio_price_cents / 100 : undefined);
     setValue('capacity', event.capacity);
     
     const hasDiscount = event.discount_type !== 'none';
@@ -770,6 +784,34 @@ export default function EventsPage() {
                         placeholder="100"
                       />
                       {errors.capacity && <p className="text-sm text-destructive mt-1">{errors.capacity.message}</p>}
+                    </div>
+                  </div>
+
+                  {/* Group Ticket Pricing */}
+                  <div className="space-y-4 border-t pt-4">
+                    <Label className="text-base font-semibold">{t.eventTickets?.couplePrice ? 'Group Ticket Pricing' : 'Group Ticket Pricing'}</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t.eventTickets?.couplePriceHelp || 'Optional: Set custom prices for group tickets. Leave empty to use multiples of the single price.'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="couple_price">{t.eventTickets?.couplePrice || 'Couple Price (2 tickets)'} (kr)</Label>
+                        <Input 
+                          id="couple_price" 
+                          type="number" 
+                          {...register('couple_price', { valueAsNumber: true })} 
+                          placeholder={watchPrice ? String(watchPrice * 2) : ''}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="trio_price">{t.eventTickets?.trioPrice || 'Price for 3 tickets'} (kr)</Label>
+                        <Input 
+                          id="trio_price" 
+                          type="number" 
+                          {...register('trio_price', { valueAsNumber: true })} 
+                          placeholder={watchPrice ? String(watchPrice * 3) : ''}
+                        />
+                      </div>
                     </div>
                   </div>
 

@@ -45,13 +45,16 @@ serve(async (req) => {
       );
     }
 
-    // Get event_id from metadata
+    // Get event_id and multi-ticket data from metadata
     const event_id = session.metadata?.event_id;
+    const ticket_count = parseInt(session.metadata?.ticket_count || "1", 10);
+    const attendee_names = JSON.parse(session.metadata?.attendee_names || "[]");
+    
     if (!event_id) {
       throw new Error("Event ID not found in session metadata");
     }
 
-    console.log("Payment verified for event:", event_id);
+    console.log("Payment verified for event:", event_id, "tickets:", ticket_count);
 
     // Check if booking already exists
     const { data: existingBooking } = await supabaseClient
@@ -73,7 +76,7 @@ serve(async (req) => {
       );
     }
 
-    // Create booking with QR code
+    // Create booking with QR code and multi-ticket data
     const { data: booking, error: bookingError } = await supabaseClient
       .from("event_bookings")
       .insert({
@@ -81,15 +84,19 @@ serve(async (req) => {
         event_id: event_id,
         status: "confirmed",
         payment_status: "paid",
+        ticket_count: ticket_count,
+        checkins_allowed: ticket_count,
+        checkins_used: 0,
+        attendee_names: attendee_names,
       })
       .select()
       .single();
 
     if (bookingError) throw bookingError;
 
-    console.log("Booking created:", booking.id);
+    console.log("Booking created:", booking.id, "with", ticket_count, "tickets");
 
-    // Increment sold_count - fetch current value then increment
+    // Increment sold_count by ticket_count
     const { data: currentEvent } = await supabaseClient
       .from("events")
       .select("sold_count")
@@ -99,7 +106,7 @@ serve(async (req) => {
     if (currentEvent) {
       await supabaseClient
         .from("events")
-        .update({ sold_count: currentEvent.sold_count + 1 })
+        .update({ sold_count: currentEvent.sold_count + ticket_count })
         .eq("id", event_id);
     }
 
@@ -107,7 +114,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         booking_id: booking.id,
-        qr_payload: booking.qr_payload 
+        qr_payload: booking.qr_payload,
+        ticket_count: ticket_count,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
