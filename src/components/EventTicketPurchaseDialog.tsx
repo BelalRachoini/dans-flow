@@ -19,6 +19,8 @@ interface Event {
   currency: string;
   capacity: number;
   sold_count: number;
+  discount_type?: string;
+  discount_value?: number;
 }
 
 interface EventTicketPurchaseDialogProps {
@@ -66,8 +68,16 @@ export function EventTicketPurchaseDialog({
     }
   }, [open]);
 
-  // Calculate prices
-  const singlePrice = event.price_cents / 100;
+  // Calculate prices with discount applied to single ticket
+  const baseSinglePrice = event.price_cents / 100;
+  const hasDiscount = event.discount_type && event.discount_type !== 'none' && event.discount_value && event.discount_value > 0;
+  
+  const singlePrice = hasDiscount
+    ? event.discount_type === 'percent' || event.discount_type === 'percentage'
+      ? baseSinglePrice * (1 - (event.discount_value || 0) / 100)
+      : baseSinglePrice - ((event.discount_value || 0) / 100)
+    : baseSinglePrice;
+
   const couplePrice = event.couple_price_cents 
     ? event.couple_price_cents / 100 
     : singlePrice * 2;
@@ -75,7 +85,7 @@ export function EventTicketPurchaseDialog({
     ? event.trio_price_cents / 100 
     : singlePrice * 3;
 
-  // Calculate savings
+  // Calculate savings (compared to discounted single price)
   const coupleSavings = (singlePrice * 2) - couplePrice;
   const trioSavings = (singlePrice * 3) - trioPrice;
 
@@ -156,6 +166,7 @@ export function EventTicketPurchaseDialog({
       count: 1 as TicketOption,
       label: t.eventTickets?.singleTicket || '1 Ticket',
       price: singlePrice,
+      originalPrice: hasDiscount ? baseSinglePrice : null,
       savings: 0,
       icon: User,
     },
@@ -163,6 +174,7 @@ export function EventTicketPurchaseDialog({
       count: 2 as TicketOption,
       label: t.eventTickets?.coupleTickets || '2 Tickets (Couple)',
       price: couplePrice,
+      originalPrice: null,
       savings: coupleSavings,
       icon: Users,
     },
@@ -170,6 +182,7 @@ export function EventTicketPurchaseDialog({
       count: 3 as TicketOption,
       label: t.eventTickets?.trioTickets || '3 Tickets',
       price: trioPrice,
+      originalPrice: null,
       savings: trioSavings,
       icon: Users,
     },
@@ -223,7 +236,14 @@ export function EventTicketPurchaseDialog({
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold">{formatPrice(option.price)}</p>
+                      {option.originalPrice ? (
+                        <div>
+                          <p className="text-sm text-muted-foreground line-through">{formatPrice(option.originalPrice)}</p>
+                          <p className="text-lg font-bold text-green-600">{formatPrice(option.price)}</p>
+                        </div>
+                      ) : (
+                        <p className="text-lg font-bold">{formatPrice(option.price)}</p>
+                      )}
                       {isDisabled && (
                         <p className="text-xs text-muted-foreground">
                           {t.eventTickets?.notEnoughSpots || 'Not enough spots'}
