@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Ticket, Users, User } from 'lucide-react';
+import { Ticket, Users, User, Check } from 'lucide-react';
 import { useLanguageStore } from '@/store/languageStore';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -38,8 +38,33 @@ export function EventTicketPurchaseDialog({
   const [selectedOption, setSelectedOption] = useState<TicketOption>(1);
   const [attendeeNames, setAttendeeNames] = useState<string[]>(['', '', '']);
   const [processing, setProcessing] = useState(false);
+  const [buyerName, setBuyerName] = useState<string>('');
 
   const availableSpots = event.capacity - event.sold_count;
+
+  // Fetch buyer's name when dialog opens
+  useEffect(() => {
+    if (open) {
+      const fetchBuyerName = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (profile?.full_name) {
+            setBuyerName(profile.full_name);
+          }
+        }
+      };
+      fetchBuyerName();
+      // Reset state when dialog opens
+      setSelectedOption(1);
+      setAttendeeNames(['', '', '']);
+    }
+  }, [open]);
 
   // Calculate prices
   const singlePrice = event.price_cents / 100;
@@ -75,8 +100,9 @@ export function EventTicketPurchaseDialog({
 
   const isFormValid = () => {
     if (selectedOption === 1) return true;
-    // For 2+ tickets, all names must be filled
-    return attendeeNames.slice(0, selectedOption).every(name => name.trim().length > 0);
+    // For 2+ tickets, only additional attendee names (Person 2, 3) must be filled
+    // Person 1 (buyer) is auto-filled
+    return attendeeNames.slice(0, selectedOption - 1).every(name => name.trim().length > 0);
   };
 
   const canSelectOption = (option: TicketOption) => {
@@ -98,9 +124,10 @@ export function EventTicketPurchaseDialog({
         return;
       }
 
+      // Build attendee names: buyer first, then additional attendees
       const namesToSend = selectedOption > 1 
-        ? attendeeNames.slice(0, selectedOption).map(n => n.trim())
-        : [];
+        ? [buyerName, ...attendeeNames.slice(0, selectedOption - 1).map(n => n.trim())]
+        : [buyerName];
 
       const { data, error } = await supabase.functions.invoke('create-event-payment', {
         body: { 
@@ -218,10 +245,23 @@ export function EventTicketPurchaseDialog({
               <p className="text-sm text-muted-foreground">
                 {t.eventTickets?.attendeeNamesDescription || 'Enter the name of each person attending'}
               </p>
-              {Array.from({ length: selectedOption }).map((_, index) => (
+              
+              {/* Person 1 - Buyer (auto-filled, read-only) */}
+              <div>
+                <Label className="text-sm">
+                  {t.eventTickets?.person || 'Person'} 1
+                </Label>
+                <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-muted rounded-md">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium">{buyerName || '...'}</span>
+                </div>
+              </div>
+
+              {/* Additional attendees (Person 2, 3) */}
+              {Array.from({ length: selectedOption - 1 }).map((_, index) => (
                 <div key={index}>
                   <Label htmlFor={`attendee-${index}`} className="text-sm">
-                    {t.eventTickets?.person || 'Person'} {index + 1}
+                    {t.eventTickets?.person || 'Person'} {index + 2}
                   </Label>
                   <Input
                     id={`attendee-${index}`}
