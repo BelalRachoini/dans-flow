@@ -34,11 +34,13 @@ serve(async (req) => {
 
     console.log("[create-event-payment] User authenticated:", user.email);
 
-    // Get event_id from request
-    const { event_id } = await req.json();
+    // Get request body
+    const { event_id, ticket_count = 1, attendee_names = [] } = await req.json();
     if (!event_id) throw new Error("event_id is required");
 
-    console.log("[create-event-payment] Processing payment for event:", event_id);
+    // Validate ticket_count
+    const validatedTicketCount = Math.min(Math.max(1, ticket_count), 3);
+    console.log("[create-event-payment] Processing payment for event:", event_id, "tickets:", validatedTicketCount);
 
     // Fetch event details
     const { data: event, error: eventError } = await supabaseClient
@@ -53,10 +55,25 @@ serve(async (req) => {
 
     console.log("[create-event-payment] Event found:", event.title);
 
-    // Check if event is sold out
-    if (event.sold_count >= event.capacity) {
-      throw new Error("Event is sold out");
+    // Check if event has enough capacity
+    const availableSpots = event.capacity - event.sold_count;
+    if (availableSpots < validatedTicketCount) {
+      throw new Error(`Not enough spots available. Only ${availableSpots} spots left.`);
     }
+
+    // Calculate price based on ticket count
+    let totalPriceCents: number;
+    if (validatedTicketCount === 1) {
+      totalPriceCents = event.price_cents;
+    } else if (validatedTicketCount === 2) {
+      // Use couple price if set, otherwise double the single price
+      totalPriceCents = event.couple_price_cents ?? (event.price_cents * 2);
+    } else {
+      // Use trio price if set, otherwise triple the single price
+      totalPriceCents = event.trio_price_cents ?? (event.price_cents * 3);
+    }
+
+    console.log("[create-event-payment] Total price cents:", totalPriceCents);
 
     // Initialize Stripe
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -77,59 +94,15 @@ serve(async (req) => {
       console.log("[create-event-payment] New customer will be created by Stripe");
     }
 
-    // Search for existing product for this event
-    const products = await stripe.products.search({
-      query: `metadata['event_id']:'${event_id}'`,
-      limit: 1,
-    });
+    // Create product name based on ticket count
+    const productName = validatedTicketCount === 1 
+      ? event.title 
+      : `${event.title} (${validatedTicketCount} tickets)`;
 
-    let priceId;
-    
-    if (products.data.length > 0) {
-      // Use existing product
-      const product = products.data[0];
-      console.log("[create-event-payment] Found existing product:", product.id);
-      
-      const prices = await stripe.prices.list({
-        product: product.id,
-        active: true,
-        limit: 1,
-      });
-      
-      if (prices.data.length > 0) {
-        priceId = prices.data[0].id;
-        console.log("[create-event-payment] Using existing price:", priceId);
-      }
-    }
+    // Create a new price for this specific purchase
+    console.log("[create-event-payment] Creating checkout session with price:", totalPriceCents);
 
-    // Create product and price if not exists
-    if (!priceId) {
-      console.log("[create-event-payment] Creating new product and price");
-      
-      const product = await stripe.products.create({
-        name: event.title,
-        description: event.description.substring(0, 500),
-        images: event.image_url ? [event.image_url] : [],
-        metadata: {
-          event_id: event_id,
-          venue: event.venue,
-        },
-      });
-
-      const price = await stripe.prices.create({
-        product: product.id,
-        unit_amount: event.price_cents,
-        currency: event.currency.toLowerCase(),
-        metadata: {
-          event_id: event_id,
-        },
-      });
-
-      priceId = price.id;
-      console.log("[create-event-payment] Created product:", product.id, "and price:", priceId);
-    }
-
-    // Create checkout session
+    // Create checkout session with price_data (dynamic pricing)
     const origin = req.headers.get("origin") || "http://localhost:8080";
     
     const session = await stripe.checkout.sessions.create({
@@ -137,7 +110,17 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
-          price: priceId,
+          price_data: {
+            currency: event.currency.toLowerCase(),
+            product_data: {
+              name: productName,
+              description: `${validatedTicketCount} ticket(s) for ${event.title}`,
+              metadata: {
+                event_id: event_id,
+              },
+            },
+            unit_amount: totalPriceCents,
+          },
           quantity: 1,
         },
       ],
@@ -147,6 +130,8 @@ serve(async (req) => {
       metadata: {
         event_id: event_id,
         user_id: user.id,
+        ticket_count: validatedTicketCount.toString(),
+        attendee_names: JSON.stringify(attendee_names),
       },
     });
 

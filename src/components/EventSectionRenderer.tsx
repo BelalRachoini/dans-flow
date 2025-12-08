@@ -4,9 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Edit, Trash2, MoveUp, MoveDown, Calendar, MapPin, Users, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
+import { EventTicketPurchaseDialog } from './EventTicketPurchaseDialog';
 
 interface EventSectionRendererProps {
   section: any;
@@ -27,34 +26,7 @@ export function EventSectionRenderer({
   onMoveUp,
   onMoveDown,
 }: EventSectionRendererProps) {
-  const [booking, setBooking] = useState(false);
-
-  const handleBooking = async () => {
-    try {
-      setBooking(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast.error('Please log in to book this event');
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke('create-event-payment', {
-        body: { event_id: event.id },
-      });
-
-      if (error) throw error;
-
-      if (data?.url) {
-        window.open(data.url, '_blank');
-      }
-    } catch (error: any) {
-      console.error('Booking error:', error);
-      toast.error('Failed to create booking');
-    } finally {
-      setBooking(false);
-    }
-  };
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
 
   const renderContent = () => {
     switch (section.section_type) {
@@ -186,49 +158,57 @@ export function EventSectionRenderer({
         const isSoldOut = event.sold_count >= event.capacity;
 
         return (
-          <Card className="p-6 mb-8">
-            {section.title && <h2 className="text-2xl font-semibold mb-4">{section.title}</h2>}
-            {section.content.customMessage && (
-              <p className="text-muted-foreground mb-4">{section.content.customMessage}</p>
-            )}
-            
-            <div className="space-y-4">
-              {section.content.showPrice !== false && (
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                  <div>
-                    <span className="text-2xl font-bold">
-                      {(finalPrice / 100).toFixed(2)} {event.currency}
-                    </span>
-                    {event.discount_type !== 'none' && event.discount_value && (
-                      <Badge variant="secondary" className="ml-2">
-                        {event.discount_type === 'percentage' 
-                          ? `-${event.discount_value}%`
-                          : `-${event.discount_value / 100} ${event.currency}`
-                        }
-                      </Badge>
-                    )}
+          <>
+            <Card className="p-6 mb-8">
+              {section.title && <h2 className="text-2xl font-semibold mb-4">{section.title}</h2>}
+              {section.content.customMessage && (
+                <p className="text-muted-foreground mb-4">{section.content.customMessage}</p>
+              )}
+              
+              <div className="space-y-4">
+                {section.content.showPrice !== false && (
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    <div>
+                      <span className="text-2xl font-bold">
+                        {(finalPrice / 100).toFixed(2)} {event.currency}
+                      </span>
+                      {event.discount_type !== 'none' && event.discount_value && (
+                        <Badge variant="secondary" className="ml-2">
+                          {event.discount_type === 'percentage' 
+                            ? `-${event.discount_value}%`
+                            : `-${event.discount_value / 100} ${event.currency}`
+                          }
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {section.content.showCapacity !== false && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span>{event.capacity - event.sold_count} / {event.capacity} spots available</span>
-                </div>
-              )}
+                {section.content.showCapacity !== false && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    <span>{event.capacity - event.sold_count} / {event.capacity} spots available</span>
+                  </div>
+                )}
 
-              <Button
-                onClick={handleBooking}
-                disabled={isSoldOut || booking}
-                className="w-full"
-                size="lg"
-              >
-                {booking ? 'Processing...' : isSoldOut ? 'Sold Out' : 'Book Now'}
-              </Button>
-            </div>
-          </Card>
+                <Button
+                  onClick={() => setTicketDialogOpen(true)}
+                  disabled={isSoldOut}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isSoldOut ? 'Sold Out' : 'Book Now'}
+                </Button>
+              </div>
+            </Card>
+
+            <EventTicketPurchaseDialog
+              open={ticketDialogOpen}
+              onOpenChange={setTicketDialogOpen}
+              event={event}
+            />
+          </>
         );
 
       default:

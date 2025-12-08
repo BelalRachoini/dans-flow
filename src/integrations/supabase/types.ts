@@ -299,7 +299,10 @@ export type Database = {
       }
       event_bookings: {
         Row: {
+          attendee_names: Json | null
           booked_at: string
+          checkins_allowed: number
+          checkins_used: number
           created_at: string
           event_id: string
           id: string
@@ -307,9 +310,13 @@ export type Database = {
           payment_status: string
           qr_payload: string | null
           status: string
+          ticket_count: number
         }
         Insert: {
+          attendee_names?: Json | null
           booked_at?: string
+          checkins_allowed?: number
+          checkins_used?: number
           created_at?: string
           event_id: string
           id?: string
@@ -317,9 +324,13 @@ export type Database = {
           payment_status?: string
           qr_payload?: string | null
           status?: string
+          ticket_count?: number
         }
         Update: {
+          attendee_names?: Json | null
           booked_at?: string
+          checkins_allowed?: number
+          checkins_used?: number
           created_at?: string
           event_id?: string
           id?: string
@@ -327,6 +338,7 @@ export type Database = {
           payment_status?: string
           qr_payload?: string | null
           status?: string
+          ticket_count?: number
         }
         Relationships: [
           {
@@ -507,6 +519,7 @@ export type Database = {
       events: {
         Row: {
           capacity: number
+          couple_price_cents: number | null
           created_at: string
           created_by: string
           currency: string
@@ -521,11 +534,13 @@ export type Database = {
           start_at: string
           status: string
           title: string
+          trio_price_cents: number | null
           updated_at: string
           venue: string
         }
         Insert: {
           capacity: number
+          couple_price_cents?: number | null
           created_at?: string
           created_by: string
           currency?: string
@@ -540,11 +555,13 @@ export type Database = {
           start_at: string
           status?: string
           title: string
+          trio_price_cents?: number | null
           updated_at?: string
           venue: string
         }
         Update: {
           capacity?: number
+          couple_price_cents?: number | null
           created_at?: string
           created_by?: string
           currency?: string
@@ -559,6 +576,7 @@ export type Database = {
           start_at?: string
           status?: string
           title?: string
+          trio_price_cents?: number | null
           updated_at?: string
           venue?: string
         }

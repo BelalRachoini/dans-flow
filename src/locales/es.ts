@@ -738,4 +738,26 @@ export const es = {
     exportSuccess: 'Miembros exportados a CSV',
     exportError: 'No se pudo exportar a CSV',
   },
+
+  // Event Tickets
+  eventTickets: {
+    buyTickets: 'Comprar Entradas',
+    singleTicket: '1 Entrada',
+    coupleTickets: '2 Entradas (Pareja)',
+    trioTickets: '3 Entradas',
+    save: 'Ahorrar',
+    notEnoughSpots: 'No hay suficientes lugares',
+    attendeeNames: 'Nombres de Asistentes',
+    attendeeNamesDescription: 'Ingrese el nombre de cada persona que asistirá',
+    person: 'Persona',
+    enterName: 'Ingrese nombre',
+    fillAllNames: 'Por favor complete todos los nombres de asistentes',
+    buyNow: 'Comprar Ahora',
+    couplePrice: 'Precio Pareja (2 entradas)',
+    trioPrice: 'Precio para 3 entradas',
+    couplePriceHelp: 'Dejar vacío para usar el doble del precio individual',
+    trioPriceHelp: 'Dejar vacío para usar el triple del precio individual',
+    attendees: 'Asistentes',
+    checkinsProgress: 'Check-ins',
+  },
 };

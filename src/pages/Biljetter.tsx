@@ -53,6 +53,10 @@ interface EventTicket {
   status: string;
   qr_payload: string;
   payment_status: string;
+  ticket_count: number;
+  checkins_allowed: number;
+  checkins_used: number;
+  attendee_names: unknown; // JSON type from database
   events: {
     id: string;
     title: string;
