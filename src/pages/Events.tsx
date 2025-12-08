@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { EventTicketPurchaseDialog } from '@/components/EventTicketPurchaseDialog';
 
 type EventData = Tables<'events'>;
 type EventBooking = Tables<'event_bookings'> & {
@@ -67,6 +68,8 @@ export default function EventsPage() {
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [eventDates, setEventDates] = useState<EventDate[]>([{ date: '', time: '' }]);
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
+  const [selectedEventForPurchase, setSelectedEventForPurchase] = useState<EventData | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
@@ -609,7 +612,7 @@ export default function EventsPage() {
     }
   };
 
-  const handleBuyTicket = async (event: EventData) => {
+  const handleBuyTicket = (event: EventData) => {
     if (!userId) {
       toast.error('Du måste vara inloggad för att köpa biljetter');
       return;
@@ -620,36 +623,8 @@ export default function EventsPage() {
       return;
     }
 
-    try {
-      console.log('Creating Stripe checkout for event:', event.id);
-      
-      toast.loading('Skapar betalning...', { id: 'payment-loading' });
-
-      // Call edge function to create Stripe checkout
-      const { data, error } = await supabase.functions.invoke('create-event-payment', {
-        body: { event_id: event.id },
-      });
-
-      toast.dismiss('payment-loading');
-
-      if (error) {
-        console.error('Error creating checkout:', error);
-        throw error;
-      }
-
-      if (!data?.url) {
-        throw new Error('No checkout URL returned');
-      }
-
-      console.log('Opening Stripe checkout:', data.url);
-      
-      // Open Stripe checkout in new tab
-      window.open(data.url, '_blank');
-      toast.success('Betalningsfönster öppnat. Slutför betalningen i den nya fliken.');
-    } catch (error: any) {
-      console.error('Error buying ticket:', error);
-      toast.error(error.message || 'Kunde inte skapa betalning. Försök igen.');
-    }
+    setSelectedEventForPurchase(event);
+    setTicketDialogOpen(true);
   };
 
   if (loading) {
@@ -1145,6 +1120,15 @@ export default function EventsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Ticket Purchase Dialog */}
+      {selectedEventForPurchase && (
+        <EventTicketPurchaseDialog
+          open={ticketDialogOpen}
+          onOpenChange={setTicketDialogOpen}
+          event={selectedEventForPurchase}
+        />
+      )}
     </div>
   );
 }
