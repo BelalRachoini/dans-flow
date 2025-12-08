@@ -248,6 +248,9 @@ export const es = {
       amount: 'Cantidad',
       value: 'Valor',
     },
+    status: 'Estado',
+    statusDraft: 'Borrador',
+    statusPublished: 'Publicado',
   },
 
   // Tickets
