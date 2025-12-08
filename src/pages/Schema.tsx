@@ -613,7 +613,7 @@ export default function Schema() {
                                       ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20'
                                       : 'bg-purple-500/10 border-purple-500 hover:bg-purple-500/20'
                                   }`}
-                                  onClick={() => item.type === 'event' && navigate('/event')}
+                                  onClick={() => handleBooking(item)}
                                 >
                                   <div className="flex items-center gap-1 truncate">
                                     {item.type === 'event' && <Ticket className="h-3 w-3 flex-shrink-0" />}
