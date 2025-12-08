@@ -41,6 +41,7 @@ const eventSchema = z.object({
   discount_enabled: z.boolean().default(false),
   discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
   discount_value: z.number().min(0).default(0),
+  status: z.enum(['draft', 'published']).default('published'),
 });
 
 interface EventDate {
@@ -78,6 +79,7 @@ export default function EventsPage() {
       discount_enabled: false,
       discount_type: 'none',
       discount_value: 0,
+      status: 'published',
     }
   });
 
@@ -249,6 +251,7 @@ export default function EventsPage() {
         capacity: data.capacity,
         discount_type,
         discount_value,
+        status: data.status,
         created_by: userId,
       };
 
@@ -333,6 +336,7 @@ export default function EventsPage() {
     setValue('discount_enabled', hasDiscount);
     setValue('discount_type', event.discount_type as any);
     setValue('discount_value', event.discount_type === 'amount' ? event.discount_value / 100 : event.discount_value);
+    setValue('status', event.status as any);
 
     // Load event dates
     const { data: dates } = await supabase
@@ -869,6 +873,28 @@ export default function EventsPage() {
                     )}
                   </div>
 
+                  {/* Status */}
+                  <div className="space-y-2 border-t pt-4">
+                    <Label>{t.events.status}</Label>
+                    <Select
+                      value={watch('status') || 'published'}
+                      onValueChange={(value) => setValue('status', value as any)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="published">{t.events.statusPublished}</SelectItem>
+                        <SelectItem value="draft">{t.events.statusDraft}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {watch('status') === 'draft' 
+                        ? 'Draft events are only visible to admins'
+                        : 'Published events are visible to all users'}
+                    </p>
+                  </div>
+
                   <DrawerFooter className="px-0">
                     <Button type="submit" variant="hero">
                       {t.common.save}
@@ -920,7 +946,12 @@ export default function EventsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-xl">{event.title}</CardTitle>
-                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <div className="flex gap-1">
+                      {isAdmin && event.status === 'draft' && (
+                        <Badge variant="secondary">{t.events.statusDraft}</Badge>
+                      )}
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                    </div>
                   </div>
                   <CardDescription className="mt-2 line-clamp-2">
                     {event.description}

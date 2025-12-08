@@ -248,6 +248,9 @@ export const sv = {
       amount: 'Belopp',
       value: 'Värde',
     },
+    status: 'Status',
+    statusDraft: 'Utkast',
+    statusPublished: 'Publicerad',
   },
 
   // Tickets
