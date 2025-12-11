@@ -61,10 +61,26 @@ serve(async (req) => {
       throw new Error(`Not enough spots available. Only ${availableSpots} spots left.`);
     }
 
-    // Calculate price based on ticket count
+    // Calculate price based on ticket count with discount applied to single tickets
     let totalPriceCents: number;
     if (validatedTicketCount === 1) {
-      totalPriceCents = event.price_cents;
+      // Apply discount to single ticket
+      let singlePrice = event.price_cents;
+      if (event.discount_type && event.discount_type !== 'none' && event.discount_value && event.discount_value > 0) {
+        if (event.discount_type === 'percent' || event.discount_type === 'percentage') {
+          singlePrice = Math.round(event.price_cents * (1 - event.discount_value / 100));
+        } else {
+          // 'amount' discount - discount_value is already in cents
+          singlePrice = Math.round(event.price_cents - event.discount_value);
+        }
+      }
+      totalPriceCents = Math.max(0, singlePrice); // Ensure price doesn't go negative
+      console.log("[create-event-payment] Single ticket discount applied:", {
+        original: event.price_cents,
+        discountType: event.discount_type,
+        discountValue: event.discount_value,
+        final: totalPriceCents
+      });
     } else if (validatedTicketCount === 2) {
       // Use couple price if set, otherwise double the single price
       totalPriceCents = event.couple_price_cents ?? (event.price_cents * 2);
