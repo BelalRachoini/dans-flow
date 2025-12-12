@@ -707,9 +707,16 @@ export default function Courses() {
                     </div>
                   )}
                 </div>
-                <Badge className="w-fit text-xs" variant="secondary">
-                  {getLevelBadge(course.level)}
-                </Badge>
+                <div className="flex gap-1">
+                  <Badge className="w-fit text-xs" variant="secondary">
+                    {getLevelBadge(course.level)}
+                  </Badge>
+                  {role === 'admin' && course.status === 'draft' && (
+                    <Badge variant="outline" className="w-fit text-xs">
+                      {t.events.statusDraft}
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="p-2 sm:p-3 md:p-4 pt-0 flex-1 flex flex-col justify-between space-y-3">
                 <div className="space-y-2">
