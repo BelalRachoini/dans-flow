@@ -2,3 +2,6 @@ project_id = "stxcclfxadjcbpfnuxae"
 
 [functions."admin-create-member"]
 verify_jwt = true
+
+[functions."send-email"]
+verify_jwt = false
