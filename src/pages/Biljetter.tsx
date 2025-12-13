@@ -439,11 +439,12 @@ export default function Biljetter() {
   };
 
   const canCheckIn = (ticket: AllTickets): boolean => {
+    // Events cannot self-check-in - must be scanned by staff at door
     if (ticket.type === 'event') {
-      return ticket.status === 'confirmed' && ticket.payment_status === 'paid';
-    } else {
-      return ticket.status === 'valid' && ticket.tickets_used < ticket.total_tickets;
+      return false;
     }
+    // Course tickets can still self-check-in
+    return ticket.status === 'valid' && ticket.tickets_used < ticket.total_tickets;
   };
 
   // Admin data loading functions
@@ -1173,17 +1174,9 @@ export default function Biljetter() {
                             </div>
                             
                             <div className="flex flex-wrap gap-2 pt-2">
-                              {canCheckIn(ticket) && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleSelfCheckIn(ticket)}
-                                  disabled={checkingIn === ticket.id}
-                                  className="gap-2"
-                                >
-                                  <Check className="h-4 w-4" />
-                                  {checkingIn === ticket.id ? 'Checkar in...' : 'Checka in nu'}
-                                </Button>
-                              )}
+                              <p className="text-sm text-muted-foreground italic">
+                                Visa QR-koden vid entrén för att checka in
+                              </p>
                               <Button
                                 size="sm"
                                 variant="outline"
