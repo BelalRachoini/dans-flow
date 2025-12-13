@@ -75,6 +75,76 @@ export default function Auth() {
     }
   };
 
+  const sendWelcomeEmail = async (userEmail: string, userName: string) => {
+    try {
+      const loginUrl = `${window.location.origin}/auth`;
+      const welcomeHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+            <div style="background: linear-gradient(135deg, #c59333 0%, #d4a84b 100%); padding: 40px 20px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">
+                💃 Välkommen till DanceVida!
+              </h1>
+            </div>
+            <div style="padding: 40px 30px;">
+              <p style="font-size: 18px; color: #333333; margin-bottom: 20px;">
+                Hej <strong>${userName}</strong>!
+              </p>
+              <p style="font-size: 16px; color: #555555; line-height: 1.6; margin-bottom: 20px;">
+                Tack för att du skapade ett konto hos oss! Vi är glada att ha dig med i vår dansfamilj.
+              </p>
+              <p style="font-size: 16px; color: #555555; line-height: 1.6; margin-bottom: 30px;">
+                Utforska våra kurser, boka lektioner och delta i våra evenemang. Vi ser fram emot att dansa med dig!
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #c59333 0%, #d4a84b 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                  Logga in & kom igång
+                </a>
+              </div>
+              <hr style="border: none; border-top: 1px solid #eeeeee; margin: 30px 0;">
+              <p style="font-size: 14px; color: #888888; margin-bottom: 10px;">
+                <strong>Dina kontouppgifter:</strong>
+              </p>
+              <p style="font-size: 14px; color: #555555; margin: 5px 0;">
+                📧 E-post: ${userEmail}
+              </p>
+              <p style="font-size: 14px; color: #555555; margin: 5px 0;">
+                👤 Namn: ${userName}
+              </p>
+            </div>
+            <div style="background-color: #f8f8f8; padding: 20px 30px; text-align: center; border-top: 1px solid #eeeeee;">
+              <p style="font-size: 12px; color: #888888; margin: 0;">
+                © ${new Date().getFullYear()} DanceVida. Alla rättigheter förbehållna.
+              </p>
+              <p style="font-size: 12px; color: #888888; margin: 10px 0 0 0;">
+                📍 Stockholm, Sverige | 📧 tickets@dancevida.se
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await supabase.functions.invoke('send-email', {
+        body: {
+          to: userEmail,
+          subject: 'Välkommen till DanceVida! 💃',
+          html: welcomeHtml
+        }
+      });
+      console.log('Welcome email sent to:', userEmail);
+    } catch (error) {
+      console.error('Failed to send welcome email:', error);
+      // Don't fail signup if email fails
+    }
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -96,6 +166,10 @@ export default function Auth() {
 
       if (data.user) {
         toast.success('Konto skapat! Loggar in...');
+        
+        // Send welcome email (non-blocking)
+        sendWelcomeEmail(email, fullName);
+        
         // Wait a bit for trigger to complete
         await new Promise(resolve => setTimeout(resolve, 1000));
         
