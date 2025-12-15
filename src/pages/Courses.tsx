@@ -13,7 +13,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CourseLessons } from '@/components/CourseLessons';
-import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock, Copy } from 'lucide-react';
+import { CourseClasses } from '@/components/CourseClasses';
+import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock, Copy, Package } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +46,8 @@ const courseSchema = z.object({
   status: z.enum(['draft', 'published', 'archived']),
   starts_at: z.date().optional(),
   ends_at: z.date().optional(),
+  is_package: z.boolean().default(false),
+  max_selections: z.number().min(1).max(20).optional(),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
@@ -82,6 +85,8 @@ export default function Courses() {
       capacity: 20,
       price: 1000,
       instructors: [],
+      is_package: false,
+      max_selections: 2,
     }
   });
 
@@ -178,6 +183,8 @@ export default function Courses() {
         starts_at: data.starts_at?.toISOString() || null,
         ends_at: data.ends_at?.toISOString() || null,
         created_by: (await supabase.auth.getUser()).data.user?.id,
+        is_package: data.is_package,
+        max_selections: data.is_package ? data.max_selections : null,
       };
 
       let courseId: string;
@@ -249,6 +256,8 @@ export default function Courses() {
     setValue('status', course.status as 'draft' | 'published' | 'archived');
     setValue('starts_at', (course as any).starts_at ? new Date((course as any).starts_at) : undefined);
     setValue('ends_at', (course as any).ends_at ? new Date((course as any).ends_at) : undefined);
+    setValue('is_package', (course as any).is_package || false);
+    setValue('max_selections', (course as any).max_selections || 2);
     setSheetOpen(true);
   };
 
@@ -629,13 +638,56 @@ export default function Courses() {
                   </Popover>
                 </div>
 
+                {/* Package options */}
+                <div className="pt-4 border-t space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="is_package" className="font-normal">
+                        Detta är ett kurspaket
+                      </Label>
+                    </div>
+                    <input
+                      type="checkbox"
+                      id="is_package"
+                      checked={watch('is_package')}
+                      onChange={(e) => setValue('is_package', e.target.checked)}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                  </div>
+                  
+                  {watch('is_package') && (
+                    <div>
+                      <Label htmlFor="max_selections">Max antal klasser kunden kan välja</Label>
+                      <Input
+                        id="max_selections"
+                        type="number"
+                        min={1}
+                        max={20}
+                        {...register('max_selections', { valueAsNumber: true })}
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Kunden väljer t.ex. 2 av 5 tillgängliga klasser
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {editingCourse && (
                   <div className="pt-4 border-t">
-                    <CourseLessons 
-                      courseId={editingCourse.id}
-                      courseStartDate={watch('starts_at')}
-                      courseEndDate={watch('ends_at')}
-                    />
+                    {watch('is_package') ? (
+                      <CourseClasses
+                        courseId={editingCourse.id}
+                        courseStartDate={watch('starts_at')}
+                        courseEndDate={watch('ends_at')}
+                      />
+                    ) : (
+                      <CourseLessons 
+                        courseId={editingCourse.id}
+                        courseStartDate={watch('starts_at')}
+                        courseEndDate={watch('ends_at')}
+                      />
+                    )}
                   </div>
                 )}
 

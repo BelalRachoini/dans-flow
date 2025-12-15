@@ -7,7 +7,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function buildCourseEmail(customerName: string, courseName: string, ticketCount: number, expiryDate: string): string {
+function buildCourseEmail(customerName: string, courseName: string, ticketCount: number, expiryDate: string, isPackage: boolean = false, selectedClasses: string[] = []): string {
+  const classListHtml = selectedClasses.length > 0 
+    ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:8px;">
+        <strong>Valda klasser:</strong><br/>
+        ${selectedClasses.map(c => `• ${c}`).join('<br/>')}
+       </div>`
+    : '';
+
   return `<!doctype html>
 <html lang="sv">
   <head>
@@ -68,13 +75,14 @@ function buildCourseEmail(customerName: string, courseName: string, ticketCount:
                   <tr>
                     <td style="padding:16px;">
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:18px;color:#111827;font-weight:700;">
-                        Kursdetaljer
+                        ${isPackage ? 'Paketdetaljer' : 'Kursdetaljer'}
                       </div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:8px;">
-                        <strong>Kurs:</strong> ${courseName}<br/>
+                        <strong>${isPackage ? 'Paket' : 'Kurs'}:</strong> ${courseName}<br/>
                         <strong>Antal klipp/biljetter:</strong> ${ticketCount}<br/>
                         <strong>Giltig till:</strong> ${expiryDate}
                       </div>
+                      ${classListHtml}
                     </td>
                   </tr>
                 </table>
@@ -121,10 +129,10 @@ function buildCourseEmail(customerName: string, courseName: string, ticketCount:
                   <tr>
                     <td style="padding:16px;">
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:18px;color:#111827;font-weight:700;">
-                        Course details
+                        ${isPackage ? 'Package details' : 'Course details'}
                       </div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:8px;">
-                        <strong>Course:</strong> ${courseName}<br/>
+                        <strong>${isPackage ? 'Package' : 'Course'}:</strong> ${courseName}<br/>
                         <strong>Ticket count:</strong> ${ticketCount}<br/>
                         <strong>Valid until:</strong> ${expiryDate}
                       </div>
@@ -225,13 +233,18 @@ serve(async (req) => {
       );
     }
 
-    // Get course_id from metadata
+    // Get course_id and package info from metadata
     const course_id = session.metadata?.course_id;
+    const isPackage = session.metadata?.is_package === "true";
+    const selectedClassIds: string[] = session.metadata?.selected_class_ids 
+      ? JSON.parse(session.metadata.selected_class_ids) 
+      : [];
+
     if (!course_id) {
       throw new Error("Course ID not found in session metadata");
     }
 
-    console.log("Payment verified for course:", course_id);
+    console.log("Payment verified for course:", course_id, "Is package:", isPackage, "Selected classes:", selectedClassIds);
 
     // Get course details
     const { data: course } = await supabaseClient
@@ -262,13 +275,55 @@ serve(async (req) => {
       );
     }
 
-    // Count course lessons to determine total_tickets
-    const { count: lessonsCount } = await supabaseClient
-      .from("course_lessons")
-      .select("*", { count: "exact", head: true })
-      .eq("course_id", course_id);
+    let total_tickets = 0;
+    let selectedClassNames: string[] = [];
 
-    const total_tickets = lessonsCount || 10;
+    if (isPackage && selectedClassIds.length > 0) {
+      // PACKAGE COURSE: Create class selections and count lessons in selected classes
+      
+      // Get class names for email
+      const { data: classesData } = await supabaseClient
+        .from("course_classes")
+        .select("id, name")
+        .in("id", selectedClassIds);
+      
+      selectedClassNames = classesData?.map(c => c.name) || [];
+
+      // Create course_class_selections records
+      const selectionsToInsert = selectedClassIds.map(classId => ({
+        member_id: user.id,
+        course_id: course_id,
+        class_id: classId,
+        order_id: session_id,
+      }));
+
+      const { error: selectionsError } = await supabaseClient
+        .from("course_class_selections")
+        .insert(selectionsToInsert);
+
+      if (selectionsError) {
+        console.error("Error creating class selections:", selectionsError);
+        // Don't throw - continue with ticket creation
+      }
+
+      // Count lessons in selected classes
+      const { count: lessonsCount } = await supabaseClient
+        .from("course_lessons")
+        .select("*", { count: "exact", head: true })
+        .in("class_id", selectedClassIds);
+
+      total_tickets = lessonsCount || selectedClassIds.length * 8; // Default fallback
+      console.log("Package: Created selections for", selectedClassIds.length, "classes with", total_tickets, "total lessons");
+
+    } else {
+      // REGULAR COURSE: Count all lessons
+      const { count: lessonsCount } = await supabaseClient
+        .from("course_lessons")
+        .select("*", { count: "exact", head: true })
+        .eq("course_id", course_id);
+
+      total_tickets = lessonsCount || 10;
+    }
 
     // Calculate expiry date based on course end date (or 3 months if no end date)
     const expires_at = course.ends_at 
@@ -293,7 +348,7 @@ serve(async (req) => {
 
     if (ticketError) throw ticketError;
 
-    console.log("Ticket created:", ticket.id);
+    console.log("Ticket created:", ticket.id, "with", total_tickets, "tickets");
 
     // Get user profile for email
     const { data: profile } = await supabaseClient
@@ -307,13 +362,13 @@ serve(async (req) => {
 
     // Send confirmation email
     try {
-      const emailHtml = buildCourseEmail(customerName, course.title, total_tickets, expiryDateFormatted);
+      const emailHtml = buildCourseEmail(customerName, course.title, total_tickets, expiryDateFormatted, isPackage, selectedClassNames);
       const emailResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: user.email,
-          subject: `Kursköp bekräftat: ${course.title} / Course purchase confirmed`,
+          subject: `${isPackage ? 'Paketköp' : 'Kursköp'} bekräftat: ${course.title} / ${isPackage ? 'Package' : 'Course'} purchase confirmed`,
           html: emailHtml
         })
       });
@@ -334,7 +389,9 @@ serve(async (req) => {
         success: true, 
         ticket_id: ticket.id,
         qr_payload: ticket.qr_payload,
-        total_tickets: total_tickets
+        total_tickets: total_tickets,
+        is_package: isPackage,
+        selected_classes: selectedClassNames,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );

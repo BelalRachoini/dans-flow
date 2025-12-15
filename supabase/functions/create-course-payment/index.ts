@@ -24,10 +24,11 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { course_id } = await req.json();
+    const { course_id, selected_class_ids } = await req.json();
     if (!course_id) throw new Error("Missing course_id");
 
     console.log("Creating payment for course:", course_id);
+    console.log("Selected class IDs:", selected_class_ids);
 
     // Fetch course details
     const { data: course, error: courseError } = await supabaseClient
@@ -38,7 +39,29 @@ serve(async (req) => {
 
     if (courseError || !course) throw new Error("Course not found");
 
-    console.log("Course found:", course.title, "Price:", course.price_cents);
+    console.log("Course found:", course.title, "Price:", course.price_cents, "Is package:", course.is_package);
+
+    // Validate package selection
+    if (course.is_package) {
+      if (!selected_class_ids || selected_class_ids.length === 0) {
+        throw new Error("Package courses require class selection");
+      }
+      if (selected_class_ids.length > (course.max_selections || 2)) {
+        throw new Error(`Maximum ${course.max_selections || 2} classes allowed`);
+      }
+      
+      // Validate that selected classes belong to this course
+      const { data: validClasses, error: classError } = await supabaseClient
+        .from("course_classes")
+        .select("id")
+        .eq("course_id", course_id)
+        .in("id", selected_class_ids);
+      
+      if (classError) throw classError;
+      if (!validClasses || validClasses.length !== selected_class_ids.length) {
+        throw new Error("Invalid class selection");
+      }
+    }
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
@@ -108,7 +131,18 @@ serve(async (req) => {
       console.log("Created product and price:", product.id, price.id);
     }
 
-    // Create checkout session
+    // Create checkout session with class selection in metadata
+    const sessionMetadata: Record<string, string> = {
+      course_id: course_id,
+      user_id: user.id,
+    };
+
+    // Store selected class IDs in metadata for package courses
+    if (course.is_package && selected_class_ids) {
+      sessionMetadata.selected_class_ids = JSON.stringify(selected_class_ids);
+      sessionMetadata.is_package = "true";
+    }
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -116,10 +150,7 @@ serve(async (req) => {
       mode: "payment",
       success_url: `${req.headers.get("origin")}/payment-success?session_id={CHECKOUT_SESSION_ID}&type=course`,
       cancel_url: `${req.headers.get("origin")}/payment-cancelled`,
-      metadata: {
-        course_id: course_id,
-        user_id: user.id,
-      },
+      metadata: sessionMetadata,
     });
 
     console.log("Checkout session created:", session.id);
