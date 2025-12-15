@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
 import { useLanguageStore } from '@/store/languageStore';
+import { PackageClassSelector } from './PackageClassSelector';
 
 interface CourseSectionRendererProps {
   section: any;
@@ -32,6 +33,7 @@ export function CourseSectionRenderer({
 }: CourseSectionRendererProps) {
   const { t } = useLanguageStore();
   const [enrolling, setEnrolling] = useState(false);
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
 
   const handleEnroll = async () => {
     try {
@@ -43,8 +45,23 @@ export function CourseSectionRenderer({
         return;
       }
 
+      // For package courses, validate class selection
+      if (course.is_package) {
+        if (selectedClassIds.length === 0) {
+          toast.error('Välj minst en klass att delta i');
+          return;
+        }
+        if (selectedClassIds.length > (course.max_selections || 2)) {
+          toast.error(`Du kan max välja ${course.max_selections || 2} klasser`);
+          return;
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('create-course-payment', {
-        body: { course_id: course.id },
+        body: { 
+          course_id: course.id,
+          selected_class_ids: course.is_package ? selectedClassIds : undefined,
+        },
       });
 
       if (error) throw error;
@@ -198,23 +215,40 @@ export function CourseSectionRenderer({
         );
 
       case 'booking':
+        const isPackage = course.is_package;
+        const maxSelections = course.max_selections || 2;
+        const canEnroll = !isPackage || (selectedClassIds.length > 0 && selectedClassIds.length <= maxSelections);
+
         return (
           <Card className="mb-8 p-6">
             {section.title && <h2 className="text-2xl font-semibold mb-4">{section.title}</h2>}
             
             <div className="space-y-6">
+              {/* Package class selection */}
+              {isPackage && (
+                <PackageClassSelector
+                  courseId={course.id}
+                  maxSelections={maxSelections}
+                  selectedClassIds={selectedClassIds}
+                  onSelectionChange={setSelectedClassIds}
+                />
+              )}
+
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-3xl font-bold text-primary">
                     {(course.price_cents / 100).toFixed(0)} kr
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {t.course?.includesTickets || 'Includes'} {lessons.length} {t.course?.tickets || 'tickets'}
+                    {isPackage 
+                      ? `Välj ${maxSelections} klasser`
+                      : `${t.course?.includesTickets || 'Includes'} ${lessons.length} ${t.course?.tickets || 'tickets'}`
+                    }
                   </p>
                 </div>
                 <Button 
                   onClick={handleEnroll} 
-                  disabled={enrolling}
+                  disabled={enrolling || !canEnroll}
                   size="lg"
                   className="gap-2"
                 >
@@ -223,7 +257,8 @@ export function CourseSectionRenderer({
                 </Button>
               </div>
 
-              {lessons.length > 0 && (
+              {/* Non-package: show lesson schedule */}
+              {!isPackage && lessons.length > 0 && (
                 <div>
                   <h3 className="font-semibold mb-2">{t.course?.lessonSchedule || 'Lesson Schedule'}</h3>
                   <Accordion type="single" collapsible>
@@ -253,7 +288,10 @@ export function CourseSectionRenderer({
                 <div className="flex items-center gap-2 text-sm">
                   <Ticket className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    {t.course?.flexibleTicketInfo || 'Flexible ticket system - use tickets for any lesson'}
+                    {isPackage 
+                      ? 'Välj dina klasser ovan - du får biljetter för alla lektioner i valda klasser'
+                      : (t.course?.flexibleTicketInfo || 'Flexible ticket system - use tickets for any lesson')
+                    }
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">

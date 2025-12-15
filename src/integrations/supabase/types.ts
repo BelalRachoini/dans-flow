@@ -63,6 +63,106 @@ export type Database = {
           },
         ]
       }
+      course_class_selections: {
+        Row: {
+          class_id: string
+          course_id: string
+          created_at: string
+          id: string
+          member_id: string
+          order_id: string | null
+        }
+        Insert: {
+          class_id: string
+          course_id: string
+          created_at?: string
+          id?: string
+          member_id: string
+          order_id?: string | null
+        }
+        Update: {
+          class_id?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          member_id?: string
+          order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_class_selections_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "course_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_class_selections_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_class_selections_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_class_selections_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
+      course_classes: {
+        Row: {
+          course_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          name: string
+          start_time: string
+          updated_at: string
+          venue: string | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          name: string
+          start_time: string
+          updated_at?: string
+          venue?: string | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          name?: string
+          start_time?: string
+          updated_at?: string
+          venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_classes_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_instructors: {
         Row: {
           course_id: string
@@ -111,6 +211,7 @@ export type Database = {
       }
       course_lessons: {
         Row: {
+          class_id: string | null
           course_id: string
           created_at: string
           ends_at: string | null
@@ -122,6 +223,7 @@ export type Database = {
           venue: string | null
         }
         Insert: {
+          class_id?: string | null
           course_id: string
           created_at?: string
           ends_at?: string | null
@@ -133,6 +235,7 @@ export type Database = {
           venue?: string | null
         }
         Update: {
+          class_id?: string | null
           course_id?: string
           created_at?: string
           ends_at?: string | null
@@ -144,6 +247,13 @@ export type Database = {
           venue?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "course_lessons_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "course_classes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "course_lessons_course_id_fkey"
             columns: ["course_id"]
@@ -207,7 +317,9 @@ export type Database = {
           id: string
           image_url: string | null
           instructor_id: string | null
+          is_package: boolean
           level: string
+          max_selections: number | null
           points: number
           price_cents: number
           primary_instructor: string | null
@@ -225,7 +337,9 @@ export type Database = {
           id?: string
           image_url?: string | null
           instructor_id?: string | null
+          is_package?: boolean
           level?: string
+          max_selections?: number | null
           points?: number
           price_cents?: number
           primary_instructor?: string | null
@@ -243,7 +357,9 @@ export type Database = {
           id?: string
           image_url?: string | null
           instructor_id?: string | null
+          is_package?: boolean
           level?: string
+          max_selections?: number | null
           points?: number
           price_cents?: number
           primary_instructor?: string | null
