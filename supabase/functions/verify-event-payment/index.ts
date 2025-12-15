@@ -7,7 +7,38 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function buildEventEmail(customerName: string, eventName: string, eventDate: string, ticketCount: number, attendeeNames: string): string {
+function formatDateSwedish(date: Date): string {
+  return date.toLocaleDateString("sv-SE", { 
+    weekday: "long", 
+    year: "numeric", 
+    month: "long", 
+    day: "numeric", 
+    hour: "2-digit", 
+    minute: "2-digit" 
+  });
+}
+
+function buildEventEmail(
+  customerName: string, 
+  eventName: string, 
+  eventDates: string[], 
+  ticketCount: number, 
+  attendeeNames: string,
+  totalBookings: number
+): string {
+  const datesListSv = eventDates.map(d => `<li>${d}</li>`).join("");
+  const datesListEn = eventDates.map(d => `<li>${d}</li>`).join("");
+  const multiDateNote = eventDates.length > 1 
+    ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:10px;padding:12px;background:#fef3c7;border-radius:8px;">
+        <strong>⚠️ Obs:</strong> Du har fått ${totalBookings} separata QR-koder – en per person per dag. Visa rätt QR-kod vid entrén varje dag.
+       </div>`
+    : "";
+  const multiDateNoteEn = eventDates.length > 1 
+    ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:10px;padding:12px;background:#fef3c7;border-radius:8px;">
+        <strong>⚠️ Note:</strong> You have received ${totalBookings} separate QR codes – one per person per day. Show the correct QR code at the entrance each day.
+       </div>`
+    : "";
+
   return `<!doctype html>
 <html lang="sv">
   <head>
@@ -19,7 +50,7 @@ function buildEventEmail(customerName: string, eventName: string, eventDate: str
 
   <body style="margin:0;padding:0;background:#f5f7fb;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-      Bekräftelse: ${eventName} – ${eventDate}. Se biljetter i portalen under Tickets.
+      Bekräftelse: ${eventName}. Se biljetter i portalen under Tickets.
     </div>
 
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f7fb;">
@@ -71,12 +102,15 @@ function buildEventEmail(customerName: string, eventName: string, eventDate: str
                       </div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:8px;">
                         <strong>Event:</strong> ${eventName}<br/>
-                        <strong>Datum & tid:</strong> ${eventDate}<br/>
-                        <strong>Antal biljetter:</strong> ${ticketCount}
+                        <strong>Datum:</strong>
+                        <ul style="margin:4px 0 0 0;padding-left:18px;">${datesListSv}</ul>
+                        <strong>Antal biljetter:</strong> ${ticketCount} person(er) × ${eventDates.length} dag(ar) = ${totalBookings} QR-koder
                       </div>
                     </td>
                   </tr>
                 </table>
+
+                ${multiDateNote}
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:14px;">
                   <tr>
@@ -95,12 +129,12 @@ function buildEventEmail(customerName: string, eventName: string, eventDate: str
                   <tr>
                     <td>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#111827;font-weight:700;">
-                        Din biljett & QR-kod
+                        Dina biljetter & QR-koder
                       </div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:6px;">
-                        QR-koden finns i vår portal (inte i detta mejl). Logga in på
+                        QR-koderna finns i vår portal (inte i detta mejl). Logga in på
                         <a href="https://cms.dancevida.se/" style="color:#16a34a;text-decoration:underline;">https://cms.dancevida.se/</a>
-                        och gå till <strong>Tickets</strong> för att se din biljett.
+                        och gå till <strong>Tickets</strong> för att se dina biljetter.
                       </div>
                     </td>
                   </tr>
@@ -137,12 +171,15 @@ function buildEventEmail(customerName: string, eventName: string, eventDate: str
                       </div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:8px;">
                         <strong>Event:</strong> ${eventName}<br/>
-                        <strong>Date & time:</strong> ${eventDate}<br/>
-                        <strong>Ticket count:</strong> ${ticketCount}
+                        <strong>Dates:</strong>
+                        <ul style="margin:4px 0 0 0;padding-left:18px;">${datesListEn}</ul>
+                        <strong>Ticket count:</strong> ${ticketCount} person(s) × ${eventDates.length} day(s) = ${totalBookings} QR codes
                       </div>
                     </td>
                   </tr>
                 </table>
+
+                ${multiDateNoteEn}
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:14px;">
                   <tr>
@@ -161,12 +198,12 @@ function buildEventEmail(customerName: string, eventName: string, eventDate: str
                   <tr>
                     <td>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#111827;font-weight:700;">
-                        Your ticket & QR code
+                        Your tickets & QR codes
                       </div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#374151;margin-top:6px;">
-                        Your QR code is available in our portal (not in this email). Log in at
+                        Your QR codes are available in our portal (not in this email). Log in at
                         <a href="https://cms.dancevida.se/" style="color:#16a34a;text-decoration:underline;">https://cms.dancevida.se/</a>
-                        and go to <strong>Tickets</strong> to view your ticket.
+                        and go to <strong>Tickets</strong> to view your tickets.
                       </div>
                     </td>
                   </tr>
@@ -253,7 +290,7 @@ serve(async (req) => {
     // Get event_id and multi-ticket data from metadata
     const event_id = session.metadata?.event_id;
     const ticket_count = parseInt(session.metadata?.ticket_count || "1", 10);
-    const attendee_names = JSON.parse(session.metadata?.attendee_names || "[]");
+    const attendee_names: string[] = JSON.parse(session.metadata?.attendee_names || "[]");
     
     if (!event_id) {
       throw new Error("Event ID not found in session metadata");
@@ -261,57 +298,93 @@ serve(async (req) => {
 
     console.log("Payment verified for event:", event_id, "tickets:", ticket_count);
 
-    // Check if booking already exists
-    const { data: existingBooking } = await supabaseClient
+    // Check if bookings already exist for this user and event
+    const { data: existingBookings } = await supabaseClient
       .from("event_bookings")
       .select("id")
       .eq("member_id", user.id)
-      .eq("event_id", event_id)
-      .single();
+      .eq("event_id", event_id);
 
-    if (existingBooking) {
-      console.log("Booking already exists:", existingBooking.id);
+    if (existingBookings && existingBookings.length > 0) {
+      console.log("Bookings already exist:", existingBookings.length);
       return new Response(
         JSON.stringify({ 
           success: true, 
-          booking_id: existingBooking.id,
+          booking_ids: existingBookings.map(b => b.id),
           already_exists: true 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
-    // Create booking with QR code and multi-ticket data
-    const { data: booking, error: bookingError } = await supabaseClient
-      .from("event_bookings")
-      .insert({
-        member_id: user.id,
-        event_id: event_id,
-        status: "confirmed",
-        payment_status: "paid",
-        ticket_count: ticket_count,
-        checkins_allowed: ticket_count,
-        checkins_used: 0,
-        attendee_names: attendee_names,
-      })
-      .select()
-      .single();
+    // Fetch event dates for this event
+    const { data: eventDates } = await supabaseClient
+      .from("event_dates")
+      .select("id, start_at, end_at")
+      .eq("event_id", event_id)
+      .order("start_at", { ascending: true });
 
-    if (bookingError) throw bookingError;
-
-    console.log("Booking created:", booking.id, "with", ticket_count, "tickets");
-
-    // Increment sold_count by ticket_count
+    // Get event details
     const { data: currentEvent } = await supabaseClient
       .from("events")
       .select("sold_count, title, start_at")
       .eq("id", event_id)
       .single();
+
+    // Determine dates to create bookings for
+    // If no event_dates exist, use the main event start_at as single date
+    const datesToBook = eventDates && eventDates.length > 0 
+      ? eventDates 
+      : [{ id: null, start_at: currentEvent?.start_at, end_at: null }];
+
+    console.log("Creating bookings for", datesToBook.length, "dates ×", ticket_count, "attendees");
+
+    // Create one booking per attendee per date
+    const createdBookings = [];
+    for (const eventDate of datesToBook) {
+      for (let i = 0; i < ticket_count; i++) {
+        const attendeeName = attendee_names[i] || `Person ${i + 1}`;
+        
+        const { data: booking, error: bookingError } = await supabaseClient
+          .from("event_bookings")
+          .insert({
+            member_id: user.id,
+            event_id: event_id,
+            event_date_id: eventDate.id, // Links to specific date (null for single-date events)
+            status: "confirmed",
+            payment_status: "paid",
+            ticket_count: 1,
+            checkins_allowed: 1,
+            checkins_used: 0,
+            attendee_names: [attendeeName],
+            qr_payload: crypto.randomUUID(), // Unique QR per booking
+          })
+          .select()
+          .single();
+
+        if (bookingError) {
+          console.error("Error creating booking:", bookingError);
+          throw bookingError;
+        }
+        
+        createdBookings.push({
+          ...booking,
+          event_date_start: eventDate.start_at,
+          attendee_name: attendeeName
+        });
+      }
+    }
+
+    console.log("Created", createdBookings.length, "bookings");
+
+    // Calculate total tickets sold (attendees × dates)
+    const totalTicketsSold = ticket_count * datesToBook.length;
     
+    // Increment sold_count
     if (currentEvent) {
       await supabaseClient
         .from("events")
-        .update({ sold_count: currentEvent.sold_count + ticket_count })
+        .update({ sold_count: currentEvent.sold_count + totalTicketsSold })
         .eq("id", event_id);
     }
 
@@ -323,16 +396,12 @@ serve(async (req) => {
       .single();
 
     const customerName = profile?.full_name || user.email?.split("@")[0] || "Dansare";
-    const eventDate = currentEvent?.start_at 
-      ? new Date(currentEvent.start_at).toLocaleDateString("sv-SE", { 
-          weekday: "long", 
-          year: "numeric", 
-          month: "long", 
-          day: "numeric", 
-          hour: "2-digit", 
-          minute: "2-digit" 
-        })
-      : "TBD";
+    
+    // Format dates for email
+    const formattedDates = datesToBook.map(d => 
+      d.start_at ? formatDateSwedish(new Date(d.start_at)) : "TBD"
+    );
+    
     const attendeeNamesStr = attendee_names.length > 0 ? attendee_names.join(", ") : customerName;
 
     // Send confirmation email
@@ -340,9 +409,10 @@ serve(async (req) => {
       const emailHtml = buildEventEmail(
         customerName, 
         currentEvent?.title || "Event", 
-        eventDate, 
-        ticket_count, 
-        attendeeNamesStr
+        formattedDates, 
+        ticket_count,
+        attendeeNamesStr,
+        createdBookings.length
       );
       const emailResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
         method: "POST",
@@ -368,9 +438,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        booking_id: booking.id,
-        qr_payload: booking.qr_payload,
-        ticket_count: ticket_count,
+        booking_ids: createdBookings.map(b => b.id),
+        total_bookings: createdBookings.length,
+        dates_count: datesToBook.length,
+        attendees_count: ticket_count,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );

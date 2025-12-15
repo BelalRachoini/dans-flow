@@ -304,6 +304,7 @@ export type Database = {
           checkins_allowed: number
           checkins_used: number
           created_at: string
+          event_date_id: string | null
           event_id: string
           id: string
           member_id: string
@@ -318,6 +319,7 @@ export type Database = {
           checkins_allowed?: number
           checkins_used?: number
           created_at?: string
+          event_date_id?: string | null
           event_id: string
           id?: string
           member_id: string
@@ -332,6 +334,7 @@ export type Database = {
           checkins_allowed?: number
           checkins_used?: number
           created_at?: string
+          event_date_id?: string | null
           event_id?: string
           id?: string
           member_id?: string
@@ -341,6 +344,13 @@ export type Database = {
           ticket_count?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "event_bookings_event_date_id_fkey"
+            columns: ["event_date_id"]
+            isOneToOne: false
+            referencedRelation: "event_dates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_bookings_event_id_fkey"
             columns: ["event_id"]

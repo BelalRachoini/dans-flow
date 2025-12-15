@@ -49,6 +49,7 @@ interface EventTicket {
   id: string;
   member_id: string;
   event_id: string;
+  event_date_id: string | null;
   booked_at: string;
   status: string;
   qr_payload: string;
@@ -65,6 +66,11 @@ interface EventTicket {
     venue: string;
     description: string;
   };
+  event_dates: {
+    id: string;
+    start_at: string;
+    end_at: string | null;
+  } | null;
 }
 
 interface LessonBooking {
@@ -266,7 +272,7 @@ export default function Biljetter() {
 
       if (courseError) throw courseError;
 
-      // Load event tickets
+      // Load event tickets with event_dates info
       const { data: eventTickets, error: eventError } = await supabase
         .from('event_bookings')
         .select(`
@@ -278,6 +284,11 @@ export default function Biljetter() {
             end_at,
             venue,
             description
+          ),
+          event_dates (
+            id,
+            start_at,
+            end_at
           )
         `)
         .eq('member_id', user.id)
@@ -1134,81 +1145,125 @@ export default function Biljetter() {
                 Evenemangsbiljetter
               </h2>
               
-              <div className="space-y-3">
-                {validEventTickets.map((ticket) => {
-                  const event = ticket.events;
-                  const eventDate = new Date(event.start_at);
-                  const eventEndDate = event.end_at ? new Date(event.end_at) : null;
-                  const isToday = eventDate.toDateString() === new Date().toDateString();
-                  const statusBadge = getStatusBadge(ticket.status);
-                  
-                  return (
-                    <Card key={ticket.id} className="overflow-hidden">
-                      <CardContent className="p-4">
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          {/* Left: Event Info */}
-                          <div className="flex-1 space-y-3">
-                            <div>
-                              <h3 className="font-semibold text-lg">{event.title}</h3>
-                              <Badge variant={statusBadge.variant} className="mt-1">
-                                {statusBadge.label}
-                              </Badge>
-                            </div>
+              {/* Group tickets by event_id */}
+              {(() => {
+                const groupedByEvent = validEventTickets.reduce((acc, ticket) => {
+                  const eventId = ticket.event_id;
+                  if (!acc[eventId]) {
+                    acc[eventId] = {
+                      event: ticket.events,
+                      tickets: []
+                    };
+                  }
+                  acc[eventId].tickets.push(ticket);
+                  return acc;
+                }, {} as Record<string, { event: typeof validEventTickets[0]['events'], tickets: typeof validEventTickets }>);
+
+                return Object.entries(groupedByEvent).map(([eventId, { event, tickets: eventTickets }]) => (
+                  <Card key={eventId} className="overflow-hidden">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <PartyPopper className="h-5 w-5 text-primary" />
+                        {event.title}
+                      </CardTitle>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        <span>{event.venue}</span>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-3">
+                        {eventTickets
+                          .sort((a, b) => {
+                            // Sort by date first, then by attendee name
+                            const dateA = a.event_dates?.start_at || event.start_at;
+                            const dateB = b.event_dates?.start_at || event.start_at;
+                            const dateCompare = new Date(dateA).getTime() - new Date(dateB).getTime();
+                            if (dateCompare !== 0) return dateCompare;
                             
-                            <div className="space-y-2 text-sm">
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Calendar className="h-4 w-4 shrink-0" />
-                                <span>{formatDate(event.start_at)}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Clock className="h-4 w-4 shrink-0" />
-                                <span>
-                                  {formatTime(event.start_at)}
-                                  {eventEndDate && ` - ${formatTime(event.end_at!)}`}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <MapPin className="h-4 w-4 shrink-0" />
-                                <span>{event.venue}</span>
-                              </div>
-                            </div>
+                            const nameA = Array.isArray(a.attendee_names) && a.attendee_names[0] ? String(a.attendee_names[0]) : '';
+                            const nameB = Array.isArray(b.attendee_names) && b.attendee_names[0] ? String(b.attendee_names[0]) : '';
+                            return nameA.localeCompare(nameB);
+                          })
+                          .map((ticket) => {
+                            // Use event_dates start_at if available, otherwise fall back to event start_at
+                            const ticketDate = ticket.event_dates?.start_at || event.start_at;
+                            const ticketEndTime = ticket.event_dates?.end_at || event.end_at;
+                            const attendeeName = Array.isArray(ticket.attendee_names) && ticket.attendee_names[0] 
+                              ? String(ticket.attendee_names[0]) 
+                              : 'Person';
+                            const statusBadge = getStatusBadge(ticket.status);
+                            const hasMultipleDates = eventTickets.some(t => t.event_date_id && t.event_date_id !== eventTickets[0].event_date_id);
                             
-                            <div className="flex flex-wrap gap-2 pt-2">
-                              <p className="text-sm text-muted-foreground italic">
-                                Visa QR-koden vid entrén för att checka in
-                              </p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openQRModal(ticket)}
-                                className="gap-2"
+                            return (
+                              <div 
+                                key={ticket.id} 
+                                className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-muted/30 rounded-lg border"
                               >
-                                <QrCode className="h-4 w-4" />
-                                Visa QR i helskärm
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          {/* Right: QR Code Preview */}
-                          <div className="flex items-center justify-center sm:justify-end">
-                            <div className="bg-white p-2 rounded-lg border">
-                              {qrCanvasRef.current[ticket.qr_payload] ? (
-                                <img 
-                                  src={qrCanvasRef.current[ticket.qr_payload]} 
-                                  alt="QR Code"
-                                  className="w-24 h-24"
-                                />
-                              ) : (
-                                <div className="w-24 h-24 bg-muted animate-pulse rounded" />
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                                {/* Ticket Info */}
+                                <div className="flex-1 space-y-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{attendeeName}</span>
+                                    <Badge variant={statusBadge.variant} className="text-xs">
+                                      {statusBadge.label}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                                    <div className="flex items-center gap-1">
+                                      <Calendar className="h-3.5 w-3.5" />
+                                      <span>{formatDate(ticketDate)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Clock className="h-3.5 w-3.5" />
+                                      <span>
+                                        {formatTime(ticketDate)}
+                                        {ticketEndTime && ` - ${formatTime(ticketEndTime)}`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {hasMultipleDates && ticket.event_date_id && (
+                                    <p className="text-xs text-primary font-medium">
+                                      Dag {eventTickets.filter(t => t.event_date_id).findIndex(t => 
+                                        t.event_dates?.start_at === ticket.event_dates?.start_at
+                                      ) + 1} av {new Set(eventTickets.filter(t => t.event_date_id).map(t => t.event_dates?.start_at)).size}
+                                    </p>
+                                  )}
+                                </div>
+                                
+                                {/* QR Code Preview */}
+                                <div className="flex items-center gap-2">
+                                  <div className="bg-white p-1.5 rounded border">
+                                    {qrCanvasRef.current[ticket.qr_payload] ? (
+                                      <img 
+                                        src={qrCanvasRef.current[ticket.qr_payload]} 
+                                        alt="QR Code"
+                                        className="w-16 h-16"
+                                      />
+                                    ) : (
+                                      <div className="w-16 h-16 bg-muted animate-pulse rounded" />
+                                    )}
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openQRModal(ticket)}
+                                    className="gap-1"
+                                  >
+                                    <QrCode className="h-4 w-4" />
+                                    <span className="hidden sm:inline">Visa QR</span>
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                      <p className="text-xs text-muted-foreground italic mt-3">
+                        Visa QR-koden vid entrén för att checka in
+                      </p>
+                    </CardContent>
+                  </Card>
+                ));
+              })()}
             </div>
           )}
 
