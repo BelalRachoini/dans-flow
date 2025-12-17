@@ -33,7 +33,7 @@ serve(async (req) => {
       throw new Error("Missing lesson_id or ticket_type");
     }
 
-    if (!['single', 'couple'].includes(ticket_type)) {
+    if (!['single', 'couple', 'trio'].includes(ticket_type)) {
       throw new Error("Invalid ticket_type");
     }
 
@@ -61,8 +61,10 @@ serve(async (req) => {
 
     // Determine price based on ticket type
     const priceData = ticket_type === 'single' 
-      ? { amount: 15000, description: "Drop-in Single Ticket" }
-      : { amount: 25000, description: "Drop-in Couple Ticket" };
+      ? { amount: 15000, description: "Drop-in 1 Ticket" }
+      : ticket_type === 'couple'
+      ? { amount: 25000, description: "Drop-in 2 Tickets" }
+      : { amount: 35000, description: "Drop-in 3 Tickets" };
 
     // Search for existing product
     const products = await stripe.products.search({

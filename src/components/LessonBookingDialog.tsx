@@ -103,7 +103,7 @@ export const LessonBookingDialog = ({ open, onOpenChange, lesson }: LessonBookin
     }
   };
 
-  const handleBuyDropIn = async (ticketType: 'single' | 'couple') => {
+  const handleBuyDropIn = async (ticketType: 'single' | 'couple' | 'trio') => {
     if (!lesson) return;
     
     setLoading(true);
@@ -220,16 +220,17 @@ export const LessonBookingDialog = ({ open, onOpenChange, lesson }: LessonBookin
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <Button
                     onClick={() => handleBuyDropIn('single')}
                     disabled={loading}
                     variant="outline"
+                    className="h-auto py-3"
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <span className="text-sm">
+                      <span className="text-xs text-center">
                         {t.lessonBooking.single}<br />150 kr
                       </span>
                     )}
@@ -239,12 +240,28 @@ export const LessonBookingDialog = ({ open, onOpenChange, lesson }: LessonBookin
                     onClick={() => handleBuyDropIn('couple')}
                     disabled={loading}
                     variant="outline"
+                    className="h-auto py-3"
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <span className="text-sm">
+                      <span className="text-xs text-center">
                         {t.lessonBooking.couple}<br />250 kr
+                      </span>
+                    )}
+                  </Button>
+
+                  <Button
+                    onClick={() => handleBuyDropIn('trio')}
+                    disabled={loading}
+                    variant="outline"
+                    className="h-auto py-3"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <span className="text-xs text-center">
+                        {t.lessonBooking.trio}<br />350 kr
                       </span>
                     )}
                   </Button>
