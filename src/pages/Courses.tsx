@@ -759,23 +759,14 @@ export default function Courses() {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-1">
-                  <Badge className="w-fit text-xs" variant="secondary">
-                    {getLevelBadge(course.level)}
+                {role === 'admin' && course.status === 'draft' && (
+                  <Badge variant="outline" className="w-fit text-xs">
+                    {t.events.statusDraft}
                   </Badge>
-                  {role === 'admin' && course.status === 'draft' && (
-                    <Badge variant="outline" className="w-fit text-xs">
-                      {t.events.statusDraft}
-                    </Badge>
-                  )}
-                </div>
+                )}
               </CardHeader>
               <CardContent className="p-2 sm:p-3 md:p-4 pt-0 flex-1 flex flex-col justify-between space-y-3">
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm sm:text-base">{course.lesson_count || 0} {t.courses.lessonsCount}</span>
-                  </div>
                   {course.instructors && course.instructors.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {course.instructors.map((instructor) => (
