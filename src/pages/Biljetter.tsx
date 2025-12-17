@@ -126,6 +126,12 @@ export default function Biljetter() {
     checkedIn: 0
   });
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
+  
+  // Package-specific admin state
+  const [selectedCourseIsPackage, setSelectedCourseIsPackage] = useState(false);
+  const [packageClasses, setPackageClasses] = useState<any[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [packageDayFilter, setPackageDayFilter] = useState<number[]>([]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -462,7 +468,7 @@ export default function Biljetter() {
   const loadAdminCourses = async () => {
     const { data, error } = await supabase
       .from('courses')
-      .select('id, title, starts_at, ends_at, venue, status')
+      .select('id, title, starts_at, ends_at, venue, status, is_package')
       .order('starts_at', { ascending: false });
     
     if (!error && data) {
@@ -482,6 +488,21 @@ export default function Biljetter() {
   };
 
   const loadCourseAttendees = async (courseId: string) => {
+    // Check if this is a package course
+    const course = courses.find(c => c.id === courseId);
+    const isPackage = course?.is_package || false;
+    setSelectedCourseIsPackage(isPackage);
+    setSelectedClassId(null);
+    setPackageDayFilter([]);
+    
+    if (isPackage) {
+      await loadPackageClassesAttendance(courseId);
+      return;
+    }
+    
+    // Reset package data for regular courses
+    setPackageClasses([]);
+    
     const { data: ticketData, error } = await supabase
       .from('tickets')
       .select(`
@@ -541,6 +562,143 @@ export default function Biljetter() {
     };
     
     setAttendanceStats(stats);
+  };
+
+  const loadPackageClassesAttendance = async (courseId: string) => {
+    // Load all classes for this package
+    const { data: classesData, error: classesError } = await supabase
+      .from('course_classes')
+      .select('id, name, day_of_week, start_time, end_time, venue')
+      .eq('course_id', courseId)
+      .order('day_of_week')
+      .order('start_time');
+    
+    if (classesError) {
+      console.error('Error loading package classes:', classesError);
+      return;
+    }
+    
+    // Load all class selections with profile data
+    const { data: selectionsData, error: selectionsError } = await supabase
+      .from('course_class_selections')
+      .select(`
+        id,
+        class_id,
+        member_id,
+        profiles!inner (
+          id,
+          full_name,
+          email,
+          phone,
+          dance_role
+        )
+      `)
+      .eq('course_id', courseId);
+    
+    if (selectionsError) {
+      console.error('Error loading class selections:', selectionsError);
+      return;
+    }
+    
+    // Load check-ins for all lessons in this course
+    const { data: lessonsData } = await supabase
+      .from('course_lessons')
+      .select('id, class_id')
+      .eq('course_id', courseId);
+    
+    const lessonIds = lessonsData?.map(l => l.id) || [];
+    const lessonToClassMap = new Map(lessonsData?.map(l => [l.id, l.class_id]) || []);
+    
+    const { data: checkinsData } = await supabase
+      .from('lesson_bookings')
+      .select('lesson_id, member_id, checkins_used')
+      .in('lesson_id', lessonIds)
+      .gt('checkins_used', 0);
+    
+    // Build class attendance data
+    const classAttendance = classesData?.map(cls => {
+      const classSelections = selectionsData?.filter(s => s.class_id === cls.id) || [];
+      const memberIds = classSelections.map(s => s.member_id);
+      
+      // Count check-ins for this class's lessons
+      const classLessonIds = lessonsData?.filter(l => l.class_id === cls.id).map(l => l.id) || [];
+      const classCheckins = checkinsData?.filter(c => classLessonIds.includes(c.lesson_id)) || [];
+      const checkedInMembers = new Set(classCheckins.map(c => c.member_id));
+      
+      const leaders = classSelections.filter(s => (s.profiles as any).dance_role === 'leader').length;
+      const followers = classSelections.filter(s => (s.profiles as any).dance_role === 'follower').length;
+      const notSet = classSelections.filter(s => !(s.profiles as any).dance_role).length;
+      const checkedIn = memberIds.filter(id => checkedInMembers.has(id)).length;
+      
+      return {
+        id: cls.id,
+        name: cls.name,
+        dayOfWeek: cls.day_of_week,
+        startTime: cls.start_time,
+        endTime: cls.end_time,
+        venue: cls.venue,
+        enrolledCount: classSelections.length,
+        leaders,
+        followers,
+        notSet,
+        checkedIn,
+        selections: classSelections.map(s => ({
+          memberId: s.member_id,
+          name: (s.profiles as any).full_name || 'Unknown',
+          email: (s.profiles as any).email,
+          phone: (s.profiles as any).phone,
+          danceRole: (s.profiles as any).dance_role,
+          hasCheckedIn: checkedInMembers.has(s.member_id)
+        }))
+      };
+    }) || [];
+    
+    setPackageClasses(classAttendance);
+    
+    // Calculate overall stats
+    const allSelections = selectionsData || [];
+    const uniqueMembers = new Map();
+    allSelections.forEach(s => {
+      if (!uniqueMembers.has(s.member_id)) {
+        uniqueMembers.set(s.member_id, s.profiles);
+      }
+    });
+    
+    const uniqueMembersList = Array.from(uniqueMembers.values());
+    const stats = {
+      totalAttendees: uniqueMembersList.length,
+      leaders: uniqueMembersList.filter((p: any) => p.dance_role === 'leader').length,
+      followers: uniqueMembersList.filter((p: any) => p.dance_role === 'follower').length,
+      notSet: uniqueMembersList.filter((p: any) => !p.dance_role).length,
+      checkedIn: classAttendance.reduce((sum, cls) => sum + cls.checkedIn, 0)
+    };
+    
+    setAttendanceStats(stats);
+    setAttendees([]);
+  };
+
+  const loadClassAttendees = (classId: string) => {
+    const cls = packageClasses.find(c => c.id === classId);
+    if (cls) {
+      setAttendees(cls.selections);
+      setSelectedClassId(classId);
+      
+      const stats = {
+        totalAttendees: cls.enrolledCount,
+        leaders: cls.leaders,
+        followers: cls.followers,
+        notSet: cls.notSet,
+        checkedIn: cls.checkedIn
+      };
+      setAttendanceStats(stats);
+    }
+  };
+
+  const backToPackageOverview = () => {
+    setSelectedClassId(null);
+    if (selectedCourse) {
+      loadPackageClassesAttendance(selectedCourse);
+    }
   };
 
   const loadEventAttendees = async (eventId: string) => {
@@ -807,7 +965,12 @@ export default function Biljetter() {
                     <SelectContent>
                       {courses.map(course => (
                         <SelectItem key={course.id} value={course.id}>
-                          {course.title} - {format(new Date(course.starts_at), 'MMM yyyy')}
+                          <div className="flex items-center gap-2">
+                            <span>{course.title} - {format(new Date(course.starts_at), 'MMM yyyy')}</span>
+                            {course.is_package && (
+                              <Badge variant="secondary" className="text-xs">📦 Paket</Badge>
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -884,65 +1047,204 @@ export default function Biljetter() {
                     </Card>
                   </div>
 
-                  {/* Attendees Table */}
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{t.tickets.name || 'Name'}</TableHead>
-                          <TableHead>{t.tickets.email || 'Email'}</TableHead>
-                          <TableHead>{t.tickets.phone || 'Phone'}</TableHead>
-                          <TableHead>{t.tickets.danceRole || 'Dance Role'}</TableHead>
-                          {adminView === 'courses' && (
-                            <TableHead>{t.tickets.ticketsRemaining || 'Tickets Remaining'}</TableHead>
-                          )}
-                          <TableHead>{t.tickets.checkInStatus || 'Check-in Status'}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {attendees.map(attendee => (
-                          <TableRow key={attendee.id}>
-                            <TableCell className="font-medium">{attendee.name}</TableCell>
-                            <TableCell>{attendee.email}</TableCell>
-                            <TableCell>{attendee.phone || '-'}</TableCell>
-                            <TableCell>
-                              <Badge variant={
-                                attendee.danceRole === 'leader' ? 'default' : 
-                                attendee.danceRole === 'follower' ? 'secondary' : 
-                                'outline'
-                              }>
-                                {attendee.danceRole === 'leader' ? t.profile.leader : 
-                                 attendee.danceRole === 'follower' ? t.profile.follower : 
-                                 t.profile.notSet}
-                              </Badge>
-                            </TableCell>
-                            {adminView === 'courses' && (
-                              <TableCell>{attendee.ticketsRemaining || 0}</TableCell>
-                            )}
-                            <TableCell>
-                              {attendee.hasCheckedIn ? (
-                                <Badge variant="default" className="bg-green-600">
-                                  <Check className="mr-1 h-3 w-3" />
-                                  {t.tickets.checkedIn || 'Checked In'}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">
-                                  {t.tickets.notCheckedIn || 'Not Checked In'}
-                                </Badge>
+                  {/* Package Classes Overview - Show when package is selected and no specific class is selected */}
+                  {selectedCourseIsPackage && !selectedClassId && packageClasses.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                          📦 Paketöversikt - {packageClasses.length} klasser
+                        </h3>
+                      </div>
+                      
+                      {/* Day Filter for Package Classes */}
+                      {(() => {
+                        const availableDays = [...new Set(packageClasses.map(cls => cls.dayOfWeek))].sort();
+                        const dayLabels: Record<number, string> = {
+                          0: 'Sön', 1: 'Mån', 2: 'Tis', 3: 'Ons', 4: 'Tor', 5: 'Fre', 6: 'Lör'
+                        };
+                        
+                        if (availableDays.length > 1) {
+                          return (
+                            <div className="flex flex-wrap gap-2 items-center">
+                              <span className="text-sm text-muted-foreground">Filtrera:</span>
+                              {availableDays.map(day => (
+                                <Button
+                                  key={day}
+                                  variant={packageDayFilter.includes(day) ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setPackageDayFilter(prev => 
+                                    prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                                  )}
+                                  className="h-7 px-2 text-xs"
+                                >
+                                  {dayLabels[day]}
+                                </Button>
+                              ))}
+                              {packageDayFilter.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setPackageDayFilter([])}
+                                  className="h-7 px-2 text-xs"
+                                >
+                                  <X className="h-3 w-3 mr-1" />
+                                  Rensa
+                                </Button>
                               )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {attendees.length === 0 && (
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      {/* Package Classes Grid */}
+                      <div className="grid gap-3">
+                        {packageClasses
+                          .filter(cls => packageDayFilter.length === 0 || packageDayFilter.includes(cls.dayOfWeek))
+                          .map(cls => {
+                            const dayLabels: Record<number, string> = {
+                              0: 'SÖNDAGAR', 1: 'MÅNDAGAR', 2: 'TISDAGAR', 3: 'ONSDAGAR', 
+                              4: 'TORSDAGAR', 5: 'FREDAGAR', 6: 'LÖRDAGAR'
+                            };
+                            
+                            return (
+                              <Card key={cls.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                                <CardContent className="p-4">
+                                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4 text-primary" />
+                                        <span className="font-semibold">{dayLabels[cls.dayOfWeek]} {cls.startTime?.slice(0,5)}</span>
+                                        <span className="text-lg font-bold">{cls.name}</span>
+                                      </div>
+                                      {cls.venue && (
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                          <MapPin className="h-3 w-3" />
+                                          <span>{cls.venue}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <div className="flex items-center gap-1 text-sm">
+                                        <Users className="h-4 w-4" />
+                                        <span className="font-semibold">{cls.enrolledCount}</span>
+                                        <span className="text-muted-foreground">anmälda</span>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Badge variant="default" className="bg-blue-600 text-xs">
+                                          🔵 {cls.leaders}
+                                        </Badge>
+                                        <Badge variant="secondary" className="text-xs">
+                                          🩷 {cls.followers}
+                                        </Badge>
+                                        {cls.notSet > 0 && (
+                                          <Badge variant="outline" className="text-xs">
+                                            ⚪ {cls.notSet}
+                                          </Badge>
+                                        )}
+                                        <Badge variant="default" className="bg-green-600 text-xs">
+                                          ✅ {cls.checkedIn}
+                                        </Badge>
+                                      </div>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => loadClassAttendees(cls.id)}
+                                      >
+                                        Visa deltagare
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                      </div>
+                      
+                      {packageClasses.filter(cls => packageDayFilter.length === 0 || packageDayFilter.includes(cls.dayOfWeek)).length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          Inga klasser på de valda dagarna
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Back to Overview Button for Package Classes */}
+                  {selectedCourseIsPackage && selectedClassId && (
+                    <div className="flex items-center gap-2 mb-4">
+                      <Button variant="outline" size="sm" onClick={backToPackageOverview}>
+                        ← Tillbaka till paketöversikt
+                      </Button>
+                      <span className="text-muted-foreground">
+                        Visar: {packageClasses.find(c => c.id === selectedClassId)?.name}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Attendees Table - Show for regular courses OR when viewing a specific class in a package */}
+                  {(!selectedCourseIsPackage || selectedClassId) && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <Table>
+                        <TableHeader>
                           <TableRow>
-                            <TableCell colSpan={adminView === 'courses' ? 6 : 5} className="text-center text-muted-foreground py-8">
-                              {t.tickets.noAttendees || 'No attendees found'}
-                            </TableCell>
+                            <TableHead>{t.tickets.name || 'Name'}</TableHead>
+                            <TableHead>{t.tickets.email || 'Email'}</TableHead>
+                            <TableHead>{t.tickets.phone || 'Phone'}</TableHead>
+                            <TableHead>{t.tickets.danceRole || 'Dance Role'}</TableHead>
+                            {adminView === 'courses' && !selectedCourseIsPackage && (
+                              <TableHead>{t.tickets.ticketsRemaining || 'Tickets Remaining'}</TableHead>
+                            )}
+                            <TableHead>{t.tickets.checkInStatus || 'Check-in Status'}</TableHead>
                           </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        </TableHeader>
+                        <TableBody>
+                          {attendees.map(attendee => (
+                            <TableRow key={attendee.id || attendee.memberId}>
+                              <TableCell className="font-medium">{attendee.name}</TableCell>
+                              <TableCell>{attendee.email}</TableCell>
+                              <TableCell>{attendee.phone || '-'}</TableCell>
+                              <TableCell>
+                                <Badge variant={
+                                  attendee.danceRole === 'leader' ? 'default' : 
+                                  attendee.danceRole === 'follower' ? 'secondary' : 
+                                  'outline'
+                                }>
+                                  {attendee.danceRole === 'leader' ? t.profile.leader : 
+                                   attendee.danceRole === 'follower' ? t.profile.follower : 
+                                   t.profile.notSet}
+                                </Badge>
+                              </TableCell>
+                              {adminView === 'courses' && !selectedCourseIsPackage && (
+                                <TableCell>{attendee.ticketsRemaining || 0}</TableCell>
+                              )}
+                              <TableCell>
+                                {attendee.hasCheckedIn ? (
+                                  <Badge variant="default" className="bg-green-600">
+                                    <Check className="mr-1 h-3 w-3" />
+                                    {t.tickets.checkedIn || 'Checked In'}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline">
+                                    {t.tickets.notCheckedIn || 'Not Checked In'}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {attendees.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={adminView === 'courses' && !selectedCourseIsPackage ? 6 : 5} className="text-center text-muted-foreground py-8">
+                                {selectedCourseIsPackage && selectedClassId 
+                                  ? 'Inga deltagare i denna klass'
+                                  : (t.tickets.noAttendees || 'No attendees found')}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>
