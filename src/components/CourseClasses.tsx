@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Plus, Trash2, Info, Calendar, Clock, MapPin } from 'lucide-react';
+import { Plus, Trash2, Info, Calendar, Clock, MapPin, Pencil, X, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv as svLocale } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,6 +43,8 @@ export function CourseClasses({ courseId, courseStartDate, courseEndDate }: Cour
   const { t } = useLanguageStore();
   const [classes, setClasses] = useState<CourseClass[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<CourseClass | null>(null);
   const [newClass, setNewClass] = useState<CourseClass>({
     name: '',
     day_of_week: 1,
@@ -222,9 +224,106 @@ export function CourseClasses({ courseId, courseStartDate, courseEndDate }: Cour
     }
   };
 
+  const startEditing = (cls: CourseClass) => {
+    setEditingClassId(cls.id || null);
+    setEditForm({ ...cls });
+  };
+
+  const cancelEditing = () => {
+    setEditingClassId(null);
+    setEditForm(null);
+  };
+
+  const updateClass = async () => {
+    if (!editForm || !editingClassId || !courseId) return;
+
+    if (!editForm.name.trim()) {
+      toast.error('Ange ett namn för klassen');
+      return;
+    }
+
+    if (!courseStartDate || !courseEndDate) {
+      toast.error('Kursen måste ha start- och slutdatum');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Update the class
+      const { error: classError } = await supabase
+        .from('course_classes')
+        .update({
+          name: editForm.name,
+          day_of_week: editForm.day_of_week,
+          start_time: editForm.start_time,
+          end_time: editForm.end_time,
+          venue: editForm.venue || null,
+        })
+        .eq('id', editingClassId);
+
+      if (classError) throw classError;
+
+      // Delete old lessons for this class
+      await supabase
+        .from('course_lessons')
+        .delete()
+        .eq('class_id', editingClassId);
+
+      // Regenerate lessons with new schedule
+      const dates = calculateRecurringLessons(
+        courseStartDate,
+        courseEndDate,
+        editForm.day_of_week
+      );
+
+      const lessonsToInsert = dates.map((date, index) => {
+        const [startHour, startMinute] = editForm.start_time.split(':');
+        const [endHour, endMinute] = editForm.end_time.split(':');
+        
+        const startsAt = new Date(date);
+        startsAt.setHours(parseInt(startHour), parseInt(startMinute), 0, 0);
+        
+        const endsAt = new Date(date);
+        endsAt.setHours(parseInt(endHour), parseInt(endMinute), 0, 0);
+        
+        return {
+          course_id: courseId,
+          class_id: editingClassId,
+          title: `${editForm.name} - ${index + 1}`,
+          starts_at: startsAt.toISOString(),
+          ends_at: endsAt.toISOString(),
+          venue: editForm.venue || null,
+        };
+      });
+
+      if (lessonsToInsert.length > 0) {
+        const { error: lessonsError } = await supabase
+          .from('course_lessons')
+          .insert(lessonsToInsert);
+
+        if (lessonsError) throw lessonsError;
+      }
+
+      toast.success(`Klass uppdaterad med ${lessonsToInsert.length} lektioner`);
+      setEditingClassId(null);
+      setEditForm(null);
+      loadClasses();
+    } catch (error) {
+      console.error('Error updating class:', error);
+      toast.error('Kunde inte uppdatera klass');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getPreviewCount = () => {
     if (!courseStartDate || !courseEndDate) return 0;
     return calculateRecurringLessons(courseStartDate, courseEndDate, newClass.day_of_week).length;
+  };
+
+  const getEditPreviewCount = () => {
+    if (!courseStartDate || !courseEndDate || !editForm) return 0;
+    return calculateRecurringLessons(courseStartDate, courseEndDate, editForm.day_of_week).length;
   };
 
   return (
@@ -322,37 +421,130 @@ export function CourseClasses({ courseId, courseStartDate, courseEndDate }: Cour
         {classes.map((cls) => (
           <Card key={cls.id}>
             <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-lg">{cls.name}</h4>
-                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {dayLabels[cls.day_of_week]}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {cls.start_time} - {cls.end_time}
-                    </div>
-                    {cls.venue && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        {cls.venue}
-                      </div>
-                    )}
+              {editingClassId === cls.id && editForm ? (
+                // Edit mode
+                <div className="space-y-4">
+                  <div>
+                    <Label>Klassnamn</Label>
+                    <Input
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    />
                   </div>
-                  <div className="text-sm text-primary font-medium">
-                    {cls.lesson_count} lektioner
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Veckodag</Label>
+                      <Select 
+                        value={editForm.day_of_week.toString()} 
+                        onValueChange={(v) => setEditForm({ ...editForm, day_of_week: parseInt(v) })}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Måndag</SelectItem>
+                          <SelectItem value="2">Tisdag</SelectItem>
+                          <SelectItem value="3">Onsdag</SelectItem>
+                          <SelectItem value="4">Torsdag</SelectItem>
+                          <SelectItem value="5">Fredag</SelectItem>
+                          <SelectItem value="6">Lördag</SelectItem>
+                          <SelectItem value="0">Söndag</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Plats</Label>
+                      <Input
+                        value={editForm.venue}
+                        onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Starttid</Label>
+                      <Input
+                        type="time"
+                        value={editForm.start_time}
+                        onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Sluttid</Label>
+                      <Input
+                        type="time"
+                        value={editForm.end_time}
+                        onChange={(e) => setEditForm({ ...editForm, end_time: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  {courseStartDate && courseEndDate && (
+                    <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                      <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <AlertTitle className="text-amber-900 dark:text-amber-100">
+                        {getEditPreviewCount()} lektioner kommer återskapas
+                      </AlertTitle>
+                      <AlertDescription className="text-amber-800 dark:text-amber-200 text-sm">
+                        Alla befintliga lektioner för denna klass ersätts
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button onClick={updateClass} disabled={loading} className="flex-1">
+                      <Check className="h-4 w-4 mr-2" />
+                      Spara
+                    </Button>
+                    <Button variant="outline" onClick={cancelEditing} disabled={loading}>
+                      <X className="h-4 w-4 mr-2" />
+                      Avbryt
+                    </Button>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => cls.id && deleteClass(cls.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
+              ) : (
+                // View mode
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-lg">{cls.name}</h4>
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {dayLabels[cls.day_of_week]}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {cls.start_time} - {cls.end_time}
+                      </div>
+                      {cls.venue && (
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-4 w-4" />
+                          {cls.venue}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-sm text-primary font-medium">
+                      {cls.lesson_count} lektioner
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => startEditing(cls)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => cls.id && deleteClass(cls.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
