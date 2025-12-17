@@ -32,11 +32,6 @@ interface CourseLessonsProps {
   courseEndDate?: Date;
 }
 
-const timeOptions = Array.from({ length: 13 }, (_, i) => {
-  const hour = 17 + Math.floor(i / 2);
-  const minute = i % 2 === 0 ? '00' : '30';
-  return `${hour.toString().padStart(2, '0')}:${minute}`;
-});
 
 export function CourseLessons({ courseId, courseStartDate, courseEndDate }: CourseLessonsProps) {
   const { t } = useLanguageStore();
@@ -361,17 +356,19 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
                 </div>
                 <div>
                   <Label>{t.courses.lessons?.startTime || 'Starttid'}</Label>
-                  <Select value={recurringForm.startTime} onValueChange={(v) => setRecurringForm({ ...recurringForm, startTime: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Input
+                    type="time"
+                    value={recurringForm.startTime}
+                    onChange={(e) => setRecurringForm({ ...recurringForm, startTime: e.target.value })}
+                  />
                 </div>
                 <div>
                   <Label>{t.courses.lessons?.endTime || 'Sluttid'}</Label>
-                  <Select value={recurringForm.endTime} onValueChange={(v) => setRecurringForm({ ...recurringForm, endTime: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Input
+                    type="time"
+                    value={recurringForm.endTime}
+                    onChange={(e) => setRecurringForm({ ...recurringForm, endTime: e.target.value })}
+                  />
                 </div>
                 <div>
                   <Label>Plats</Label>
@@ -445,41 +442,31 @@ export function CourseLessons({ courseId, courseStartDate, courseEndDate }: Cour
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Starttid</Label>
-                      <Select 
-                        value={lesson.starts_at ? format(lesson.starts_at, 'HH:mm') : '18:00'} 
-                        onValueChange={(time) => { 
-                          const [h, m] = time.split(':'); 
-                          const date = new Date(lesson.starts_at || new Date()); 
-                          date.setHours(parseInt(h), parseInt(m)); 
-                          updateLesson(index, 'starts_at', date); 
+                      <Input
+                        type="time"
+                        className="h-9"
+                        value={lesson.starts_at ? format(lesson.starts_at, 'HH:mm') : '18:00'}
+                        onChange={(e) => {
+                          const [h, m] = e.target.value.split(':');
+                          const date = new Date(lesson.starts_at || new Date());
+                          date.setHours(parseInt(h), parseInt(m));
+                          updateLesson(index, 'starts_at', date);
                         }}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Sluttid</Label>
-                      <Select 
-                        value={lesson.ends_at ? format(lesson.ends_at, 'HH:mm') : '20:00'} 
-                        onValueChange={(time) => { 
-                          const [h, m] = time.split(':'); 
-                          const date = new Date(lesson.starts_at || new Date()); 
-                          date.setHours(parseInt(h), parseInt(m)); 
-                          updateLesson(index, 'ends_at', date); 
+                      <Input
+                        type="time"
+                        className="h-9"
+                        value={lesson.ends_at ? format(lesson.ends_at, 'HH:mm') : '20:00'}
+                        onChange={(e) => {
+                          const [h, m] = e.target.value.split(':');
+                          const date = new Date(lesson.starts_at || new Date());
+                          date.setHours(parseInt(h), parseInt(m));
+                          updateLesson(index, 'ends_at', date);
                         }}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      />
                     </div>
                   </div>
                   <div>
