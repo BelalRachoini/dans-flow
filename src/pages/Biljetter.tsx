@@ -132,6 +132,20 @@ export default function Biljetter() {
   const [packageClasses, setPackageClasses] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [packageDayFilter, setPackageDayFilter] = useState<number[]>([]);
+  
+  // Member's class selections for package courses
+  const [memberClassSelections, setMemberClassSelections] = useState<{
+    courseId: string;
+    courseTitle: string;
+    classes: {
+      id: string;
+      name: string;
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      venue: string | null;
+    }[];
+  }[]>([]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -320,6 +334,67 @@ export default function Biljetter() {
 
       if (lessonError) throw lessonError;
       setLessonBookings(lessonBookingsData || []);
+
+      // Load class selections for package courses
+      const { data: classSelectionsData, error: classSelectionsError } = await supabase
+        .from('course_class_selections')
+        .select(`
+          course_id,
+          class_id,
+          courses (
+            id,
+            title,
+            is_package
+          ),
+          course_classes (
+            id,
+            name,
+            day_of_week,
+            start_time,
+            end_time,
+            venue
+          )
+        `)
+        .eq('member_id', user.id);
+
+      if (!classSelectionsError && classSelectionsData) {
+        // Group selections by course
+        const groupedSelections: { [courseId: string]: { courseTitle: string; classes: any[] } } = {};
+        
+        for (const selection of classSelectionsData) {
+          const course = selection.courses as any;
+          const classInfo = selection.course_classes as any;
+          
+          if (course?.is_package && classInfo) {
+            if (!groupedSelections[course.id]) {
+              groupedSelections[course.id] = {
+                courseTitle: course.title,
+                classes: []
+              };
+            }
+            groupedSelections[course.id].classes.push({
+              id: classInfo.id,
+              name: classInfo.name,
+              dayOfWeek: classInfo.day_of_week,
+              startTime: classInfo.start_time,
+              endTime: classInfo.end_time,
+              venue: classInfo.venue
+            });
+          }
+        }
+        
+        // Sort classes by day of week and time within each course
+        const selectionsArray = Object.entries(groupedSelections).map(([courseId, data]) => ({
+          courseId,
+          courseTitle: data.courseTitle,
+          classes: data.classes.sort((a, b) => {
+            if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+            return a.startTime.localeCompare(b.startTime);
+          })
+        }));
+        
+        setMemberClassSelections(selectionsArray);
+      }
 
       // Combine and type tickets
       const allTickets: AllTickets[] = [
@@ -1307,7 +1382,63 @@ export default function Biljetter() {
             </Card>
           )}
 
-          {/* Info Box */}
+          {/* SELECTED CLASSES FOR PACKAGE COURSES */}
+          {memberClassSelections.length > 0 && (
+            <div className="space-y-4">
+              {memberClassSelections.map((selection) => {
+                const dayNames = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
+                
+                return (
+                  <Card key={selection.courseId} className="border-primary/20">
+                    <Collapsible defaultOpen>
+                      <CollapsibleTrigger className="w-full">
+                        <CardHeader className="pb-2 cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <GraduationCap className="h-5 w-5 text-primary" />
+                              Mina valda klasser
+                              <Badge variant="secondary" className="ml-1">{selection.classes.length}</Badge>
+                            </CardTitle>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+                          </div>
+                          <p className="text-sm text-muted-foreground text-left">
+                            {selection.courseTitle}
+                          </p>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0">
+                          <div className="divide-y divide-border">
+                            {selection.classes.map((classInfo) => (
+                              <div key={classInfo.id} className="py-3 first:pt-0 last:pb-0">
+                                <div className="flex items-start gap-3">
+                                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                    <Calendar className="h-5 w-5 text-primary" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm uppercase tracking-wide text-primary">
+                                      {dayNames[classInfo.dayOfWeek]}AR {classInfo.startTime.slice(0, 5)}
+                                    </p>
+                                    <p className="font-semibold truncate">{classInfo.name}</p>
+                                    {classInfo.venue && (
+                                      <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                        <MapPin className="h-3 w-3" />
+                                        <span>{classInfo.venue}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
           <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
             <CardContent className="p-4 flex gap-3">
               <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
