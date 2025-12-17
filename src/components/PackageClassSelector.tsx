@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, MapPin, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar, Clock, MapPin, AlertCircle, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
@@ -25,6 +26,16 @@ interface PackageClassSelectorProps {
 }
 
 const dayLabels: Record<number, string> = {
+  0: 'Sön',
+  1: 'Mån',
+  2: 'Tis',
+  3: 'Ons',
+  4: 'Tor',
+  5: 'Fre',
+  6: 'Lör',
+};
+
+const dayLabelsFull: Record<number, string> = {
   0: 'Söndag',
   1: 'Måndag',
   2: 'Tisdag',
@@ -43,6 +54,7 @@ export function PackageClassSelector({
   const { t } = useLanguageStore();
   const [classes, setClasses] = useState<CourseClass[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
 
   useEffect(() => {
     loadClasses();
@@ -91,10 +103,29 @@ export function PackageClassSelector({
     }
   };
 
+  const toggleDay = (day: number) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
+  };
+
+  const clearFilter = () => setSelectedDays([]);
+
   const isMaxReached = selectedClassIds.length >= maxSelections;
+  
+  // Filter classes by selected days
+  const filteredClasses = selectedDays.length === 0
+    ? classes
+    : classes.filter(cls => selectedDays.includes(cls.day_of_week));
+
   const totalLessons = classes
     .filter(cls => selectedClassIds.includes(cls.id))
     .reduce((sum, cls) => sum + (cls.lesson_count || 0), 0);
+
+  // Get unique days that have classes
+  const availableDays = [...new Set(classes.map(cls => cls.day_of_week))].sort();
 
   if (loading) {
     return <div className="text-center py-4 text-muted-foreground">Laddar klasser...</div>;
@@ -113,6 +144,39 @@ export function PackageClassSelector({
 
   return (
     <div className="space-y-4">
+      {/* Day Filter */}
+      {availableDays.length > 1 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-muted-foreground">Filtrera efter dag:</span>
+            {selectedDays.length > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={clearFilter}
+                className="h-7 px-2 text-xs"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Rensa
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {availableDays.map(day => (
+              <Button
+                key={day}
+                variant={selectedDays.includes(day) ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggleDay(day)}
+                className="h-8 px-3 text-xs"
+              >
+                {dayLabels[day]}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">
           Välj dina klasser
@@ -132,7 +196,11 @@ export function PackageClassSelector({
       )}
 
       <div className="space-y-3">
-        {classes.map((cls) => {
+        {filteredClasses.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            Inga klasser på de valda dagarna
+          </div>
+        ) : filteredClasses.map((cls) => {
           const isSelected = selectedClassIds.includes(cls.id);
           const isDisabled = !isSelected && isMaxReached;
           
