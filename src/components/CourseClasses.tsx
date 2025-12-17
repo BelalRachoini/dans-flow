@@ -28,11 +28,6 @@ interface CourseClassesProps {
   courseEndDate?: Date;
 }
 
-const timeOptions = Array.from({ length: 13 }, (_, i) => {
-  const hour = 17 + Math.floor(i / 2);
-  const minute = i % 2 === 0 ? '00' : '30';
-  return `${hour.toString().padStart(2, '0')}:${minute}`;
-});
 
 const dayLabels: Record<number, string> = {
   0: 'Söndag',
@@ -287,27 +282,19 @@ export function CourseClasses({ courseId, courseStartDate, courseEndDate }: Cour
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Starttid</Label>
-              <Select 
-                value={newClass.start_time} 
-                onValueChange={(v) => setNewClass({ ...newClass, start_time: v })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input
+                type="time"
+                value={newClass.start_time}
+                onChange={(e) => setNewClass({ ...newClass, start_time: e.target.value })}
+              />
             </div>
             <div>
               <Label>Sluttid</Label>
-              <Select 
-                value={newClass.end_time} 
-                onValueChange={(v) => setNewClass({ ...newClass, end_time: v })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {timeOptions.map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input
+                type="time"
+                value={newClass.end_time}
+                onChange={(e) => setNewClass({ ...newClass, end_time: e.target.value })}
+              />
             </div>
           </div>
 
