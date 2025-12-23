@@ -675,35 +675,93 @@ export default function Biljetter() {
       return;
     }
     
-    // Load check-ins for all lessons in this course
+    // Load lessons for all classes in this package
     const { data: lessonsData } = await supabase
       .from('course_lessons')
       .select('id, class_id')
       .eq('course_id', courseId);
     
     const lessonIds = lessonsData?.map(l => l.id) || [];
-    const lessonToClassMap = new Map(lessonsData?.map(l => [l.id, l.class_id]) || []);
     
-    const { data: checkinsData } = await supabase
+    // Load ALL lesson bookings for these lessons (including package_auto)
+    const { data: lessonBookingsData } = await supabase
       .from('lesson_bookings')
-      .select('lesson_id, member_id, checkins_used')
-      .in('lesson_id', lessonIds)
-      .gt('checkins_used', 0);
+      .select(`
+        lesson_id, 
+        member_id, 
+        ticket_type, 
+        checkins_used,
+        profiles:member_id (
+          id,
+          full_name,
+          email,
+          phone,
+          dance_role
+        )
+      `)
+      .in('lesson_id', lessonIds);
+    
+    // Separate package_auto bookings from regular check-ins
+    const packageAutoBookings = lessonBookingsData?.filter(b => b.ticket_type === 'package_auto') || [];
+    const regularCheckins = lessonBookingsData?.filter(b => b.ticket_type !== 'package_auto' && b.checkins_used > 0) || [];
     
     // Build class attendance data
     const classAttendance = classesData?.map(cls => {
       const classSelections = selectionsData?.filter(s => s.class_id === cls.id) || [];
-      const memberIds = classSelections.map(s => s.member_id);
       
-      // Count check-ins for this class's lessons
+      // Get all lessons for this class
       const classLessonIds = lessonsData?.filter(l => l.class_id === cls.id).map(l => l.id) || [];
-      const classCheckins = checkinsData?.filter(c => classLessonIds.includes(c.lesson_id)) || [];
-      const checkedInMembers = new Set(classCheckins.map(c => c.member_id));
       
-      const leaders = classSelections.filter(s => (s.profiles as any).dance_role === 'leader').length;
-      const followers = classSelections.filter(s => (s.profiles as any).dance_role === 'follower').length;
-      const notSet = classSelections.filter(s => !(s.profiles as any).dance_role).length;
-      const checkedIn = memberIds.filter(id => checkedInMembers.has(id)).length;
+      // Get auto-enrolled members for this class (from package_auto bookings)
+      const classAutoEnrolled = packageAutoBookings.filter(b => classLessonIds.includes(b.lesson_id));
+      const autoEnrolledMemberIds = new Set(classAutoEnrolled.map(b => b.member_id));
+      
+      // Get regular check-ins for this class
+      const classRegularCheckins = regularCheckins.filter(c => classLessonIds.includes(c.lesson_id));
+      const regularCheckedInMembers = new Set(classRegularCheckins.map(c => c.member_id));
+      
+      // Combine selections and auto-enrolled members (avoid duplicates)
+      const allMemberIds = new Set([
+        ...classSelections.map(s => s.member_id),
+        ...autoEnrolledMemberIds
+      ]);
+      
+      // Build member list with auto-enrolled flag
+      const membersList: any[] = [];
+      
+      // Add from selections
+      classSelections.forEach(s => {
+        membersList.push({
+          memberId: s.member_id,
+          name: (s.profiles as any).full_name || 'Unknown',
+          email: (s.profiles as any).email,
+          phone: (s.profiles as any).phone,
+          danceRole: (s.profiles as any).dance_role,
+          hasCheckedIn: autoEnrolledMemberIds.has(s.member_id) || regularCheckedInMembers.has(s.member_id),
+          isAutoEnrolled: autoEnrolledMemberIds.has(s.member_id),
+        });
+      });
+      
+      // Add auto-enrolled members that aren't in selections
+      classAutoEnrolled.forEach(b => {
+        if (!classSelections.some(s => s.member_id === b.member_id)) {
+          const profile = b.profiles as any;
+          membersList.push({
+            memberId: b.member_id,
+            name: profile?.full_name || 'Unknown',
+            email: profile?.email,
+            phone: profile?.phone,
+            danceRole: profile?.dance_role,
+            hasCheckedIn: true,
+            isAutoEnrolled: true,
+          });
+        }
+      });
+      
+      const leaders = membersList.filter(m => m.danceRole === 'leader').length;
+      const followers = membersList.filter(m => m.danceRole === 'follower').length;
+      const notSet = membersList.filter(m => !m.danceRole).length;
+      const checkedIn = membersList.filter(m => m.hasCheckedIn).length;
       
       return {
         id: cls.id,
@@ -712,40 +770,34 @@ export default function Biljetter() {
         startTime: cls.start_time,
         endTime: cls.end_time,
         venue: cls.venue,
-        enrolledCount: classSelections.length,
+        enrolledCount: membersList.length,
         leaders,
         followers,
         notSet,
         checkedIn,
-        selections: classSelections.map(s => ({
-          memberId: s.member_id,
-          name: (s.profiles as any).full_name || 'Unknown',
-          email: (s.profiles as any).email,
-          phone: (s.profiles as any).phone,
-          danceRole: (s.profiles as any).dance_role,
-          hasCheckedIn: checkedInMembers.has(s.member_id)
-        }))
+        selections: membersList
       };
     }) || [];
     
     setPackageClasses(classAttendance);
     
     // Calculate overall stats
-    const allSelections = selectionsData || [];
-    const uniqueMembers = new Map();
-    allSelections.forEach(s => {
-      if (!uniqueMembers.has(s.member_id)) {
-        uniqueMembers.set(s.member_id, s.profiles);
-      }
+    const allMembersMap = new Map();
+    classAttendance.forEach(cls => {
+      cls.selections.forEach((s: any) => {
+        if (!allMembersMap.has(s.memberId)) {
+          allMembersMap.set(s.memberId, s);
+        }
+      });
     });
     
-    const uniqueMembersList = Array.from(uniqueMembers.values());
+    const uniqueMembersList = Array.from(allMembersMap.values());
     const stats = {
       totalAttendees: uniqueMembersList.length,
-      leaders: uniqueMembersList.filter((p: any) => p.dance_role === 'leader').length,
-      followers: uniqueMembersList.filter((p: any) => p.dance_role === 'follower').length,
-      notSet: uniqueMembersList.filter((p: any) => !p.dance_role).length,
-      checkedIn: classAttendance.reduce((sum, cls) => sum + cls.checkedIn, 0)
+      leaders: uniqueMembersList.filter((p: any) => p.danceRole === 'leader').length,
+      followers: uniqueMembersList.filter((p: any) => p.danceRole === 'follower').length,
+      notSet: uniqueMembersList.filter((p: any) => !p.danceRole).length,
+      checkedIn: uniqueMembersList.filter((p: any) => p.hasCheckedIn).length
     };
     
     setAttendanceStats(stats);
@@ -862,8 +914,14 @@ export default function Biljetter() {
   const totalAvailableTickets = validPackages.reduce((sum, p) => sum + (p.total_tickets - p.tickets_used), 0);
   
   // Separate valid and used/expired lesson bookings
-  const validLessonBookings = lessonBookings.filter(b => b.status === 'valid' && b.checkins_used < b.checkins_allowed);
-  const historyLessonBookings = lessonBookings.filter(b => b.status === 'used' || b.checkins_used >= b.checkins_allowed);
+  // Package auto-enrolled bookings are shown differently (already "checked in")
+  const validLessonBookings = lessonBookings.filter(b => 
+    b.ticket_type !== 'package_auto' && b.status === 'valid' && b.checkins_used < b.checkins_allowed
+  );
+  const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto');
+  const historyLessonBookings = lessonBookings.filter(b => 
+    b.ticket_type !== 'package_auto' && (b.status === 'used' || b.checkins_used >= b.checkins_allowed)
+  );
   
   // Event tickets (with type discriminator)
   const eventTicketsTyped = tickets.filter(t => t.type === 'event') as (EventTicket & { type: 'event' })[];
@@ -1294,7 +1352,11 @@ export default function Biljetter() {
                                 <TableCell>{attendee.ticketsRemaining || 0}</TableCell>
                               )}
                               <TableCell>
-                                {attendee.hasCheckedIn ? (
+                                {attendee.isAutoEnrolled ? (
+                                  <Badge variant="default" className="bg-purple-600">
+                                    📦 Paket
+                                  </Badge>
+                                ) : attendee.hasCheckedIn ? (
                                   <Badge variant="default" className="bg-green-600">
                                     <Check className="mr-1 h-3 w-3" />
                                     {t.tickets.checkedIn || 'Checked In'}
@@ -1439,6 +1501,74 @@ export default function Biljetter() {
               })}
             </div>
           )}
+
+          {/* PACKAGE AUTO-ENROLLED LESSONS SECTION */}
+          {packageAutoBookings.length > 0 && (
+            <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="w-full">
+                  <CardHeader className="pb-2 cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-900/20 transition-colors rounded-t-lg">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        📦 Paketinskriven
+                        <Badge variant="secondary" className="ml-1 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200">
+                          {packageAutoBookings.length} lektioner
+                        </Badge>
+                      </CardTitle>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+                    </div>
+                    <p className="text-sm text-muted-foreground text-left">
+                      Du är automatiskt inskriven på dessa lektioner via ditt kurspaket
+                    </p>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <div className="divide-y divide-border">
+                      {packageAutoBookings
+                        .sort((a, b) => new Date(a.course_lessons.starts_at).getTime() - new Date(b.course_lessons.starts_at).getTime())
+                        .map((booking) => {
+                          const lesson = booking.course_lessons;
+                          const lessonDate = new Date(lesson.starts_at);
+                          const isPast = lessonDate < new Date();
+                          
+                          return (
+                            <div key={booking.id} className={`py-3 first:pt-0 last:pb-0 ${isPast ? 'opacity-50' : ''}`}>
+                              <div className="flex items-start gap-3">
+                                <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center shrink-0">
+                                  <Check className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold truncate">{lesson.title || 'Lektion'}</p>
+                                    <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700">
+                                      Inskriven
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{formatDate(lesson.starts_at)}</span>
+                                    <Clock className="h-3 w-3 ml-2" />
+                                    <span>{formatTime(lesson.starts_at)}</span>
+                                  </div>
+                                  {lesson.venue && (
+                                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                      <MapPin className="h-3 w-3" />
+                                      <span>{lesson.venue}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          )}
+
           <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
             <CardContent className="p-4 flex gap-3">
               <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
