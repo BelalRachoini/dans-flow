@@ -323,6 +323,7 @@ export type Database = {
           points: number
           price_cents: number
           primary_instructor: string | null
+          show_on_calendar: boolean
           starts_at: string | null
           status: string
           title: string
@@ -343,6 +344,7 @@ export type Database = {
           points?: number
           price_cents?: number
           primary_instructor?: string | null
+          show_on_calendar?: boolean
           starts_at?: string | null
           status?: string
           title: string
@@ -363,6 +365,7 @@ export type Database = {
           points?: number
           price_cents?: number
           primary_instructor?: string | null
+          show_on_calendar?: boolean
           starts_at?: string | null
           status?: string
           title?: string
