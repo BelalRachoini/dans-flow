@@ -39,7 +39,16 @@ serve(async (req) => {
 
     if (courseError || !course) throw new Error("Course not found");
 
-    console.log("Course found:", course.title, "Price:", course.price_cents, "Is package:", course.is_package);
+    // Calculate final price with discount
+    let finalPrice = course.price_cents;
+    
+    if (course.discount_type === 'percent' && course.discount_value > 0) {
+      finalPrice = Math.round(course.price_cents * (1 - course.discount_value / 100));
+    } else if (course.discount_type === 'amount' && course.discount_value > 0) {
+      finalPrice = Math.max(course.price_cents - course.discount_value, 100); // Minimum 1 SEK
+    }
+
+    console.log("Course found:", course.title, "Original Price:", course.price_cents, "Final Price:", finalPrice, "Is package:", course.is_package);
 
     // Validate package selection
     if (course.is_package) {
@@ -94,21 +103,22 @@ serve(async (req) => {
         console.log("Cleared description for existing product");
       }
       
-      const prices = await stripe.prices.list({ product: product.id, limit: 1 });
+      const prices = await stripe.prices.list({ product: product.id, active: true, limit: 10 });
       
-      // Check if existing price matches database price
-      if (prices.data.length > 0 && prices.data[0].unit_amount === course.price_cents) {
+      // Check if existing price matches the final calculated price (with discount applied)
+      const matchingPrice = prices.data.find((p: { unit_amount: number | null }) => p.unit_amount === finalPrice);
+      
+      if (matchingPrice) {
         // Price matches - use existing price
-        priceId = prices.data[0].id;
-        console.log("Using existing price:", priceId);
+        priceId = matchingPrice.id;
+        console.log("Using existing price:", priceId, "for amount:", finalPrice);
       } else {
-        // Price mismatch - create new price for existing product
-        console.log("Price mismatch detected. Creating new price...");
-        console.log("Old Stripe price:", prices.data[0]?.unit_amount, "New DB price:", course.price_cents);
+        // No matching price - create new price for existing product
+        console.log("No matching price found. Creating new price for amount:", finalPrice);
         
         const newPrice = await stripe.prices.create({
           product: product.id,
-          unit_amount: course.price_cents,
+          unit_amount: finalPrice,
           currency: "sek",
         });
         priceId = newPrice.id;
@@ -124,7 +134,7 @@ serve(async (req) => {
 
       const price = await stripe.prices.create({
         product: product.id,
-        unit_amount: course.price_cents,
+        unit_amount: finalPrice,
         currency: "sek",
       });
       priceId = price.id;

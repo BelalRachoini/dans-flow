@@ -14,7 +14,8 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CourseLessons } from '@/components/CourseLessons';
 import { CourseClasses } from '@/components/CourseClasses';
-import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock, Copy, Package } from 'lucide-react';
+import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock, Copy, Package, Percent } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useAuthStore } from '@/store/authStore';
@@ -50,6 +51,9 @@ const courseSchema = z.object({
   is_package: z.boolean().default(false),
   max_selections: z.number().min(1).max(20).optional(),
   show_on_calendar: z.boolean().default(true),
+  discount_enabled: z.boolean().default(false),
+  discount_type: z.enum(['none', 'percent', 'amount']).default('none'),
+  discount_value: z.number().min(0).default(0),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
@@ -66,6 +70,22 @@ type DbCourse = {
   status: string;
   lesson_count?: number;
   instructors?: Array<{ id: string; full_name: string; is_primary: boolean }>;
+  discount_type?: string;
+  discount_value?: number;
+};
+
+// Helper function to calculate discounted price
+const calculateDisplayPrice = (course: DbCourse): { original: number; final: number; hasDiscount: boolean } => {
+  const original = course.price_cents;
+  let final = original;
+  
+  if (course.discount_type === 'percent' && course.discount_value && course.discount_value > 0) {
+    final = Math.round(original * (1 - course.discount_value / 100));
+  } else if (course.discount_type === 'amount' && course.discount_value && course.discount_value > 0) {
+    final = Math.max(original - course.discount_value, 100);
+  }
+  
+  return { original, final, hasDiscount: final < original };
 };
 
 export default function Courses() {
@@ -79,6 +99,8 @@ export default function Courses() {
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
   const [instructors, setInstructors] = useState<{ id: string; full_name: string }[]>([]);
 
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<CourseFormData>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
@@ -90,6 +112,9 @@ export default function Courses() {
       is_package: false,
       max_selections: 2,
       show_on_calendar: true,
+      discount_enabled: false,
+      discount_type: 'none',
+      discount_value: 0,
     }
   });
 
@@ -174,6 +199,22 @@ export default function Courses() {
 
   const onSubmit = async (data: CourseFormData) => {
     try {
+      // Validate discount
+      if (data.discount_enabled) {
+        if (data.discount_type === 'percent' && (data.discount_value < 1 || data.discount_value > 90)) {
+          toast.error('Rabatt i procent måste vara mellan 1% och 90%');
+          return;
+        }
+        if (data.discount_type === 'amount') {
+          const discountCents = Math.round(data.discount_value * 100);
+          const priceCents = Math.round(data.price * 100);
+          if (discountCents >= priceCents) {
+            toast.error('Rabattbeloppet kan inte vara lika med eller större än priset');
+            return;
+          }
+        }
+      }
+
       const courseData = {
         title: data.title,
         image_url: data.image_url || null,
@@ -189,6 +230,10 @@ export default function Courses() {
         is_package: data.is_package,
         max_selections: data.is_package ? data.max_selections : null,
         show_on_calendar: data.show_on_calendar,
+        discount_type: data.discount_enabled ? data.discount_type : 'none',
+        discount_value: data.discount_enabled 
+          ? (data.discount_type === 'amount' ? Math.round(data.discount_value * 100) : data.discount_value) 
+          : 0,
       };
 
       let courseId: string;
@@ -263,6 +308,16 @@ export default function Courses() {
     setValue('is_package', (course as any).is_package || false);
     setValue('max_selections', (course as any).max_selections || 2);
     setValue('show_on_calendar', (course as any).show_on_calendar ?? true);
+    
+    // Handle discount fields
+    const hasDiscount = course.discount_type && course.discount_type !== 'none';
+    setDiscountEnabled(hasDiscount);
+    setValue('discount_enabled', hasDiscount);
+    setValue('discount_type', (course.discount_type as 'none' | 'percent' | 'amount') || 'none');
+    setValue('discount_value', course.discount_type === 'amount' 
+      ? (course.discount_value || 0) / 100 
+      : (course.discount_value || 0));
+    
     setSheetOpen(true);
   };
 
@@ -674,6 +729,91 @@ export default function Courses() {
                   )}
                 </div>
 
+                {/* Discount options */}
+                <div className="pt-4 border-t space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Percent className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="discount_enabled" className="font-normal">
+                        Aktivera rabatt
+                      </Label>
+                    </div>
+                    <Switch
+                      id="discount_enabled"
+                      checked={discountEnabled}
+                      onCheckedChange={(checked) => {
+                        setDiscountEnabled(checked);
+                        setValue('discount_enabled', checked);
+                        if (!checked) {
+                          setValue('discount_type', 'none');
+                          setValue('discount_value', 0);
+                        } else {
+                          setValue('discount_type', 'percent');
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  {discountEnabled && (
+                    <div className="space-y-3">
+                      <div>
+                        <Label>Rabattyp</Label>
+                        <Select
+                          value={watch('discount_type')}
+                          onValueChange={(v) => {
+                            setValue('discount_type', v as 'none' | 'percent' | 'amount');
+                            setValue('discount_value', 0);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percent">Procent (%)</SelectItem>
+                            <SelectItem value="amount">Fast belopp (kr)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="discount_value">
+                          {watch('discount_type') === 'percent' ? 'Rabatt i %' : 'Rabatt i kr'}
+                        </Label>
+                        <Input
+                          id="discount_value"
+                          type="number"
+                          min={0}
+                          max={watch('discount_type') === 'percent' ? 90 : undefined}
+                          placeholder={watch('discount_type') === 'percent' ? 'T.ex. 20' : 'T.ex. 200'}
+                          value={watch('discount_value') || ''}
+                          onChange={(e) => setValue('discount_value', Number(e.target.value))}
+                        />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {watch('discount_type') === 'percent' 
+                            ? 'Ange rabatt mellan 1-90%' 
+                            : 'Ange belopp i kronor'}
+                        </p>
+                      </div>
+                      
+                      {watch('discount_value') > 0 && (
+                        <div className="p-3 bg-muted rounded-lg">
+                          <p className="text-sm">
+                            <span className="text-muted-foreground">Ordinarie pris: </span>
+                            <span className="line-through">{watch('price')} kr</span>
+                          </p>
+                          <p className="text-sm font-medium text-green-600">
+                            <span className="text-muted-foreground">Rabatterat pris: </span>
+                            {watch('discount_type') === 'percent'
+                              ? Math.round(watch('price') * (1 - watch('discount_value') / 100))
+                              : Math.max(watch('price') - watch('discount_value'), 1)
+                            } kr
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Calendar visibility option */}
                 <div className="flex items-center space-x-3 py-3 border-t">
                   <Checkbox
@@ -800,10 +940,33 @@ export default function Courses() {
                 </div>
                 <div className="pt-3 border-t mt-auto">
                   <div className="space-y-2">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xs text-muted-foreground">{t.courses.priceLabel}</span>
-                      <span className="text-lg sm:text-xl md:text-2xl font-bold">{course.price_cents / 100} kr</span>
-                    </div>
+                    {(() => {
+                      const pricing = calculateDisplayPrice(course);
+                      return (
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-xs text-muted-foreground">{t.courses.priceLabel}</span>
+                          {pricing.hasDiscount ? (
+                            <>
+                              <span className="text-sm line-through text-muted-foreground">
+                                {pricing.original / 100} kr
+                              </span>
+                              <span className="text-lg sm:text-xl md:text-2xl font-bold text-green-600">
+                                {pricing.final / 100} kr
+                              </span>
+                              {course.discount_type === 'percent' && (
+                                <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
+                                  -{course.discount_value}%
+                                </Badge>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-lg sm:text-xl md:text-2xl font-bold">
+                              {pricing.original / 100} kr
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </CardContent>
