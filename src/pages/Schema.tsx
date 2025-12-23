@@ -78,14 +78,17 @@ export default function Schema() {
           currentDate
         });
 
-        // Fetch course lessons with course info, filtering by show_on_calendar
-        const { data: lessons, error: lessonsError } = await supabase
+        // Fetch course lessons with course info
+        const { data: lessonsRaw, error: lessonsError } = await supabase
           .from('course_lessons')
-          .select('*, course:courses!inner(id, show_on_calendar, status)')
+          .select('*, course:courses!inner(id, show_on_calendar, status, title)')
           .gte('starts_at', startDate)
-          .lte('starts_at', endDate)
-          .eq('course.show_on_calendar', true)
-          .eq('course.status', 'published');
+          .lte('starts_at', endDate);
+        
+        // Filter by show_on_calendar and published status
+        const lessons = (lessonsRaw || []).filter(
+          (lesson: any) => lesson.course?.show_on_calendar === true && lesson.course?.status === 'published'
+        );
 
         console.log('📚 Lessons query result:', { 
           count: lessons?.length, 

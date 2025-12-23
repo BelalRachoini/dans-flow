@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { CourseLessons } from '@/components/CourseLessons';
 import { CourseClasses } from '@/components/CourseClasses';
 import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock, Copy, Package } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -674,25 +675,20 @@ export default function Courses() {
                 </div>
 
                 {/* Calendar visibility option */}
-                <div className="flex items-center justify-between py-3 border-t">
+                <div className="flex items-center space-x-3 py-3 border-t">
+                  <Checkbox
+                    id="show_on_calendar"
+                    checked={watch('show_on_calendar')}
+                    onCheckedChange={(checked) => setValue('show_on_calendar', checked === true)}
+                  />
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="show_on_calendar" className="font-normal">
-                        Visa på kalender/schema
-                      </Label>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <Label htmlFor="show_on_calendar" className="font-medium cursor-pointer">
+                      Visa på kalender/schema
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
                       Om avmarkerat kommer kursens lektioner inte visas på den publika kalendern
                     </p>
                   </div>
-                  <input
-                    type="checkbox"
-                    id="show_on_calendar"
-                    checked={watch('show_on_calendar')}
-                    onChange={(e) => setValue('show_on_calendar', e.target.checked)}
-                    className="h-4 w-4 rounded border-input ml-4"
-                  />
                 </div>
                 {editingCourse && (
                   <div className="pt-4 border-t">
