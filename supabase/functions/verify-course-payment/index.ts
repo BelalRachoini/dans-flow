@@ -306,14 +306,43 @@ serve(async (req) => {
         // Don't throw - continue with ticket creation
       }
 
-      // Count lessons in selected classes
-      const { count: lessonsCount } = await supabaseClient
+      // Fetch all lessons for selected classes
+      const { data: lessonsForClasses, error: lessonsQueryError } = await supabaseClient
         .from("course_lessons")
-        .select("*", { count: "exact", head: true })
+        .select("id, class_id, title, starts_at")
         .in("class_id", selectedClassIds);
 
+      if (lessonsQueryError) {
+        console.error("Error fetching lessons for package:", lessonsQueryError);
+      }
+
+      const lessonsCount = lessonsForClasses?.length || 0;
       total_tickets = lessonsCount || selectedClassIds.length * 8; // Default fallback
       console.log("Package: Created selections for", selectedClassIds.length, "classes with", total_tickets, "total lessons");
+
+      // AUTO-ENROLL: Create lesson_bookings for all lessons in selected classes
+      if (lessonsForClasses && lessonsForClasses.length > 0) {
+        const lessonBookingsToInsert = lessonsForClasses.map(lesson => ({
+          member_id: user.id,
+          lesson_id: lesson.id,
+          ticket_type: "package_auto",
+          checkins_allowed: 1,
+          checkins_used: 1, // Already "checked in" / auto-enrolled
+          status: "used",
+          qr_payload: crypto.randomUUID(),
+        }));
+
+        const { error: bookingsError } = await supabaseClient
+          .from("lesson_bookings")
+          .insert(lessonBookingsToInsert);
+
+        if (bookingsError) {
+          console.error("Error creating auto-enrollment lesson bookings:", bookingsError);
+          // Don't throw - the ticket was still created successfully
+        } else {
+          console.log("Package: Auto-enrolled member in", lessonsForClasses.length, "lessons");
+        }
+      }
 
     } else {
       // REGULAR COURSE: Count all lessons
