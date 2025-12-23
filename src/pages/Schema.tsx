@@ -78,12 +78,14 @@ export default function Schema() {
           currentDate
         });
 
-        // Fetch course lessons with course_id
+        // Fetch course lessons with course info, filtering by show_on_calendar
         const { data: lessons, error: lessonsError } = await supabase
           .from('course_lessons')
-          .select('*, course_id')
+          .select('*, course:courses!inner(id, show_on_calendar, status)')
           .gte('starts_at', startDate)
-          .lte('starts_at', endDate);
+          .lte('starts_at', endDate)
+          .eq('course.show_on_calendar', true)
+          .eq('course.status', 'published');
 
         console.log('📚 Lessons query result:', { 
           count: lessons?.length, 

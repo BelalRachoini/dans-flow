@@ -48,6 +48,7 @@ const courseSchema = z.object({
   ends_at: z.date().optional(),
   is_package: z.boolean().default(false),
   max_selections: z.number().min(1).max(20).optional(),
+  show_on_calendar: z.boolean().default(true),
 });
 
 type CourseFormData = z.infer<typeof courseSchema>;
@@ -87,6 +88,7 @@ export default function Courses() {
       instructors: [],
       is_package: false,
       max_selections: 2,
+      show_on_calendar: true,
     }
   });
 
@@ -185,6 +187,7 @@ export default function Courses() {
         created_by: (await supabase.auth.getUser()).data.user?.id,
         is_package: data.is_package,
         max_selections: data.is_package ? data.max_selections : null,
+        show_on_calendar: data.show_on_calendar,
       };
 
       let courseId: string;
@@ -258,6 +261,7 @@ export default function Courses() {
     setValue('ends_at', (course as any).ends_at ? new Date((course as any).ends_at) : undefined);
     setValue('is_package', (course as any).is_package || false);
     setValue('max_selections', (course as any).max_selections || 2);
+    setValue('show_on_calendar', (course as any).show_on_calendar ?? true);
     setSheetOpen(true);
   };
 
@@ -669,6 +673,27 @@ export default function Courses() {
                   )}
                 </div>
 
+                {/* Calendar visibility option */}
+                <div className="flex items-center justify-between py-3 border-t">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="show_on_calendar" className="font-normal">
+                        Visa på kalender/schema
+                      </Label>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Om avmarkerat kommer kursens lektioner inte visas på den publika kalendern
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="show_on_calendar"
+                    checked={watch('show_on_calendar')}
+                    onChange={(e) => setValue('show_on_calendar', e.target.checked)}
+                    className="h-4 w-4 rounded border-input ml-4"
+                  />
+                </div>
                 {editingCourse && (
                   <div className="pt-4 border-t">
                     {watch('is_package') ? (

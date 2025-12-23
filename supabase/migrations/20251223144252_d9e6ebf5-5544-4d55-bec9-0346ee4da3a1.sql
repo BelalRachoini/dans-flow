@@ -1,0 +1,1 @@
+ALTER TABLE courses ADD COLUMN show_on_calendar boolean NOT NULL DEFAULT true;
