@@ -476,66 +476,69 @@ export default function Schema() {
     });
 
     return (
-      <ScrollArea className="w-full">
-        <div className="flex gap-2 min-w-max">
-          {weekDays.map((day) => {
-            const dayItems = getCalendarItems(day);
-            const isTodayDate = isToday(day);
-            
-            return (
-                <div 
-                  key={day.toString()} 
-                  className={`min-w-[90px] flex-shrink-0 border rounded-lg overflow-hidden ${
-                    isTodayDate ? 'ring-2 ring-primary' : ''
-                  }`}
-                >
-                  <div className={`text-center p-2 border-b ${isTodayDate ? 'bg-primary/10' : 'bg-muted/30'}`}>
-                    <div className="text-xs font-medium uppercase">
+      <div className="space-y-3">
+        {weekDays.map((day) => {
+          const dayItems = getCalendarItems(day);
+          const isTodayDate = isToday(day);
+          
+          return (
+            <Card 
+              key={day.toString()} 
+              className={`${isTodayDate ? 'ring-2 ring-primary' : ''}`}
+            >
+              <CardHeader className={`py-3 px-4 ${isTodayDate ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`text-sm font-bold uppercase ${isTodayDate ? 'text-primary' : ''}`}>
                       {format(day, 'EEE', { locale: getDateLocale() })}
                     </div>
                     <div className={`text-lg font-bold ${isTodayDate ? 'text-primary' : ''}`}>
-                      {format(day, 'd')}
+                      {format(day, 'd MMM', { locale: getDateLocale() })}
                     </div>
-                    {hasItems(day) && (
-                      <div className="flex gap-0.5 justify-center mt-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                      </div>
-                    )}
                   </div>
-                
-                <div className="p-2 space-y-1 min-h-[200px]">
-                  {dayItems.length === 0 ? (
-                    <div className="text-center py-4">
-                      <p className="text-xs text-muted-foreground">-</p>
-                    </div>
-                  ) : (
-                    dayItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`p-2 rounded text-xs cursor-pointer transition-all hover:shadow-md border-l-2 ${
-                          item.type === 'lesson'
-                            ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20'
-                            : 'bg-purple-500/10 border-purple-500 hover:bg-purple-500/20'
-                        }`}
-                        onClick={() => handleBooking(item)}
-                      >
-                        <div className="font-semibold line-clamp-1 mb-1">{item.title}</div>
-                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-2.5 w-2.5" />
-                          {item.startTime}
-                        </div>
-                        <Badge variant="outline" className="text-[10px] mt-1 h-4">
-                          {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
-                        </Badge>
-                      </div>
-                    ))
+                  {dayItems.length > 0 && (
+                    <Badge variant="secondary">{dayItems.length}</Badge>
                   )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </ScrollArea>
+              </CardHeader>
+              <CardContent className="py-3 px-4 space-y-2">
+                {dayItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-2">-</p>
+                ) : (
+                  dayItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-lg cursor-pointer transition-all hover:shadow-md border-l-4 ${
+                        item.type === 'lesson'
+                          ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20'
+                          : 'bg-purple-500/10 border-purple-500 hover:bg-purple-500/20'
+                      }`}
+                      onClick={() => handleBooking(item)}
+                    >
+                      <div className="font-semibold text-sm mb-1">{item.title}</div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {item.startTime} - {item.endTime}
+                        </span>
+                        {item.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {item.location}
+                          </span>
+                        )}
+                      </div>
+                      <Badge variant="outline" className="text-xs mt-2">
+                        {item.type === 'lesson' ? t.calendar.lesson : t.calendar.event}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     );
   };
 
@@ -653,7 +656,10 @@ export default function Schema() {
       currentWeekStart = addWeeks(currentWeekStart, 1);
     }
 
-    const weekdays = ["M", "T", "W", "T", "F", "S", "S"];
+    const weekdays = eachDayOfInterval({
+      start: startOfWeek(new Date(), { weekStartsOn: 1 }),
+      end: addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 6)
+    }).map(day => format(day, 'EEEEE', { locale: getDateLocale() }));
 
     return (
       <div className="space-y-1">
