@@ -1,117 +1,109 @@
 
 
-## Plan: Allow Admins to Remove Tickets from Members
+## Plan: Hide Ticket Availability from Members on Events Page
 
 ### Overview
-Add the ability for admins to deduct/remove tickets from a member's ticket balance. This will be the counterpart to the existing "Give Tickets" feature in the member detail drawer.
+Hide the number of available tickets/capacity from regular members on the Events page and Event Detail page. This information will only be visible to admins.
 
-### How It Will Work
+### Current Behavior
+Members currently see:
+- On event cards: "Tickets available" + "X/Y capacity" text
+- On event detail hero section: "X spots left"
+- On event detail booking section: "X / Y spots available"
 
-**For Admins:**
-- In the Quick Actions section of the member drawer, a new "Remove Tickets" section will appear next to "Give Tickets"
-- Admin enters the number of tickets to remove and optionally a reason/note
-- The system deducts tickets using FIFO logic (from the package expiring soonest first)
-- A confirmation message shows how many tickets were removed
+### Proposed Changes
 
-### Implementation Details
+The ticket availability information will be hidden from non-admin users while keeping the "Sold Out" indicator visible (so members know when events are full).
 
-#### 1. Database Function: `admin_remove_tickets`
+### Files to Modify
 
-Create a new RPC function that:
-- Validates the caller is an admin
-- Validates the ticket count (1-50)
-- Finds available ticket packages for the member (ordered by expiry date)
-- Deducts tickets using FIFO logic across multiple packages if needed
-- Records a note about the removal (optional)
-- Returns summary of removed tickets
+| File | Changes |
+|------|---------|
+| `src/pages/Events.tsx` | Hide capacity numbers from members on event cards |
+| `src/components/EventSectionRenderer.tsx` | Hide spots info in hero and booking sections for members |
 
-```sql
-CREATE OR REPLACE FUNCTION public.admin_remove_tickets(
-  p_member_id uuid,
-  p_ticket_count integer,
-  p_reason text DEFAULT NULL
-)
-RETURNS jsonb
-```
+### Technical Details
 
-The function will:
-1. Loop through ticket packages ordered by `expires_at ASC`
-2. Increment `tickets_used` on each package until the requested amount is removed
-3. Mark packages as 'used' when fully consumed
-4. Return error if member doesn't have enough available tickets
+**1. Events.tsx (Event Card Display)**
 
-#### 2. Frontend Changes: `MemberDetailDrawer.tsx`
-
-Add a new "Remove Tickets" section in the Quick Actions area:
-
+Lines 998-1009 currently show:
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ Quick Actions                                               │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  [Give Tickets]              [Remove Tickets]               │
-│  ┌────────────┐              ┌────────────┐                │
-│  │ Count: [5] │              │ Count: [3] │                │
-│  │ [Give]     │              │ [Remove]   │                │
-│  └────────────┘              └────────────┘                │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+Tickets available
+12/50 capacity
 ```
 
-**State additions:**
-- `removeTicketCount: string` - Number of tickets to remove
-- `removeTicketReason: string` - Optional reason
-
-**New mutation:**
-- `removeTicketsMutation` - Calls the `admin_remove_tickets` RPC
-
-#### 3. Translation Updates
-
-Add new keys for the remove tickets feature:
-
-| Key | Swedish | English | Spanish |
-|-----|---------|---------|---------|
-| `removeTickets` | Ta bort klipp | Remove tickets | Eliminar entradas |
-| `ticketsRemoved` | {count} klipp har tagits bort! | {count} tickets removed! | ¡{count} entradas eliminadas! |
-| `removeReason` | Anledning (valfritt) | Reason (optional) | Razón (opcional) |
-| `notEnoughTickets` | Medlemmen har inte tillräckligt med klipp | Member doesn't have enough tickets | El miembro no tiene suficientes entradas |
-
-### Technical Flow
-
+Will be changed to only show this for admins:
 ```text
-Admin clicks "Remove"
-       ↓
-Frontend calls supabase.rpc('admin_remove_tickets', {...})
-       ↓
-Database function checks:
-  - Is caller admin? (via is_admin())
-  - Is count valid? (1-50)
-  - Does member have enough available tickets?
-       ↓
-FIFO ticket deduction:
-  - Find packages with remaining tickets (ordered by expires_at)
-  - Loop and increment tickets_used until count is reached
-  - Update status to 'used' when package is exhausted
-       ↓
-Return success with count removed
-       ↓
-Frontend shows toast and refreshes ticket list
+[Admin view:]     [Member view:]
+Tickets available  Tickets available (or "Sold Out")
+12/50 capacity     (hidden)
 ```
 
-### Files to Create/Modify
+**2. EventSectionRenderer.tsx**
 
-| File | Action | Description |
-|------|--------|-------------|
-| Database migration | Create | Add `admin_remove_tickets` RPC function |
-| `src/components/MemberDetailDrawer.tsx` | Modify | Add remove tickets UI and mutation |
-| `src/locales/sv.ts` | Modify | Add Swedish translations |
-| `src/locales/en.ts` | Modify | Add English translations |
-| `src/locales/es.ts` | Modify | Add Spanish translations |
+This component needs to receive the user's role to conditionally hide capacity. Two sections affected:
 
-### Security Considerations
+- **Hero section** (line 55-58): The "X spots left" text will be hidden for non-admins
+- **Booking section** (lines 188-192): The "X / Y spots available" line will be hidden for non-admins
 
-- The function uses `SECURITY DEFINER` to ensure only admins can execute it
-- Validates admin status using the existing `is_admin()` helper
-- Validates input parameters to prevent abuse
-- Returns clear error messages for validation failures
+### Implementation Approach
+
+**Option 1 (Simple):** Use the `useAuthStore` hook directly in `EventSectionRenderer.tsx` to check user role
+
+**Option 2:** Pass `isAdmin` as a prop from the parent components
+
+I recommend **Option 1** since the component is already importing from other stores and this keeps the interface simpler.
+
+### Visual Comparison
+
+**Event Card - Before (Member View):**
+```text
+┌─────────────────────────────────┐
+│ [Event Image]                   │
+│ Salsa Night                     │
+│ 📅 March 15, 2025               │
+│ 🕐 19:00                        │
+│ 📍 Dance Studio                 │
+├─────────────────────────────────┤
+│ 150 kr    Tickets available ✓  │
+│           12/50 capacity        │  ← Hidden for members
+└─────────────────────────────────┘
+```
+
+**Event Card - After (Member View):**
+```text
+┌─────────────────────────────────┐
+│ [Event Image]                   │
+│ Salsa Night                     │
+│ 📅 March 15, 2025               │
+│ 🕐 19:00                        │
+│ 📍 Dance Studio                 │
+├─────────────────────────────────┤
+│ 150 kr    Tickets available ✓  │
+│                                 │  ← Numbers hidden
+└─────────────────────────────────┘
+```
+
+**Event Detail Hero - Before:**
+```text
+Salsa Night Party
+📅 March 15, 2025 • 📍 Dance Studio • 👥 38 spots left
+```
+
+**Event Detail Hero - After (Member View):**
+```text
+Salsa Night Party
+📅 March 15, 2025 • 📍 Dance Studio
+```
+
+### Summary of Changes
+
+1. **`src/pages/Events.tsx`** (~line 1006-1008)
+   - Wrap the capacity display (`{availableSeats}/{event.capacity}`) in an `isAdmin` conditional
+
+2. **`src/components/EventSectionRenderer.tsx`**
+   - Import `useAuthStore` hook
+   - Add `isAdmin` check at component level
+   - **Hero section** (~line 55-58): Hide "X spots left" for non-admins
+   - **Booking section** (~line 188-192): Hide "X / Y spots available" for non-admins
 
