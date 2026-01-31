@@ -1,41 +1,60 @@
 
-
-## Plan: Fix Course Duplication 404 Error
+## Plan: Fix Course Duplication Double Content Issue
 
 ### Problem Identified
-When duplicating a course, the code navigates to `/course/${newCourseId}` (line 415), but this route doesn't exist. The correct route is `/kurser-poang/:id` as defined in `App.tsx` and used elsewhere in the codebase.
+When duplicating a course, content sections are being doubled because:
 
-The 404 error triggers the `NotFound` page, and when the `RoleGuard` component can't find a valid route context, it may trigger a logout due to authentication state handling.
+1. **Database Trigger**: There's a trigger `trigger_create_default_course_sections` that automatically creates 3 default sections (hero, text, booking) whenever a new course is inserted
+2. **Manual Copy**: The duplication code in `Courses.tsx` (lines 387-408) also manually copies all sections from the original course
 
-### Root Cause
-**File:** `src/pages/Courses.tsx` **Line 415**
-
-```typescript
-// INCORRECT - This route doesn't exist
-navigate(`/course/${newCourseId}`);
-```
+Result: The new duplicated course gets **both** the trigger-created sections AND the copied sections, doubling the content.
 
 ### Solution
-Change the navigation path to use the correct route:
+Modify the duplication logic to **delete the auto-created sections first** before copying the original course's sections. This ensures only the original sections are present.
+
+### Changes Required
+
+**File: `src/pages/Courses.tsx`**
+
+**Location: After creating the new course (around line 369), before copying instructors**
+
+Add this code block to delete the auto-generated sections:
 
 ```typescript
-// CORRECT - Matches the defined route in App.tsx
-navigate(`/kurser-poang/${newCourseId}`);
+// Delete auto-generated sections (trigger creates defaults we don't want)
+await supabase
+  .from('course_page_sections')
+  .delete()
+  .eq('course_id', newCourseId);
 ```
 
 ### Technical Details
 
-| Item | Details |
-|------|---------|
-| File | `src/pages/Courses.tsx` |
-| Line | 415 |
-| Change | `/course/` → `/kurser-poang/` |
+| Step | What Happens |
+|------|--------------|
+| 1. New course is created | Database trigger auto-creates 3 default sections |
+| 2. Delete auto-created sections | Remove the trigger-generated sections |
+| 3. Copy original sections | Copy all sections from the source course |
+| Result | Duplicated course has exact copy of original sections |
 
-### Evidence
-- **App.tsx line 75**: Route is defined as `/kurser-poang/:id`
-- **Courses.tsx line 877**: Course card click uses correct path `/kurser-poang/${course.id}`
-- **Console log**: Shows 404 error for `/course/...` route
+### Code Change Summary
 
-### After Fix
-After duplicating a course, you'll be correctly redirected to the course detail page at `/kurser-poang/{new-course-id}` where you can edit the duplicated course.
+```typescript
+// Line ~369 (after getting newCourseId)
+const newCourseId = (newCourse as any).id;
 
+// NEW CODE: Delete auto-generated default sections before copying originals
+await supabase
+  .from('course_page_sections' as any)
+  .delete()
+  .eq('course_id', newCourseId);
+
+// Existing code: Duplicate course instructors
+if (course.instructors && course.instructors.length > 0) {
+  ...
+```
+
+### Why This Approach
+- **Minimal change**: Only adds 4 lines of code
+- **No database changes needed**: Keeps the trigger for normal course creation (which is still useful)
+- **Clean solution**: The trigger behavior is correct for new courses; we just need to handle duplication differently
