@@ -72,6 +72,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
   const [ticketExpiry, setTicketExpiry] = useState<Date | undefined>(
     new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months from now
   );
+  const [removeTicketCount, setRemoveTicketCount] = useState<string>('1');
   const [newRole, setNewRole] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -246,11 +247,37 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     onSuccess: (result: any) => {
       toast.success(t.common.ticketsGiven.replace("{count}", result.tickets.toString()));
       setTicketCount("1");
-      queryClient.invalidateQueries({ queryKey: ["tickets", memberId] });
+      queryClient.invalidateQueries({ queryKey: ["member-tickets", memberId] });
     },
     onError: (error: any) => {
       console.error("Give tickets error:", error);
       toast.error("Kunde inte ge klipp: " + error.message);
+    },
+  });
+
+  // Remove tickets mutation
+  const removeTicketsMutation = useMutation({
+    mutationFn: async (data: { ticketCount: number }) => {
+      const { data: result, error } = await supabase.rpc("admin_remove_tickets" as any, {
+        p_member_id: memberId,
+        p_ticket_count: data.ticketCount,
+      });
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (result: any) => {
+      toast.success(t.common.ticketsRemoved.replace("{count}", result.tickets_removed.toString()));
+      setRemoveTicketCount("1");
+      queryClient.invalidateQueries({ queryKey: ["member-tickets", memberId] });
+    },
+    onError: (error: any) => {
+      console.error("Remove tickets error:", error);
+      if (error.message?.includes("NOT_ENOUGH_TICKETS")) {
+        toast.error(t.common.notEnoughTickets);
+      } else {
+        toast.error("Kunde inte ta bort klipp: " + error.message);
+      }
     },
   });
 
@@ -633,6 +660,38 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                                 />
                               </PopoverContent>
                             </Popover>
+                          </div>
+                        </div>
+
+                        {/* Remove Tickets */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">{t.common.removeTickets}</label>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              max="50"
+                              placeholder={t.common.ticketCount}
+                              value={removeTicketCount}
+                              onChange={(e) => setRemoveTicketCount(e.target.value)}
+                              className="w-full sm:w-auto"
+                            />
+                            <Button
+                              variant="destructive"
+                              className="w-full sm:w-auto"
+                              onClick={() =>
+                                removeTicketsMutation.mutate({
+                                  ticketCount: parseInt(removeTicketCount),
+                                })
+                              }
+                              disabled={
+                                !removeTicketCount ||
+                                parseInt(removeTicketCount) < 1 ||
+                                removeTicketsMutation.isPending
+                              }
+                            >
+                              {removeTicketsMutation.isPending ? '...' : t.common.removeTickets}
+                            </Button>
                           </div>
                         </div>
 

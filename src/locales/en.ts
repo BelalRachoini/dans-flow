@@ -68,6 +68,9 @@ export const en = {
     ticketCount: 'Number of tickets',
     ticketExpiry: 'Expiry date',
     ticketsGiven: '{count} tickets given!',
+    removeTickets: 'Remove Tickets',
+    ticketsRemoved: '{count} tickets removed!',
+    notEnoughTickets: 'Member does not have enough tickets',
     optional: 'optional',
   },
 

@@ -68,6 +68,9 @@ export const sv = {
     ticketCount: 'Antal klipp',
     ticketExpiry: 'Utgångsdatum',
     ticketsGiven: '{count} klipp har givits!',
+    removeTickets: 'Ta bort klipp',
+    ticketsRemoved: '{count} klipp har tagits bort!',
+    notEnoughTickets: 'Medlemmen har inte tillräckligt med klipp',
     optional: 'valfritt',
   },
 
