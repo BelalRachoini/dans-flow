@@ -1,59 +1,73 @@
 
 
-## Plan: Fix Course Level Validation Error
+## Plan: Make Course Level Optional
 
-### Problem Identified
-When saving an All-in-One course (or any course), you get "Kunde inte spara kurs" because the database has a check constraint on the `level` column that only accepts these exact values:
-- `beginner`
-- `intermediate`  
-- `advanced`
+### Current State
+- The `level` column in the database is `NOT NULL` with a default value of `'beginner'`
+- The Zod schema requires one of the three enum values
+- The form defaults to `'beginner'`
 
-The current form uses a free-text input field where users can type anything, but the database rejects any value that doesn't match the allowed options.
+### Solution Options
 
-### Solution
-Replace the free-text input with a dropdown selector that only shows the valid options. This ensures users can only select valid values.
+**Option A (Recommended): Keep database constraint, make UI optional**
+Since the database has a sensible default (`beginner`), we can:
+1. Make the Zod field optional with a fallback
+2. Allow the user to leave it unselected (will use default)
+3. Add a "No level specified" option in the dropdown
+
+**Option B: Full optional (requires database change)**
+Remove the NOT NULL constraint from the database and allow null values
+
+### Recommended Approach (Option A)
+This is simpler and maintains data integrity - every course will have a level, but admins don't need to think about it if they don't want to.
 
 ### Changes Required
 
 **File: `src/pages/Courses.tsx`**
 
 1. **Update Zod schema** (line 43):
-   - Change from open string validation to enum validation
+```typescript
+// Change from required to optional with nullable
+level: z.enum(['beginner', 'intermediate', 'advanced']).optional().nullable(),
+```
 
 2. **Update default value** (line 111):
-   - Change from empty string `''` to a valid default like `'beginner'`
+```typescript
+// Change from 'beginner' to undefined
+level: undefined,
+```
 
-3. **Replace Input with Select** (lines 494-502):
-   - Change the free-text input to a dropdown selector with the three valid options
+3. **Update Select component** (~line 493-511):
+Add a "None/Not specified" option that clears the selection:
+```typescript
+<Select
+  value={watch('level') || ''}
+  onValueChange={(value) => setValue('level', value === '' ? undefined : value as any)}
+>
+  <SelectTrigger id="level">
+    <SelectValue placeholder="Välj nivå (valfritt)" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="">Ingen nivå angiven</SelectItem>
+    <SelectItem value="beginner">{t.course.levelBeginner}</SelectItem>
+    <SelectItem value="intermediate">{t.course.levelIntermediate}</SelectItem>
+    <SelectItem value="advanced">{t.course.levelAdvanced}</SelectItem>
+  </SelectContent>
+</Select>
+```
 
-### Technical Details
+4. **Update form submission** (where data is sent to database):
+When `level` is undefined/null, either:
+- Don't include it in the insert (database will use default 'beginner')
+- Or explicitly set it to 'beginner'
 
-| Current Code | Issue |
-|--------------|-------|
-| `level: z.string().min(1)...` | Allows any text |
-| `defaultValues: { level: '' }` | Empty string fails DB constraint |
-| `<Input id="level" ...>` | Users can type invalid values |
-
-| New Code | Fix |
-|----------|-----|
-| `level: z.enum(['beginner', 'intermediate', 'advanced'])` | Only valid values |
-| `defaultValues: { level: 'beginner' }` | Valid default |
-| `<Select>` with 3 options | Users pick from valid options only |
-
-### UI Change
+### UI Result
 
 ```text
-Before:
 ┌──────────────────────────────────┐
-│ Nivå                             │
-│ [___________________________]    │  ← Free text input
-│ e.g., Beginner, Intermediate...  │
-└──────────────────────────────────┘
-
-After:
-┌──────────────────────────────────┐
-│ Nivå                             │
-│ [ Nybörjare              ▼ ]     │  ← Dropdown selector
+│ Nivå (valfritt)                  │
+│ [ Välj nivå (valfritt)     ▼ ]   │
+│   ├─ Ingen nivå angiven          │  ← New option
 │   ├─ Nybörjare                   │
 │   ├─ Medel                       │
 │   └─ Avancerad                   │
@@ -64,5 +78,5 @@ After:
 
 | File | Changes |
 |------|---------|
-| `src/pages/Courses.tsx` | Update Zod schema, default value, and replace Input with Select |
+| `src/pages/Courses.tsx` | Update schema to optional, update default, add empty option to Select |
 
