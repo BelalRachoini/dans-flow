@@ -23,6 +23,7 @@ interface PackageClassSelectorProps {
   maxSelections: number;
   selectedClassIds: string[];
   onSelectionChange: (classIds: string[]) => void;
+  allowedClassIds?: string[] | null; // null = all classes allowed, array = only these IDs
 }
 
 const dayLabels: Record<number, string> = {
@@ -50,6 +51,7 @@ export function PackageClassSelector({
   maxSelections,
   selectedClassIds,
   onSelectionChange,
+  allowedClassIds = null,
 }: PackageClassSelectorProps) {
   const { t } = useLanguageStore();
   const [classes, setClasses] = useState<CourseClass[]>([]);
@@ -115,23 +117,27 @@ export function PackageClassSelector({
 
   const isMaxReached = selectedClassIds.length >= maxSelections;
   
-  // Filter classes by selected days
+  // Filter classes by allowed IDs (tier-specific) and selected days
+  const availableClasses = allowedClassIds === null 
+    ? classes 
+    : classes.filter(cls => allowedClassIds.includes(cls.id));
+  
   const filteredClasses = selectedDays.length === 0
-    ? classes
-    : classes.filter(cls => selectedDays.includes(cls.day_of_week));
+    ? availableClasses
+    : availableClasses.filter(cls => selectedDays.includes(cls.day_of_week));
 
-  const totalLessons = classes
+  const totalLessons = availableClasses
     .filter(cls => selectedClassIds.includes(cls.id))
     .reduce((sum, cls) => sum + (cls.lesson_count || 0), 0);
 
   // Get unique days that have classes
-  const availableDays = [...new Set(classes.map(cls => cls.day_of_week))].sort();
+  const availableDays = [...new Set(availableClasses.map(cls => cls.day_of_week))].sort();
 
   if (loading) {
     return <div className="text-center py-4 text-muted-foreground">Laddar klasser...</div>;
   }
 
-  if (classes.length === 0) {
+  if (availableClasses.length === 0) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />

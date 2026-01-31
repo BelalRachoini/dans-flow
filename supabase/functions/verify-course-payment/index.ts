@@ -233,9 +233,11 @@ serve(async (req) => {
       );
     }
 
-    // Get course_id and package info from metadata
+    // Get course_id, package info, and tier info from metadata
     const course_id = session.metadata?.course_id;
     const isPackage = session.metadata?.is_package === "true";
+    const isBundle = session.metadata?.is_bundle === "true";
+    const tier_id = session.metadata?.tier_id;
     const selectedClassIds: string[] = session.metadata?.selected_class_ids 
       ? JSON.parse(session.metadata.selected_class_ids) 
       : [];
@@ -244,7 +246,7 @@ serve(async (req) => {
       throw new Error("Course ID not found in session metadata");
     }
 
-    console.log("Payment verified for course:", course_id, "Is package:", isPackage, "Selected classes:", selectedClassIds);
+    console.log("Payment verified for course:", course_id, "Is package:", isPackage, "Is bundle:", isBundle, "Tier ID:", tier_id, "Selected classes:", selectedClassIds);
 
     // Get course details
     const { data: course } = await supabaseClient
@@ -278,8 +280,10 @@ serve(async (req) => {
     let total_tickets = 0;
     let selectedClassNames: string[] = [];
 
-    if (isPackage && selectedClassIds.length > 0) {
-      // PACKAGE COURSE: Create class selections and count lessons in selected classes
+    const isPackageOrBundle = (isPackage || isBundle) && selectedClassIds.length > 0;
+    
+    if (isPackageOrBundle) {
+      // PACKAGE/BUNDLE COURSE: Create class selections and count lessons in selected classes
       
       // Get class names for email
       const { data: classesData } = await supabaseClient

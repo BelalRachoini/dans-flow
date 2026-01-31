@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, Plus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Edit, Plus, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
 import { CourseSectionRenderer } from '@/components/CourseSectionRenderer';
 import { CourseSectionEditor } from '@/components/CourseSectionEditor';
+import { BundleTierManager } from '@/components/BundleTierManager';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -241,6 +243,21 @@ export default function CourseDetail() {
           />
         ))}
       </div>
+
+      {/* Bundle Tier Manager (only for bundle courses in edit mode) */}
+      {editMode && course.course_type === 'bundle' && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5" />
+              Paketernivåer (All-in-One)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BundleTierManager courseId={course.id} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Section button (only in edit mode) */}
       {editMode && (

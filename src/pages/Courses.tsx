@@ -48,6 +48,7 @@ const courseSchema = z.object({
   status: z.enum(['draft', 'published', 'archived']),
   starts_at: z.date().optional(),
   ends_at: z.date().optional(),
+  course_type: z.enum(['regular', 'package', 'bundle']).default('regular'),
   is_package: z.boolean().default(false),
   max_selections: z.number().min(1).max(20).optional(),
   show_on_calendar: z.boolean().default(true),
@@ -72,6 +73,9 @@ type DbCourse = {
   instructors?: Array<{ id: string; full_name: string; is_primary: boolean }>;
   discount_type?: string;
   discount_value?: number;
+  course_type?: string;
+  is_package?: boolean;
+  max_selections?: number;
 };
 
 // Helper function to calculate discounted price
@@ -109,6 +113,7 @@ export default function Courses() {
       capacity: 20,
       price: 1000,
       instructors: [],
+      course_type: 'regular',
       is_package: false,
       max_selections: 2,
       show_on_calendar: true,
@@ -215,6 +220,9 @@ export default function Courses() {
         }
       }
 
+      // Determine is_package based on course_type for backwards compatibility
+      const isPackageOrBundle = data.course_type === 'package' || data.course_type === 'bundle';
+
       const courseData = {
         title: data.title,
         image_url: data.image_url || null,
@@ -227,8 +235,9 @@ export default function Courses() {
         starts_at: data.starts_at?.toISOString() || null,
         ends_at: data.ends_at?.toISOString() || null,
         created_by: (await supabase.auth.getUser()).data.user?.id,
-        is_package: data.is_package,
-        max_selections: data.is_package ? data.max_selections : null,
+        course_type: data.course_type,
+        is_package: isPackageOrBundle,
+        max_selections: isPackageOrBundle ? data.max_selections : null,
         show_on_calendar: data.show_on_calendar,
         discount_type: data.discount_enabled ? data.discount_type : 'none',
         discount_value: data.discount_enabled 
@@ -305,8 +314,12 @@ export default function Courses() {
     setValue('status', course.status as 'draft' | 'published' | 'archived');
     setValue('starts_at', (course as any).starts_at ? new Date((course as any).starts_at) : undefined);
     setValue('ends_at', (course as any).ends_at ? new Date((course as any).ends_at) : undefined);
-    setValue('is_package', (course as any).is_package || false);
-    setValue('max_selections', (course as any).max_selections || 2);
+    
+    // Set course_type from database or derive from is_package
+    const courseType = course.course_type as 'regular' | 'package' | 'bundle' || (course.is_package ? 'package' : 'regular');
+    setValue('course_type', courseType);
+    setValue('is_package', course.is_package || false);
+    setValue('max_selections', course.max_selections || 2);
     setValue('show_on_calendar', (course as any).show_on_calendar ?? true);
     
     // Handle discount fields
@@ -700,25 +713,34 @@ export default function Courses() {
                   </Popover>
                 </div>
 
-                {/* Package options */}
+                {/* Course type options */}
                 <div className="pt-4 border-t space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      <Label htmlFor="is_package" className="font-normal">
-                        Detta är ett kurspaket
-                      </Label>
-                    </div>
-                    <input
-                      type="checkbox"
-                      id="is_package"
-                      checked={watch('is_package')}
-                      onChange={(e) => setValue('is_package', e.target.checked)}
-                      className="h-4 w-4 rounded border-input"
-                    />
+                  <div>
+                    <Label htmlFor="course_type">Kurstyp</Label>
+                    <Select 
+                      onValueChange={(value: 'regular' | 'package' | 'bundle') => {
+                        setValue('course_type', value);
+                        setValue('is_package', value === 'package' || value === 'bundle');
+                      }} 
+                      value={watch('course_type')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="regular">Standard</SelectItem>
+                        <SelectItem value="package">Paket</SelectItem>
+                        <SelectItem value="bundle">All-in-One</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {watch('course_type') === 'regular' && 'En vanlig kurs med lektioner'}
+                      {watch('course_type') === 'package' && 'Kunden väljer klasser från en fast pool'}
+                      {watch('course_type') === 'bundle' && 'Kunden väljer paket (t.ex. Bronze, Silver, Gold) och sedan klasser'}
+                    </p>
                   </div>
                   
-                  {watch('is_package') && (
+                  {(watch('course_type') === 'package') && (
                     <div>
                       <Label htmlFor="max_selections">Max antal klasser kunden kan välja</Label>
                       <Input
@@ -730,6 +752,14 @@ export default function Courses() {
                       />
                       <p className="text-sm text-muted-foreground mt-1">
                         Kunden väljer t.ex. 2 av 5 tillgängliga klasser
+                      </p>
+                    </div>
+                  )}
+                  
+                  {watch('course_type') === 'bundle' && (
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        💡 Spara kursen först, sedan kan du hantera paketernivåer (Bronze, Silver, Gold etc.) på kurssidan.
                       </p>
                     </div>
                   )}
