@@ -71,6 +71,22 @@ export const sv = {
     optional: 'valfritt',
   },
 
+  // Image Upload
+  imageUpload: {
+    courseImage: 'Kursbild',
+    uploadTab: 'Ladda upp',
+    urlTab: 'URL',
+    uploadInstructions: 'Klicka för att ladda upp eller dra och släpp',
+    maxFileSize: 'Max 5MB • JPG, PNG, WebP',
+    removeImage: 'Ta bort bild',
+    imagePreview: 'Förhandsgranskning',
+    invalidType: 'Endast JPG, PNG och WebP-bilder tillåtna',
+    fileTooLarge: 'Filen måste vara mindre än 5MB',
+    uploadSuccess: 'Bilden har laddats upp',
+    uploadError: 'Kunde inte ladda upp bilden',
+    invalidUrl: 'Ogiltig URL-format',
+  },
+
   // Dashboard
   dashboard: {
     welcome: 'Välkommen tillbaka',

@@ -71,6 +71,22 @@ export const en = {
     optional: 'optional',
   },
 
+  // Image Upload
+  imageUpload: {
+    courseImage: 'Course Image',
+    uploadTab: 'Upload',
+    urlTab: 'URL',
+    uploadInstructions: 'Click to upload or drag and drop',
+    maxFileSize: 'Max 5MB • JPG, PNG, WebP',
+    removeImage: 'Remove image',
+    imagePreview: 'Preview',
+    invalidType: 'Only JPG, PNG and WebP images are allowed',
+    fileTooLarge: 'File size must be less than 5MB',
+    uploadSuccess: 'Image uploaded successfully',
+    uploadError: 'Failed to upload image',
+    invalidUrl: 'Invalid URL format',
+  },
+
   // Dashboard
   dashboard: {
     welcome: 'Welcome back',
