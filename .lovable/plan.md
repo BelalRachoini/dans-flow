@@ -1,44 +1,41 @@
 
 
-## Plan: Fix Schedule Page Desktop Responsiveness
+## Plan: Fix Course Duplication 404 Error
 
-### Problem
-The schedule page week view has a fixed minimum width (`min-w-[768px]`) and each day column has `min-w-32` (128px), causing horizontal overflow on desktop when the sidebar is present. The total width exceeds the available space.
+### Problem Identified
+When duplicating a course, the code navigates to `/course/${newCourseId}` (line 415), but this route doesn't exist. The correct route is `/kurser-poang/:id` as defined in `App.tsx` and used elsewhere in the codebase.
+
+The 404 error triggers the `NotFound` page, and when the `RoleGuard` component can't find a valid route context, it may trigger a logout due to authentication state handling.
+
+### Root Cause
+**File:** `src/pages/Courses.tsx` **Line 415**
+
+```typescript
+// INCORRECT - This route doesn't exist
+navigate(`/course/${newCourseId}`);
+```
 
 ### Solution
-Remove the minimum width constraint and make the table fully responsive by using percentage-based widths instead of fixed minimum widths.
+Change the navigation path to use the correct route:
 
-### Changes Required
-
-**File: `src/pages/Schema.tsx`**
-
-**1. Week View Container (lines 556-557)**
 ```typescript
-// Before
-<div className="overflow-x-auto">
-  <div className="min-w-[768px]">
-
-// After
-<div className="overflow-hidden">
-  <div className="w-full">
+// CORRECT - Matches the defined route in App.tsx
+navigate(`/kurser-poang/${newCourseId}`);
 ```
 
-**2. Day Column Headers (line 570)**
-```typescript
-// Before
-className={`p-2 text-center border-r last:border-r-0 min-w-32 ${...}`}
+### Technical Details
 
-// After  
-className={`p-2 text-center border-r last:border-r-0 ${...}`}
-```
+| Item | Details |
+|------|---------|
+| File | `src/pages/Courses.tsx` |
+| Line | 415 |
+| Change | `/course/` → `/kurser-poang/` |
 
-### Summary
+### Evidence
+- **App.tsx line 75**: Route is defined as `/kurser-poang/:id`
+- **Courses.tsx line 877**: Course card click uses correct path `/kurser-poang/${course.id}`
+- **Console log**: Shows 404 error for `/course/...` route
 
-| Location | Change |
-|----------|--------|
-| Line 556 | Change `overflow-x-auto` to `overflow-hidden` |
-| Line 557 | Change `min-w-[768px]` to `w-full` |
-| Line 570 | Remove `min-w-32` from day column headers |
-
-This will make the week view table use 100% of the available width and distribute columns evenly, preventing horizontal overflow while maintaining the same visual layout.
+### After Fix
+After duplicating a course, you'll be correctly redirected to the course detail page at `/kurser-poang/{new-course-id}` where you can edit the duplicated course.
 
