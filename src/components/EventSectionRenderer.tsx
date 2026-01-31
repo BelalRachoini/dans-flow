@@ -6,6 +6,7 @@ import { Edit, Trash2, MoveUp, MoveDown, Calendar, MapPin, Users, DollarSign } f
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { EventTicketPurchaseDialog } from './EventTicketPurchaseDialog';
+import { useAuthStore } from '@/store/authStore';
 
 interface EventSectionRendererProps {
   section: any;
@@ -27,6 +28,8 @@ export function EventSectionRenderer({
   onMoveDown,
 }: EventSectionRendererProps) {
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
+  const { role } = useAuthStore();
+  const isAdmin = role === 'admin';
 
   const renderContent = () => {
     switch (section.section_type) {
@@ -52,10 +55,12 @@ export function EventSectionRenderer({
                     <MapPin className="h-4 w-4" />
                     {event.venue}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    {event.capacity - event.sold_count} spots left
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      {event.capacity - event.sold_count} spots left
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -185,7 +190,7 @@ export function EventSectionRenderer({
                   </div>
                 )}
 
-                {section.content.showCapacity !== false && (
+                {section.content.showCapacity !== false && isAdmin && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-4 w-4" />
                     <span>{event.capacity - event.sold_count} / {event.capacity} spots available</span>

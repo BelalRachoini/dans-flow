@@ -1003,9 +1003,11 @@ export default function EventsPage() {
                             <span className="text-destructive">{t.events.soldOut}</span>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {availableSeats}/{event.capacity} {t.events.capacity.toLowerCase()}
-                        </div>
+                        {isAdmin && (
+                          <div className="text-xs text-muted-foreground">
+                            {availableSeats}/{event.capacity} {t.events.capacity.toLowerCase()}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
