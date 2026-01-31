@@ -1,34 +1,44 @@
 
 
-## Plan: Make Testing@test.com an Admin User
+## Plan: Fix Schedule Page Desktop Responsiveness
 
-### User Found
-- **Email**: testing@test.com
-- **Name**: Test
-- **User ID**: `69ad0f04-8ec9-463d-8683-b838593d3a0c`
-- **Current Role**: member
+### Problem
+The schedule page week view has a fixed minimum width (`min-w-[768px]`) and each day column has `min-w-32` (128px), causing horizontal overflow on desktop when the sidebar is present. The total width exceeds the available space.
 
-### Database Change Required
+### Solution
+Remove the minimum width constraint and make the table fully responsive by using percentage-based widths instead of fixed minimum widths.
 
-Run this SQL migration to add the admin role:
+### Changes Required
 
-```sql
--- Add admin role for Testing@test.com
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('69ad0f04-8ec9-463d-8683-b838593d3a0c', 'admin')
-ON CONFLICT (user_id, role) DO NOTHING;
+**File: `src/pages/Schema.tsx`**
 
--- Also update profiles table to reflect admin role
-UPDATE public.profiles 
-SET role = 'admin'
-WHERE id = '69ad0f04-8ec9-463d-8683-b838593d3a0c';
+**1. Week View Container (lines 556-557)**
+```typescript
+// Before
+<div className="overflow-x-auto">
+  <div className="min-w-[768px]">
+
+// After
+<div className="overflow-hidden">
+  <div className="w-full">
 ```
 
-### What This Does
-1. Adds an `admin` entry to the `user_roles` table for this user
-2. Updates the `profiles` table role field to `admin` for consistency
-3. Uses `ON CONFLICT DO NOTHING` to prevent errors if the role already exists
+**2. Day Column Headers (line 570)**
+```typescript
+// Before
+className={`p-2 text-center border-r last:border-r-0 min-w-32 ${...}`}
 
-### After Implementation
-The user will need to **log out and log back in** for the new admin role to take effect in their session.
+// After  
+className={`p-2 text-center border-r last:border-r-0 ${...}`}
+```
+
+### Summary
+
+| Location | Change |
+|----------|--------|
+| Line 556 | Change `overflow-x-auto` to `overflow-hidden` |
+| Line 557 | Change `min-w-[768px]` to `w-full` |
+| Line 570 | Remove `min-w-32` from day column headers |
+
+This will make the week view table use 100% of the available width and distribute columns evenly, preventing horizontal overflow while maintaining the same visual layout.
 
