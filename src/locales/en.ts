@@ -68,6 +68,7 @@ export const en = {
     ticketCount: 'Number of tickets',
     ticketExpiry: 'Expiry date',
     ticketsGiven: '{count} tickets given!',
+    optional: 'optional',
   },
 
   // Dashboard
@@ -495,6 +496,8 @@ export const en = {
     levelBeginner: "Beginner",
     levelIntermediate: "Intermediate",
     levelAdvanced: "Advanced",
+    levelNone: "No level specified",
+    levelPlaceholder: "Select level (optional)",
     price: "Price",
     points: "Points",
     capacity: "Capacity",
