@@ -68,6 +68,7 @@ export const sv = {
     ticketCount: 'Antal klipp',
     ticketExpiry: 'Utgångsdatum',
     ticketsGiven: '{count} klipp har givits!',
+    optional: 'valfritt',
   },
 
   // Dashboard
@@ -495,6 +496,8 @@ export const sv = {
     levelBeginner: "Nybörjare",
     levelIntermediate: "Mellanivå",
     levelAdvanced: "Avancerad",
+    levelNone: "Ingen nivå angiven",
+    levelPlaceholder: "Välj nivå (valfritt)",
     price: "Pris",
     points: "Poäng",
     capacity: "Antal platser",

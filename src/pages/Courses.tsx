@@ -40,7 +40,7 @@ const courseSchema = z.object({
   title: z.string().min(4).max(120),
   image_url: z.string().url().optional().or(z.literal('')),
   description: z.string().min(20).max(2000),
-  level: z.enum(['beginner', 'intermediate', 'advanced']),
+  level: z.enum(['beginner', 'intermediate', 'advanced']).optional().nullable(),
   price: z.number().min(1),
   capacity: z.number().min(1),
   instructors: z.array(z.string()).default([]),
@@ -108,7 +108,7 @@ export default function Courses() {
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<CourseFormData>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
-      level: 'beginner',
+      level: undefined,
       status: 'published',
       capacity: 20,
       price: 1000,
@@ -492,15 +492,16 @@ export default function Courses() {
                 </div>
 
                 <div>
-                  <Label htmlFor="level">{t.course.level}</Label>
+                  <Label htmlFor="level">{t.course.level} ({t.common.optional})</Label>
                   <Select
-                    value={watch('level')}
-                    onValueChange={(value: 'beginner' | 'intermediate' | 'advanced') => setValue('level', value)}
+                    value={watch('level') || 'none'}
+                    onValueChange={(value) => setValue('level', value === 'none' ? undefined : value as 'beginner' | 'intermediate' | 'advanced')}
                   >
                     <SelectTrigger id="level">
-                      <SelectValue placeholder="Välj nivå" />
+                      <SelectValue placeholder={t.course.levelPlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">{t.course.levelNone}</SelectItem>
                       <SelectItem value="beginner">{t.course.levelBeginner}</SelectItem>
                       <SelectItem value="intermediate">{t.course.levelIntermediate}</SelectItem>
                       <SelectItem value="advanced">{t.course.levelAdvanced}</SelectItem>
