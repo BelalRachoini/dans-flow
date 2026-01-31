@@ -412,7 +412,7 @@ export default function Courses() {
       loadData();
       
       // Navigate to the new course detail page
-      navigate(`/course/${newCourseId}`);
+      navigate(`/kurser-poang/${newCourseId}`);
     } catch (error) {
       console.error('Error duplicating course:', error);
       toast.error(t.common.error, { id: 'duplicate-course' });
