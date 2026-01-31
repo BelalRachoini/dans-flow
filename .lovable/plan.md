@@ -1,139 +1,117 @@
 
 
-## Plan: Add Image Upload to Course Creation
+## Plan: Allow Admins to Remove Tickets from Members
 
 ### Overview
-Replace the URL-only image input with a flexible image picker that allows admins to either **upload an image file** or **paste a URL**. This follows the same pattern already used for profile avatars.
+Add the ability for admins to deduct/remove tickets from a member's ticket balance. This will be the counterpart to the existing "Give Tickets" feature in the member detail drawer.
 
-### How It Works
+### How It Will Work
 
 **For Admins:**
-- Choose between two tabs: "Upload" or "URL"
-- **Upload tab**: Click to select a file or drag-and-drop (max 5MB, images only)
-- **URL tab**: Paste an external image URL (current behavior)
-- Preview shows the selected/uploaded image
-- Can remove and re-select image
+- In the Quick Actions section of the member drawer, a new "Remove Tickets" section will appear next to "Give Tickets"
+- Admin enters the number of tickets to remove and optionally a reason/note
+- The system deducts tickets using FIFO logic (from the package expiring soonest first)
+- A confirmation message shows how many tickets were removed
 
 ### Implementation Details
 
-#### 1. Database: Create Storage Bucket
+#### 1. Database Function: `admin_remove_tickets`
 
-Create a new `course-images` storage bucket to store uploaded course images:
+Create a new RPC function that:
+- Validates the caller is an admin
+- Validates the ticket count (1-50)
+- Finds available ticket packages for the member (ordered by expiry date)
+- Deducts tickets using FIFO logic across multiple packages if needed
+- Records a note about the removal (optional)
+- Returns summary of removed tickets
 
 ```sql
--- Create the bucket
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('course-images', 'course-images', true);
-
--- Allow authenticated users to upload
-CREATE POLICY "Admins can upload course images"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'course-images');
-
--- Allow public read access
-CREATE POLICY "Public can view course images"
-ON storage.objects FOR SELECT
-TO public
-USING (bucket_id = 'course-images');
-
--- Allow admins to delete/update
-CREATE POLICY "Admins can manage course images"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (bucket_id = 'course-images');
+CREATE OR REPLACE FUNCTION public.admin_remove_tickets(
+  p_member_id uuid,
+  p_ticket_count integer,
+  p_reason text DEFAULT NULL
+)
+RETURNS jsonb
 ```
 
-#### 2. New Component: `CourseImageUploader.tsx`
+The function will:
+1. Loop through ticket packages ordered by `expires_at ASC`
+2. Increment `tickets_used` on each package until the requested amount is removed
+3. Mark packages as 'used' when fully consumed
+4. Return error if member doesn't have enough available tickets
 
-A reusable component that provides:
-- **Tab switching**: "Upload" vs "URL" modes
-- **File upload**: Validates image type, size (max 5MB)
-- **URL input**: Validates URL format
-- **Image preview**: Shows current/uploaded image
-- **Clear button**: Remove selected image
+#### 2. Frontend Changes: `MemberDetailDrawer.tsx`
+
+Add a new "Remove Tickets" section in the Quick Actions area:
 
 ```text
-┌────────────────────────────────────────────────┐
-│ Kursbild                                       │
-├────────────────────────────────────────────────┤
-│  [Ladda upp] [URL]          ← Tab buttons      │
-├────────────────────────────────────────────────┤
-│                                                │
-│   ┌─────────────────────────────────────────┐  │
-│   │                                         │  │
-│   │        📷 Click to upload               │  │
-│   │        or drag and drop                 │  │
-│   │        (Max 5MB, JPG/PNG/WebP)          │  │
-│   │                                         │  │
-│   └─────────────────────────────────────────┘  │
-│                                                │
-│   [Preview shows here after upload/URL]        │
-│                                                │
-└────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ Quick Actions                                               │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  [Give Tickets]              [Remove Tickets]               │
+│  ┌────────────┐              ┌────────────┐                │
+│  │ Count: [5] │              │ Count: [3] │                │
+│  │ [Give]     │              │ [Remove]   │                │
+│  └────────────┘              └────────────┘                │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-#### 3. Update Course Form (`Courses.tsx`)
+**State additions:**
+- `removeTicketCount: string` - Number of tickets to remove
+- `removeTicketReason: string` - Optional reason
 
-- Replace the simple URL input with `CourseImageUploader`
-- Update Zod schema to accept any string (upload returns a URL)
-- Handle the image URL from either upload or direct input
+**New mutation:**
+- `removeTicketsMutation` - Calls the `admin_remove_tickets` RPC
 
-#### 4. Translation Updates
+#### 3. Translation Updates
 
-Add new translation keys for:
-- `uploadTab` / `urlTab` (tab labels)
-- `uploadInstructions` (drag/drop text)
-- `maxFileSize` (size limit message)
-- `removeImage` (clear button)
-- `imagePreview` (accessibility)
+Add new keys for the remove tickets feature:
+
+| Key | Swedish | English | Spanish |
+|-----|---------|---------|---------|
+| `removeTickets` | Ta bort klipp | Remove tickets | Eliminar entradas |
+| `ticketsRemoved` | {count} klipp har tagits bort! | {count} tickets removed! | ¡{count} entradas eliminadas! |
+| `removeReason` | Anledning (valfritt) | Reason (optional) | Razón (opcional) |
+| `notEnoughTickets` | Medlemmen har inte tillräckligt med klipp | Member doesn't have enough tickets | El miembro no tiene suficientes entradas |
+
+### Technical Flow
+
+```text
+Admin clicks "Remove"
+       ↓
+Frontend calls supabase.rpc('admin_remove_tickets', {...})
+       ↓
+Database function checks:
+  - Is caller admin? (via is_admin())
+  - Is count valid? (1-50)
+  - Does member have enough available tickets?
+       ↓
+FIFO ticket deduction:
+  - Find packages with remaining tickets (ordered by expires_at)
+  - Loop and increment tickets_used until count is reached
+  - Update status to 'used' when package is exhausted
+       ↓
+Return success with count removed
+       ↓
+Frontend shows toast and refreshes ticket list
+```
 
 ### Files to Create/Modify
 
 | File | Action | Description |
 |------|--------|-------------|
-| Database migration | Create | Add `course-images` storage bucket with RLS policies |
-| `src/components/CourseImageUploader.tsx` | Create | New upload/URL picker component |
-| `src/pages/Courses.tsx` | Modify | Replace URL input with CourseImageUploader |
+| Database migration | Create | Add `admin_remove_tickets` RPC function |
+| `src/components/MemberDetailDrawer.tsx` | Modify | Add remove tickets UI and mutation |
 | `src/locales/sv.ts` | Modify | Add Swedish translations |
 | `src/locales/en.ts` | Modify | Add English translations |
 | `src/locales/es.ts` | Modify | Add Spanish translations |
 
-### User Experience
+### Security Considerations
 
-**Before:**
-```text
-Bild-URL
-[https://example.com/image.jpg___________]
-```
-
-**After:**
-```text
-Kursbild
-┌─────────────────────────────────────────┐
-│ [Ladda upp]  [URL]                      │
-├─────────────────────────────────────────┤
-│  📷 Klicka för att välja bild           │
-│     eller dra och släpp                 │
-│     Max 5MB • JPG, PNG, WebP            │
-└─────────────────────────────────────────┘
-
-[After uploading, shows preview with remove button]
-```
-
-### Technical Flow
-
-```text
-Admin selects file
-      ↓
-Validate type (image/*) and size (≤5MB)
-      ↓
-Upload to storage bucket 'course-images'
-      ↓
-Get public URL from Supabase
-      ↓
-Set form field image_url = publicUrl
-      ↓
-Course saves with URL pointing to storage
-```
+- The function uses `SECURITY DEFINER` to ensure only admins can execute it
+- Validates admin status using the existing `is_admin()` helper
+- Validates input parameters to prevent abuse
+- Returns clear error messages for validation failures
 
