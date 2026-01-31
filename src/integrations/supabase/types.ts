@@ -1236,6 +1236,10 @@ export type Database = {
         Args: { p_course_id: string; p_member_id: string; p_note?: string }
         Returns: Json
       }
+      admin_remove_tickets: {
+        Args: { p_member_id: string; p_reason?: string; p_ticket_count: number }
+        Returns: Json
+      }
       admin_update_member: {
         Args: { new_level?: string; new_status?: string; target: string }
         Returns: Json
