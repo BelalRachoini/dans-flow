@@ -1,109 +1,136 @@
 
+## Plan: Fix White Blank Page Issue on Biljetter Page
 
-## Plan: Hide Ticket Availability from Members on Events Page
+### Problem Identified
 
-### Overview
-Hide the number of available tickets/capacity from regular members on the Events page and Event Detail page. This information will only be visible to admins.
+After reviewing the code, I found that the Biljetter (Tickets) page can show a white blank screen because several async functions lack proper error handling. When an unhandled error occurs in an async function, React cannot catch it with error boundaries, causing the entire application to crash and show a blank white screen.
 
-### Current Behavior
-Members currently see:
-- On event cards: "Tickets available" + "X/Y capacity" text
-- On event detail hero section: "X spots left"
-- On event detail booking section: "X / Y spots available"
+### Root Causes
 
-### Proposed Changes
+1. **Multiple async functions without try...catch blocks:**
+   - `loadAdminCourses()` - No error handling
+   - `loadAdminEvents()` - No error handling  
+   - `loadCourseAttendees()` - Errors logged but not caught at top level
+   - `loadPackageClassesAttendance()` - Same issue
+   - `loadEventAttendees()` - Same issue
+   - `setupRealtimeSubscription()` - No try...catch around `supabase.auth.getUser()`
 
-The ticket availability information will be hidden from non-admin users while keeping the "Sold Out" indicator visible (so members know when events are full).
+2. **useEffect hooks calling async functions without catching errors** - If any of these fail, the error is unhandled
+
+3. **No global unhandled rejection handler** - Nothing catches async errors that slip through
+
+### Solution
+
+#### 1. Add Try...Catch to All Async Functions in Biljetter.tsx
+
+Wrap all async functions with proper error handling:
+
+```typescript
+const loadAdminCourses = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('courses')
+      .select('...')
+      .order('starts_at', { ascending: false });
+    
+    if (error) throw error;
+    setCourses(data || []);
+  } catch (error) {
+    console.error('Error loading courses:', error);
+    // Don't crash - just show empty state
+    setCourses([]);
+  }
+};
+```
+
+Apply this pattern to:
+- `loadAdminCourses()`
+- `loadAdminEvents()`
+- `loadCourseAttendees()`
+- `loadPackageClassesAttendance()`
+- `loadEventAttendees()`
+- `setupRealtimeSubscription()`
+
+#### 2. Add Global Unhandled Rejection Handler in App.tsx
+
+Add a safety net to catch any async errors that slip through:
+
+```typescript
+useEffect(() => {
+  const handleRejection = (event: PromiseRejectionEvent) => {
+    console.error("Unhandled rejection:", event.reason);
+    toast.error("An error occurred. Please try again.");
+    event.preventDefault();
+  };
+
+  window.addEventListener("unhandledrejection", handleRejection);
+  return () => window.removeEventListener("unhandledrejection", handleRejection);
+}, []);
+```
+
+#### 3. Fix Realtime Subscription Cleanup
+
+The current code has a subtle bug where the cleanup function isn't properly returned:
+
+```typescript
+// Current (buggy)
+useEffect(() => {
+  const setupRealtimeSubscription = async () => {
+    // ...
+    return () => { supabase.removeChannel(channel); };
+  };
+  setupRealtimeSubscription(); // Return value ignored!
+}, []);
+
+// Fixed
+useEffect(() => {
+  let channel: any;
+  
+  const setup = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) return;
+      
+      channel = supabase.channel('tickets_updates')
+        // ...subscriptions
+        .subscribe();
+    } catch (error) {
+      console.error('Error setting up realtime:', error);
+    }
+  };
+  
+  setup();
+  
+  return () => {
+    if (channel) supabase.removeChannel(channel);
+  };
+}, []);
+```
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/Events.tsx` | Hide capacity numbers from members on event cards |
-| `src/components/EventSectionRenderer.tsx` | Hide spots info in hero and booking sections for members |
+| `src/pages/Biljetter.tsx` | Add try...catch to all async functions, fix realtime cleanup |
+| `src/App.tsx` | Add global unhandled rejection handler |
 
 ### Technical Details
 
-**1. Events.tsx (Event Card Display)**
+**Affected Functions in Biljetter.tsx:**
 
-Lines 998-1009 currently show:
-```text
-Tickets available
-12/50 capacity
-```
+| Function | Line | Issue | Fix |
+|----------|------|-------|-----|
+| `loadAdminCourses` | 543 | No error handling | Add try...catch |
+| `loadAdminEvents` | 554 | No error handling | Add try...catch |
+| `loadCourseAttendees` | 565 | Partial error handling | Wrap entire function |
+| `loadPackageClassesAttendance` | 642 | Partial error handling | Wrap entire function |
+| `loadEventAttendees` | 831 | Partial error handling | Wrap entire function |
+| `setupRealtimeSubscription` | 171 | No try...catch, bad cleanup | Full rewrite |
 
-Will be changed to only show this for admins:
-```text
-[Admin view:]     [Member view:]
-Tickets available  Tickets available (or "Sold Out")
-12/50 capacity     (hidden)
-```
+### Expected Result
 
-**2. EventSectionRenderer.tsx**
-
-This component needs to receive the user's role to conditionally hide capacity. Two sections affected:
-
-- **Hero section** (line 55-58): The "X spots left" text will be hidden for non-admins
-- **Booking section** (lines 188-192): The "X / Y spots available" line will be hidden for non-admins
-
-### Implementation Approach
-
-**Option 1 (Simple):** Use the `useAuthStore` hook directly in `EventSectionRenderer.tsx` to check user role
-
-**Option 2:** Pass `isAdmin` as a prop from the parent components
-
-I recommend **Option 1** since the component is already importing from other stores and this keeps the interface simpler.
-
-### Visual Comparison
-
-**Event Card - Before (Member View):**
-```text
-┌─────────────────────────────────┐
-│ [Event Image]                   │
-│ Salsa Night                     │
-│ 📅 March 15, 2025               │
-│ 🕐 19:00                        │
-│ 📍 Dance Studio                 │
-├─────────────────────────────────┤
-│ 150 kr    Tickets available ✓  │
-│           12/50 capacity        │  ← Hidden for members
-└─────────────────────────────────┘
-```
-
-**Event Card - After (Member View):**
-```text
-┌─────────────────────────────────┐
-│ [Event Image]                   │
-│ Salsa Night                     │
-│ 📅 March 15, 2025               │
-│ 🕐 19:00                        │
-│ 📍 Dance Studio                 │
-├─────────────────────────────────┤
-│ 150 kr    Tickets available ✓  │
-│                                 │  ← Numbers hidden
-└─────────────────────────────────┘
-```
-
-**Event Detail Hero - Before:**
-```text
-Salsa Night Party
-📅 March 15, 2025 • 📍 Dance Studio • 👥 38 spots left
-```
-
-**Event Detail Hero - After (Member View):**
-```text
-Salsa Night Party
-📅 March 15, 2025 • 📍 Dance Studio
-```
-
-### Summary of Changes
-
-1. **`src/pages/Events.tsx`** (~line 1006-1008)
-   - Wrap the capacity display (`{availableSeats}/{event.capacity}`) in an `isAdmin` conditional
-
-2. **`src/components/EventSectionRenderer.tsx`**
-   - Import `useAuthStore` hook
-   - Add `isAdmin` check at component level
-   - **Hero section** (~line 55-58): Hide "X spots left" for non-admins
-   - **Booking section** (~line 188-192): Hide "X / Y spots available" for non-admins
-
+After these changes:
+- Errors in data fetching will be caught and logged
+- The page will show empty states instead of crashing
+- Users will see helpful error messages via toast notifications
+- The global handler prevents any remaining async errors from causing white screens
