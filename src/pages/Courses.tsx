@@ -368,6 +368,12 @@ export default function Courses() {
 
       const newCourseId = (newCourse as any).id;
 
+      // Delete auto-generated sections (trigger creates defaults we don't want when duplicating)
+      await supabase
+        .from('course_page_sections' as any)
+        .delete()
+        .eq('course_id', newCourseId);
+
       // Duplicate course instructors
       if (course.instructors && course.instructors.length > 0) {
         const instructorsToInsert = course.instructors.map((instructor) => ({
