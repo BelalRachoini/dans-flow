@@ -168,99 +168,112 @@ export default function Biljetter() {
   }, [selectedEvent]);
 
   useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
     const setupRealtimeSubscription = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user?.id) return;
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (error) {
+          console.error('Error getting user for realtime subscription:', error);
+          return;
+        }
+        
+        if (!user?.id) return;
 
-      const channel = supabase
-        .channel('tickets_updates')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'event_bookings',
-            filter: `member_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('New event booking detected:', payload);
-            loadTickets();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'event_bookings',
-            filter: `member_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Event booking updated:', payload);
-            loadTickets();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'tickets',
-            filter: `member_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('New ticket detected:', payload);
-            loadTickets();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'tickets',
-            filter: `member_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Ticket updated:', payload);
-            loadTickets();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'lesson_bookings',
-            filter: `member_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('New lesson booking detected:', payload);
-            loadTickets();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'lesson_bookings',
-            filter: `member_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Lesson booking updated:', payload);
-            loadTickets();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
+        channel = supabase
+          .channel('tickets_updates')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'event_bookings',
+              filter: `member_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log('New event booking detected:', payload);
+              loadTickets();
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'event_bookings',
+              filter: `member_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log('Event booking updated:', payload);
+              loadTickets();
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'tickets',
+              filter: `member_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log('New ticket detected:', payload);
+              loadTickets();
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'tickets',
+              filter: `member_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log('Ticket updated:', payload);
+              loadTickets();
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'lesson_bookings',
+              filter: `member_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log('New lesson booking detected:', payload);
+              loadTickets();
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'lesson_bookings',
+              filter: `member_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log('Lesson booking updated:', payload);
+              loadTickets();
+            }
+          )
+          .subscribe();
+      } catch (error) {
+        console.error('Error setting up realtime subscription:', error);
+      }
     };
 
     setupRealtimeSubscription();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   const loadTickets = async () => {
@@ -541,267 +554,306 @@ export default function Biljetter() {
 
   // Admin data loading functions
   const loadAdminCourses = async () => {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('id, title, starts_at, ends_at, venue, status, is_package')
-      .order('starts_at', { ascending: false });
-    
-    if (!error && data) {
-      setCourses(data);
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, title, starts_at, ends_at, venue, status, is_package')
+        .order('starts_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading admin courses:', error);
+        setCourses([]);
+        return;
+      }
+      
+      setCourses(data || []);
+    } catch (error) {
+      console.error('Error loading admin courses:', error);
+      setCourses([]);
     }
   };
 
   const loadAdminEvents = async () => {
-    const { data, error } = await supabase
-      .from('events')
-      .select('id, title, start_at, end_at, venue, capacity, sold_count')
-      .order('start_at', { ascending: false });
-    
-    if (!error && data) {
-      setEvents(data);
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, title, start_at, end_at, venue, capacity, sold_count')
+        .order('start_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading admin events:', error);
+        setEvents([]);
+        return;
+      }
+      
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error loading admin events:', error);
+      setEvents([]);
     }
   };
 
   const loadCourseAttendees = async (courseId: string) => {
-    // Check if this is a package course
-    const course = courses.find(c => c.id === courseId);
-    const isPackage = course?.is_package || false;
-    setSelectedCourseIsPackage(isPackage);
-    setSelectedClassId(null);
-    setPackageDayFilter([]);
-    
-    if (isPackage) {
-      await loadPackageClassesAttendance(courseId);
-      return;
-    }
-    
-    // Reset package data for regular courses
-    setPackageClasses([]);
-    
-    const { data: ticketData, error } = await supabase
-      .from('tickets')
-      .select(`
-        id,
-        member_id,
-        total_tickets,
-        tickets_used,
-        expires_at,
-        status,
-        profiles!inner (
+    try {
+      // Check if this is a package course
+      const course = courses.find(c => c.id === courseId);
+      const isPackage = course?.is_package || false;
+      setSelectedCourseIsPackage(isPackage);
+      setSelectedClassId(null);
+      setPackageDayFilter([]);
+      
+      if (isPackage) {
+        await loadPackageClassesAttendance(courseId);
+        return;
+      }
+      
+      // Reset package data for regular courses
+      setPackageClasses([]);
+      
+      const { data: ticketData, error } = await supabase
+        .from('tickets')
+        .select(`
           id,
-          full_name,
-          email,
-          phone,
-          dance_role
-        )
-      `)
-      .or(`course_id.eq.${courseId},source_course_id.eq.${courseId}`)
-      .eq('status', 'valid');
-    
-    if (error) {
-      console.error('Error loading attendees:', error);
-      return;
-    }
-    
-    const { data: checkinData } = await supabase
-      .from('checkins')
-      .select('ticket_id, tickets!inner(member_id)')
-      .in('ticket_id', ticketData?.map(t => t.id) || []);
-    
-    const attendeeMap = new Map();
-    ticketData?.forEach(ticket => {
-      const profile = ticket.profiles as any;
-      const checkins = checkinData?.filter((c: any) => c.tickets.member_id === ticket.member_id).length || 0;
+          member_id,
+          total_tickets,
+          tickets_used,
+          expires_at,
+          status,
+          profiles!inner (
+            id,
+            full_name,
+            email,
+            phone,
+            dance_role
+          )
+        `)
+        .or(`course_id.eq.${courseId},source_course_id.eq.${courseId}`)
+        .eq('status', 'valid');
       
-      attendeeMap.set(ticket.member_id, {
-        id: ticket.member_id,
-        name: profile.full_name || 'Unknown',
-        email: profile.email,
-        phone: profile.phone,
-        danceRole: profile.dance_role,
-        ticketsRemaining: ticket.total_tickets - ticket.tickets_used,
-        totalCheckins: checkins,
-        hasCheckedIn: checkins > 0
-      });
-    });
-    
-    const attendeesList = Array.from(attendeeMap.values());
-    setAttendees(attendeesList);
-    
-    const stats = {
-      totalAttendees: attendeesList.length,
-      leaders: attendeesList.filter((a: any) => a.danceRole === 'leader').length,
-      followers: attendeesList.filter((a: any) => a.danceRole === 'follower').length,
-      notSet: attendeesList.filter((a: any) => !a.danceRole).length,
-      checkedIn: attendeesList.filter((a: any) => a.hasCheckedIn).length
-    };
-    
-    setAttendanceStats(stats);
-  };
-
-  const loadPackageClassesAttendance = async (courseId: string) => {
-    // Load all classes for this package
-    const { data: classesData, error: classesError } = await supabase
-      .from('course_classes')
-      .select('id, name, day_of_week, start_time, end_time, venue')
-      .eq('course_id', courseId)
-      .order('day_of_week')
-      .order('start_time');
-    
-    if (classesError) {
-      console.error('Error loading package classes:', classesError);
-      return;
-    }
-    
-    // Load all class selections with profile data
-    const { data: selectionsData, error: selectionsError } = await supabase
-      .from('course_class_selections')
-      .select(`
-        id,
-        class_id,
-        member_id,
-        profiles!inner (
-          id,
-          full_name,
-          email,
-          phone,
-          dance_role
-        )
-      `)
-      .eq('course_id', courseId);
-    
-    if (selectionsError) {
-      console.error('Error loading class selections:', selectionsError);
-      return;
-    }
-    
-    // Load lessons for all classes in this package
-    const { data: lessonsData } = await supabase
-      .from('course_lessons')
-      .select('id, class_id')
-      .eq('course_id', courseId);
-    
-    const lessonIds = lessonsData?.map(l => l.id) || [];
-    
-    // Load ALL lesson bookings for these lessons (including package_auto)
-    const { data: lessonBookingsData } = await supabase
-      .from('lesson_bookings')
-      .select(`
-        lesson_id, 
-        member_id, 
-        ticket_type, 
-        checkins_used,
-        profiles:member_id (
-          id,
-          full_name,
-          email,
-          phone,
-          dance_role
-        )
-      `)
-      .in('lesson_id', lessonIds);
-    
-    // Separate package_auto bookings from regular check-ins
-    const packageAutoBookings = lessonBookingsData?.filter(b => b.ticket_type === 'package_auto') || [];
-    const regularCheckins = lessonBookingsData?.filter(b => b.ticket_type !== 'package_auto' && b.checkins_used > 0) || [];
-    
-    // Build class attendance data
-    const classAttendance = classesData?.map(cls => {
-      const classSelections = selectionsData?.filter(s => s.class_id === cls.id) || [];
+      if (error) {
+        console.error('Error loading attendees:', error);
+        setAttendees([]);
+        setAttendanceStats({ totalAttendees: 0, leaders: 0, followers: 0, notSet: 0, checkedIn: 0 });
+        return;
+      }
       
-      // Get all lessons for this class
-      const classLessonIds = lessonsData?.filter(l => l.class_id === cls.id).map(l => l.id) || [];
+      const { data: checkinData } = await supabase
+        .from('checkins')
+        .select('ticket_id, tickets!inner(member_id)')
+        .in('ticket_id', ticketData?.map(t => t.id) || []);
       
-      // Get auto-enrolled members for this class (from package_auto bookings)
-      const classAutoEnrolled = packageAutoBookings.filter(b => classLessonIds.includes(b.lesson_id));
-      const autoEnrolledMemberIds = new Set(classAutoEnrolled.map(b => b.member_id));
-      
-      // Get regular check-ins for this class
-      const classRegularCheckins = regularCheckins.filter(c => classLessonIds.includes(c.lesson_id));
-      const regularCheckedInMembers = new Set(classRegularCheckins.map(c => c.member_id));
-      
-      // Combine selections and auto-enrolled members (avoid duplicates)
-      const allMemberIds = new Set([
-        ...classSelections.map(s => s.member_id),
-        ...autoEnrolledMemberIds
-      ]);
-      
-      // Build member list with auto-enrolled flag
-      const membersList: any[] = [];
-      
-      // Add from selections
-      classSelections.forEach(s => {
-        membersList.push({
-          memberId: s.member_id,
-          name: (s.profiles as any).full_name || 'Unknown',
-          email: (s.profiles as any).email,
-          phone: (s.profiles as any).phone,
-          danceRole: (s.profiles as any).dance_role,
-          hasCheckedIn: autoEnrolledMemberIds.has(s.member_id) || regularCheckedInMembers.has(s.member_id),
-          isAutoEnrolled: autoEnrolledMemberIds.has(s.member_id),
+      const attendeeMap = new Map();
+      ticketData?.forEach(ticket => {
+        const profile = ticket.profiles as any;
+        const checkins = checkinData?.filter((c: any) => c.tickets.member_id === ticket.member_id).length || 0;
+        
+        attendeeMap.set(ticket.member_id, {
+          id: ticket.member_id,
+          name: profile.full_name || 'Unknown',
+          email: profile.email,
+          phone: profile.phone,
+          danceRole: profile.dance_role,
+          ticketsRemaining: ticket.total_tickets - ticket.tickets_used,
+          totalCheckins: checkins,
+          hasCheckedIn: checkins > 0
         });
       });
       
-      // Add auto-enrolled members that aren't in selections
-      classAutoEnrolled.forEach(b => {
-        if (!classSelections.some(s => s.member_id === b.member_id)) {
-          const profile = b.profiles as any;
-          membersList.push({
-            memberId: b.member_id,
-            name: profile?.full_name || 'Unknown',
-            email: profile?.email,
-            phone: profile?.phone,
-            danceRole: profile?.dance_role,
-            hasCheckedIn: true,
-            isAutoEnrolled: true,
-          });
-        }
-      });
+      const attendeesList = Array.from(attendeeMap.values());
+      setAttendees(attendeesList);
       
-      const leaders = membersList.filter(m => m.danceRole === 'leader').length;
-      const followers = membersList.filter(m => m.danceRole === 'follower').length;
-      const notSet = membersList.filter(m => !m.danceRole).length;
-      const checkedIn = membersList.filter(m => m.hasCheckedIn).length;
-      
-      return {
-        id: cls.id,
-        name: cls.name,
-        dayOfWeek: cls.day_of_week,
-        startTime: cls.start_time,
-        endTime: cls.end_time,
-        venue: cls.venue,
-        enrolledCount: membersList.length,
-        leaders,
-        followers,
-        notSet,
-        checkedIn,
-        selections: membersList
+      const stats = {
+        totalAttendees: attendeesList.length,
+        leaders: attendeesList.filter((a: any) => a.danceRole === 'leader').length,
+        followers: attendeesList.filter((a: any) => a.danceRole === 'follower').length,
+        notSet: attendeesList.filter((a: any) => !a.danceRole).length,
+        checkedIn: attendeesList.filter((a: any) => a.hasCheckedIn).length
       };
-    }) || [];
-    
-    setPackageClasses(classAttendance);
-    
-    // Calculate overall stats
-    const allMembersMap = new Map();
-    classAttendance.forEach(cls => {
-      cls.selections.forEach((s: any) => {
-        if (!allMembersMap.has(s.memberId)) {
-          allMembersMap.set(s.memberId, s);
-        }
+      
+      setAttendanceStats(stats);
+    } catch (error) {
+      console.error('Error loading course attendees:', error);
+      setAttendees([]);
+      setAttendanceStats({ totalAttendees: 0, leaders: 0, followers: 0, notSet: 0, checkedIn: 0 });
+    }
+  };
+
+  const loadPackageClassesAttendance = async (courseId: string) => {
+    try {
+      // Load all classes for this package
+      const { data: classesData, error: classesError } = await supabase
+        .from('course_classes')
+        .select('id, name, day_of_week, start_time, end_time, venue')
+        .eq('course_id', courseId)
+        .order('day_of_week')
+        .order('start_time');
+      
+      if (classesError) {
+        console.error('Error loading package classes:', classesError);
+        setPackageClasses([]);
+        setAttendanceStats({ totalAttendees: 0, leaders: 0, followers: 0, notSet: 0, checkedIn: 0 });
+        setAttendees([]);
+        return;
+      }
+      
+      // Load all class selections with profile data
+      const { data: selectionsData, error: selectionsError } = await supabase
+        .from('course_class_selections')
+        .select(`
+          id,
+          class_id,
+          member_id,
+          profiles!inner (
+            id,
+            full_name,
+            email,
+            phone,
+            dance_role
+          )
+        `)
+        .eq('course_id', courseId);
+      
+      if (selectionsError) {
+        console.error('Error loading class selections:', selectionsError);
+        setPackageClasses([]);
+        setAttendanceStats({ totalAttendees: 0, leaders: 0, followers: 0, notSet: 0, checkedIn: 0 });
+        setAttendees([]);
+        return;
+      }
+      
+      // Load lessons for all classes in this package
+      const { data: lessonsData } = await supabase
+        .from('course_lessons')
+        .select('id, class_id')
+        .eq('course_id', courseId);
+      
+      const lessonIds = lessonsData?.map(l => l.id) || [];
+      
+      // Load ALL lesson bookings for these lessons (including package_auto)
+      const { data: lessonBookingsData } = await supabase
+        .from('lesson_bookings')
+        .select(`
+          lesson_id, 
+          member_id, 
+          ticket_type, 
+          checkins_used,
+          profiles:member_id (
+            id,
+            full_name,
+            email,
+            phone,
+            dance_role
+          )
+        `)
+        .in('lesson_id', lessonIds);
+      
+      // Separate package_auto bookings from regular check-ins
+      const packageAutoBookings = lessonBookingsData?.filter(b => b.ticket_type === 'package_auto') || [];
+      const regularCheckins = lessonBookingsData?.filter(b => b.ticket_type !== 'package_auto' && b.checkins_used > 0) || [];
+      
+      // Build class attendance data
+      const classAttendance = classesData?.map(cls => {
+        const classSelections = selectionsData?.filter(s => s.class_id === cls.id) || [];
+        
+        // Get all lessons for this class
+        const classLessonIds = lessonsData?.filter(l => l.class_id === cls.id).map(l => l.id) || [];
+        
+        // Get auto-enrolled members for this class (from package_auto bookings)
+        const classAutoEnrolled = packageAutoBookings.filter(b => classLessonIds.includes(b.lesson_id));
+        const autoEnrolledMemberIds = new Set(classAutoEnrolled.map(b => b.member_id));
+        
+        // Get regular check-ins for this class
+        const classRegularCheckins = regularCheckins.filter(c => classLessonIds.includes(c.lesson_id));
+        const regularCheckedInMembers = new Set(classRegularCheckins.map(c => c.member_id));
+        
+        // Combine selections and auto-enrolled members (avoid duplicates)
+        const allMemberIds = new Set([
+          ...classSelections.map(s => s.member_id),
+          ...autoEnrolledMemberIds
+        ]);
+        
+        // Build member list with auto-enrolled flag
+        const membersList: any[] = [];
+        
+        // Add from selections
+        classSelections.forEach(s => {
+          membersList.push({
+            memberId: s.member_id,
+            name: (s.profiles as any).full_name || 'Unknown',
+            email: (s.profiles as any).email,
+            phone: (s.profiles as any).phone,
+            danceRole: (s.profiles as any).dance_role,
+            hasCheckedIn: autoEnrolledMemberIds.has(s.member_id) || regularCheckedInMembers.has(s.member_id),
+            isAutoEnrolled: autoEnrolledMemberIds.has(s.member_id),
+          });
+        });
+        
+        // Add auto-enrolled members that aren't in selections
+        classAutoEnrolled.forEach(b => {
+          if (!classSelections.some(s => s.member_id === b.member_id)) {
+            const profile = b.profiles as any;
+            membersList.push({
+              memberId: b.member_id,
+              name: profile?.full_name || 'Unknown',
+              email: profile?.email,
+              phone: profile?.phone,
+              danceRole: profile?.dance_role,
+              hasCheckedIn: true,
+              isAutoEnrolled: true,
+            });
+          }
+        });
+        
+        const leaders = membersList.filter(m => m.danceRole === 'leader').length;
+        const followers = membersList.filter(m => m.danceRole === 'follower').length;
+        const notSet = membersList.filter(m => !m.danceRole).length;
+        const checkedIn = membersList.filter(m => m.hasCheckedIn).length;
+        
+        return {
+          id: cls.id,
+          name: cls.name,
+          dayOfWeek: cls.day_of_week,
+          startTime: cls.start_time,
+          endTime: cls.end_time,
+          venue: cls.venue,
+          enrolledCount: membersList.length,
+          leaders,
+          followers,
+          notSet,
+          checkedIn,
+          selections: membersList
+        };
+      }) || [];
+      
+      setPackageClasses(classAttendance);
+      
+      // Calculate overall stats
+      const allMembersMap = new Map();
+      classAttendance.forEach(cls => {
+        cls.selections.forEach((s: any) => {
+          if (!allMembersMap.has(s.memberId)) {
+            allMembersMap.set(s.memberId, s);
+          }
+        });
       });
-    });
-    
-    const uniqueMembersList = Array.from(allMembersMap.values());
-    const stats = {
-      totalAttendees: uniqueMembersList.length,
-      leaders: uniqueMembersList.filter((p: any) => p.danceRole === 'leader').length,
-      followers: uniqueMembersList.filter((p: any) => p.danceRole === 'follower').length,
-      notSet: uniqueMembersList.filter((p: any) => !p.danceRole).length,
-      checkedIn: uniqueMembersList.filter((p: any) => p.hasCheckedIn).length
-    };
-    
-    setAttendanceStats(stats);
-    setAttendees([]);
+      
+      const uniqueMembersList = Array.from(allMembersMap.values());
+      const stats = {
+        totalAttendees: uniqueMembersList.length,
+        leaders: uniqueMembersList.filter((p: any) => p.danceRole === 'leader').length,
+        followers: uniqueMembersList.filter((p: any) => p.danceRole === 'follower').length,
+        notSet: uniqueMembersList.filter((p: any) => !p.danceRole).length,
+        checkedIn: uniqueMembersList.filter((p: any) => p.hasCheckedIn).length
+      };
+      
+      setAttendanceStats(stats);
+      setAttendees([]);
+    } catch (error) {
+      console.error('Error loading package classes attendance:', error);
+      setPackageClasses([]);
+      setAttendanceStats({ totalAttendees: 0, leaders: 0, followers: 0, notSet: 0, checkedIn: 0 });
+      setAttendees([]);
+    }
   };
 
   const loadClassAttendees = (classId: string) => {
@@ -829,57 +881,65 @@ export default function Biljetter() {
   };
 
   const loadEventAttendees = async (eventId: string) => {
-    const { data, error } = await supabase
-      .from('event_bookings')
-      .select(`
-        id,
-        member_id,
-        status,
-        booked_at,
-        profiles!inner (
+    try {
+      const { data, error } = await supabase
+        .from('event_bookings')
+        .select(`
           id,
-          full_name,
-          email,
-          phone,
-          dance_role
-        )
-      `)
-      .eq('event_id', eventId)
-      .eq('status', 'confirmed');
-    
-    if (error) {
+          member_id,
+          status,
+          booked_at,
+          profiles!inner (
+            id,
+            full_name,
+            email,
+            phone,
+            dance_role
+          )
+        `)
+        .eq('event_id', eventId)
+        .eq('status', 'confirmed');
+      
+      if (error) {
+        console.error('Error loading event attendees:', error);
+        setAttendees([]);
+        setAttendanceStats({ totalAttendees: 0, leaders: 0, followers: 0, notSet: 0, checkedIn: 0 });
+        return;
+      }
+      
+      const { data: checkinData } = await supabase
+        .from('event_checkins')
+        .select('member_id')
+        .eq('event_id', eventId);
+      
+      const checkedInMembers = new Set(checkinData?.map(c => c.member_id) || []);
+      
+      const attendeesList = data?.map(booking => ({
+        id: booking.member_id,
+        name: (booking.profiles as any).full_name || 'Unknown',
+        email: (booking.profiles as any).email,
+        phone: (booking.profiles as any).phone,
+        danceRole: (booking.profiles as any).dance_role,
+        bookedAt: booking.booked_at,
+        hasCheckedIn: checkedInMembers.has(booking.member_id)
+      })) || [];
+      
+      setAttendees(attendeesList);
+      
+      const stats = {
+        totalAttendees: attendeesList.length,
+        leaders: attendeesList.filter(a => a.danceRole === 'leader').length,
+        followers: attendeesList.filter(a => a.danceRole === 'follower').length,
+        notSet: attendeesList.filter(a => !a.danceRole).length,
+        checkedIn: attendeesList.filter(a => a.hasCheckedIn).length
+      };
+      
+      setAttendanceStats(stats);
+    } catch (error) {
       console.error('Error loading event attendees:', error);
-      return;
+      setAttendees([]);
+      setAttendanceStats({ totalAttendees: 0, leaders: 0, followers: 0, notSet: 0, checkedIn: 0 });
     }
-    
-    const { data: checkinData } = await supabase
-      .from('event_checkins')
-      .select('member_id')
-      .eq('event_id', eventId);
-    
-    const checkedInMembers = new Set(checkinData?.map(c => c.member_id) || []);
-    
-    const attendeesList = data?.map(booking => ({
-      id: booking.member_id,
-      name: (booking.profiles as any).full_name || 'Unknown',
-      email: (booking.profiles as any).email,
-      phone: (booking.profiles as any).phone,
-      danceRole: (booking.profiles as any).dance_role,
-      bookedAt: booking.booked_at,
-      hasCheckedIn: checkedInMembers.has(booking.member_id)
-    })) || [];
-    
-    setAttendees(attendeesList);
-    
-    const stats = {
-      totalAttendees: attendeesList.length,
-      leaders: attendeesList.filter(a => a.danceRole === 'leader').length,
-      followers: attendeesList.filter(a => a.danceRole === 'follower').length,
-      notSet: attendeesList.filter(a => !a.danceRole).length,
-      checkedIn: attendeesList.filter(a => a.hasCheckedIn).length
-    };
-    
-    setAttendanceStats(stats);
   };
 
   const filteredTickets = tickets.filter((ticket) => {
