@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
 import { useLanguageStore } from '@/store/languageStore';
 import { PackageClassSelector } from './PackageClassSelector';
+import { BundlePurchaseWizard } from './BundlePurchaseWizard';
 
 interface CourseSectionRendererProps {
   section: any;
@@ -215,9 +216,20 @@ export function CourseSectionRenderer({
         );
 
       case 'booking':
-        const isPackage = course.is_package;
+        const isPackage = course.is_package && course.course_type !== 'bundle';
+        const isBundle = course.course_type === 'bundle';
         const maxSelections = course.max_selections || 2;
         const canEnroll = !isPackage || (selectedClassIds.length > 0 && selectedClassIds.length <= maxSelections);
+
+        // For bundle courses, show the wizard instead
+        if (isBundle) {
+          return (
+            <Card className="mb-8 p-6">
+              {section.title && <h2 className="text-2xl font-semibold mb-4">{section.title}</h2>}
+              <BundlePurchaseWizard courseId={course.id} courseName={course.title} />
+            </Card>
+          );
+        }
 
         return (
           <Card className="mb-8 p-6">

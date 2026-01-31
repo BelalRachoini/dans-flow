@@ -63,6 +63,86 @@ export type Database = {
           },
         ]
       }
+      course_bundle_tier_classes: {
+        Row: {
+          class_id: string
+          created_at: string
+          id: string
+          tier_id: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          id?: string
+          tier_id: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          id?: string
+          tier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_bundle_tier_classes_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "course_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_bundle_tier_classes_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "course_bundle_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_bundle_tiers: {
+        Row: {
+          class_filter_mode: string
+          course_id: string
+          created_at: string
+          id: string
+          is_popular: boolean
+          max_selections: number
+          name: string
+          position: number
+          price_cents: number
+        }
+        Insert: {
+          class_filter_mode?: string
+          course_id: string
+          created_at?: string
+          id?: string
+          is_popular?: boolean
+          max_selections?: number
+          name: string
+          position?: number
+          price_cents?: number
+        }
+        Update: {
+          class_filter_mode?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          is_popular?: boolean
+          max_selections?: number
+          name?: string
+          position?: number
+          price_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_bundle_tiers_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_class_selections: {
         Row: {
           class_id: string
@@ -310,6 +390,7 @@ export type Database = {
       courses: {
         Row: {
           capacity: number
+          course_type: string
           created_at: string
           created_by: string | null
           description: string | null
@@ -333,6 +414,7 @@ export type Database = {
         }
         Insert: {
           capacity?: number
+          course_type?: string
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -356,6 +438,7 @@ export type Database = {
         }
         Update: {
           capacity?: number
+          course_type?: string
           created_at?: string
           created_by?: string | null
           description?: string | null

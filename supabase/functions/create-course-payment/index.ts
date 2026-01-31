@@ -24,11 +24,12 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { course_id, selected_class_ids } = await req.json();
+    const { course_id, selected_class_ids, tier_id } = await req.json();
     if (!course_id) throw new Error("Missing course_id");
 
     console.log("Creating payment for course:", course_id);
     console.log("Selected class IDs:", selected_class_ids);
+    console.log("Tier ID:", tier_id);
 
     // Fetch course details
     const { data: course, error: courseError } = await supabaseClient
@@ -39,24 +40,48 @@ serve(async (req) => {
 
     if (courseError || !course) throw new Error("Course not found");
 
-    // Calculate final price with discount
+    // For bundle courses, fetch tier price
     let finalPrice = course.price_cents;
+    let tierData = null;
     
-    if (course.discount_type === 'percent' && course.discount_value > 0) {
-      finalPrice = Math.round(course.price_cents * (1 - course.discount_value / 100));
-    } else if (course.discount_type === 'amount' && course.discount_value > 0) {
-      finalPrice = Math.max(course.price_cents - course.discount_value, 100); // Minimum 1 SEK
+    if (tier_id) {
+      const { data: tier, error: tierError } = await supabaseClient
+        .from("course_bundle_tiers")
+        .select("*")
+        .eq("id", tier_id)
+        .single();
+      
+      if (tierError || !tier) throw new Error("Tier not found");
+      
+      tierData = tier;
+      finalPrice = tier.price_cents;
+      console.log("Bundle tier found:", tier.name, "Price:", tier.price_cents);
+      
+      // Validate class selection against tier's max_selections
+      if (selected_class_ids && selected_class_ids.length > tier.max_selections) {
+        throw new Error(`Maximum ${tier.max_selections} classes allowed for this tier`);
+      }
+    } else {
+      // Regular course or package: Calculate final price with discount
+      if (course.discount_type === 'percent' && course.discount_value > 0) {
+        finalPrice = Math.round(course.price_cents * (1 - course.discount_value / 100));
+      } else if (course.discount_type === 'amount' && course.discount_value > 0) {
+        finalPrice = Math.max(course.price_cents - course.discount_value, 100); // Minimum 1 SEK
+      }
     }
 
-    console.log("Course found:", course.title, "Original Price:", course.price_cents, "Final Price:", finalPrice, "Is package:", course.is_package);
+    console.log("Course found:", course.title, "Original Price:", course.price_cents, "Final Price:", finalPrice, "Is package:", course.is_package, "Course type:", course.course_type);
 
-    // Validate package selection
-    if (course.is_package) {
+    // Validate package/bundle selection
+    const isPackageOrBundle = course.is_package || course.course_type === 'bundle';
+    if (isPackageOrBundle) {
       if (!selected_class_ids || selected_class_ids.length === 0) {
-        throw new Error("Package courses require class selection");
+        throw new Error("Package/bundle courses require class selection");
       }
-      if (selected_class_ids.length > (course.max_selections || 2)) {
-        throw new Error(`Maximum ${course.max_selections || 2} classes allowed`);
+      
+      const maxAllowed = tierData?.max_selections || course.max_selections || 2;
+      if (selected_class_ids.length > maxAllowed) {
+        throw new Error(`Maximum ${maxAllowed} classes allowed`);
       }
       
       // Validate that selected classes belong to this course
@@ -147,10 +172,16 @@ serve(async (req) => {
       user_id: user.id,
     };
 
-    // Store selected class IDs in metadata for package courses
-    if (course.is_package && selected_class_ids) {
+    // Store selected class IDs in metadata for package/bundle courses
+    if ((course.is_package || course.course_type === 'bundle') && selected_class_ids) {
       sessionMetadata.selected_class_ids = JSON.stringify(selected_class_ids);
       sessionMetadata.is_package = "true";
+    }
+    
+    // Store tier_id for bundle courses
+    if (tier_id) {
+      sessionMetadata.tier_id = tier_id;
+      sessionMetadata.is_bundle = "true";
     }
 
     const session = await stripe.checkout.sessions.create({
