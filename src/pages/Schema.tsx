@@ -553,8 +553,8 @@ export default function Schema() {
     const today = new Date();
 
     return (
-      <div className="overflow-x-auto">
-        <div className="min-w-[768px]">
+      <div className="overflow-hidden">
+        <div className="w-full">
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full border-collapse">
               <thead>
@@ -567,7 +567,7 @@ export default function Schema() {
                     return (
                       <th 
                         key={day.toString()} 
-                        className={`p-2 text-center border-r last:border-r-0 min-w-32 ${
+                        className={`p-2 text-center border-r last:border-r-0 ${
                           isToday ? 'bg-primary/5' : ''
                         }`}
                       >
