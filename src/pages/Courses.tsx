@@ -40,7 +40,7 @@ const courseSchema = z.object({
   title: z.string().min(4).max(120),
   image_url: z.string().url().optional().or(z.literal('')),
   description: z.string().min(20).max(2000),
-  level: z.string().min(1, 'Level is required').max(100),
+  level: z.enum(['beginner', 'intermediate', 'advanced']),
   price: z.number().min(1),
   capacity: z.number().min(1),
   instructors: z.array(z.string()).default([]),
@@ -108,7 +108,7 @@ export default function Courses() {
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<CourseFormData>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
-      level: '',
+      level: 'beginner',
       status: 'published',
       capacity: 20,
       price: 1000,
@@ -493,11 +493,19 @@ export default function Courses() {
 
                 <div>
                   <Label htmlFor="level">{t.course.level}</Label>
-                  <Input 
-                    id="level" 
-                    {...register('level')} 
-                    placeholder="e.g., Beginner, Intermediate, Advanced"
-                  />
+                  <Select
+                    value={watch('level')}
+                    onValueChange={(value: 'beginner' | 'intermediate' | 'advanced') => setValue('level', value)}
+                  >
+                    <SelectTrigger id="level">
+                      <SelectValue placeholder="Välj nivå" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="beginner">{t.course.levelBeginner}</SelectItem>
+                      <SelectItem value="intermediate">{t.course.levelIntermediate}</SelectItem>
+                      <SelectItem value="advanced">{t.course.levelAdvanced}</SelectItem>
+                    </SelectContent>
+                  </Select>
                   {errors.level && <p className="text-sm text-destructive mt-1">{errors.level.message}</p>}
                 </div>
 
