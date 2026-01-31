@@ -36,6 +36,17 @@ const AppRoutes = () => {
   const { initialize } = useAuthStore();
   const { loadUserPreferredLocale } = useLanguageStore();
 
+  // Global unhandled rejection handler to prevent white screens
+  useEffect(() => {
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error("Unhandled promise rejection:", event.reason);
+      event.preventDefault();
+    };
+
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => window.removeEventListener("unhandledrejection", handleRejection);
+  }, []);
+
   useEffect(() => {
     // Initialize locale from cookie
     initializeLocale();
