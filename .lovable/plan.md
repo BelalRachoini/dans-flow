@@ -1,82 +1,139 @@
 
 
-## Plan: Make Course Level Optional
+## Plan: Add Image Upload to Course Creation
 
-### Current State
-- The `level` column in the database is `NOT NULL` with a default value of `'beginner'`
-- The Zod schema requires one of the three enum values
-- The form defaults to `'beginner'`
+### Overview
+Replace the URL-only image input with a flexible image picker that allows admins to either **upload an image file** or **paste a URL**. This follows the same pattern already used for profile avatars.
 
-### Solution Options
+### How It Works
 
-**Option A (Recommended): Keep database constraint, make UI optional**
-Since the database has a sensible default (`beginner`), we can:
-1. Make the Zod field optional with a fallback
-2. Allow the user to leave it unselected (will use default)
-3. Add a "No level specified" option in the dropdown
+**For Admins:**
+- Choose between two tabs: "Upload" or "URL"
+- **Upload tab**: Click to select a file or drag-and-drop (max 5MB, images only)
+- **URL tab**: Paste an external image URL (current behavior)
+- Preview shows the selected/uploaded image
+- Can remove and re-select image
 
-**Option B: Full optional (requires database change)**
-Remove the NOT NULL constraint from the database and allow null values
+### Implementation Details
 
-### Recommended Approach (Option A)
-This is simpler and maintains data integrity - every course will have a level, but admins don't need to think about it if they don't want to.
+#### 1. Database: Create Storage Bucket
 
-### Changes Required
+Create a new `course-images` storage bucket to store uploaded course images:
 
-**File: `src/pages/Courses.tsx`**
+```sql
+-- Create the bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('course-images', 'course-images', true);
 
-1. **Update Zod schema** (line 43):
-```typescript
-// Change from required to optional with nullable
-level: z.enum(['beginner', 'intermediate', 'advanced']).optional().nullable(),
+-- Allow authenticated users to upload
+CREATE POLICY "Admins can upload course images"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'course-images');
+
+-- Allow public read access
+CREATE POLICY "Public can view course images"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'course-images');
+
+-- Allow admins to delete/update
+CREATE POLICY "Admins can manage course images"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'course-images');
 ```
 
-2. **Update default value** (line 111):
-```typescript
-// Change from 'beginner' to undefined
-level: undefined,
-```
+#### 2. New Component: `CourseImageUploader.tsx`
 
-3. **Update Select component** (~line 493-511):
-Add a "None/Not specified" option that clears the selection:
-```typescript
-<Select
-  value={watch('level') || ''}
-  onValueChange={(value) => setValue('level', value === '' ? undefined : value as any)}
->
-  <SelectTrigger id="level">
-    <SelectValue placeholder="Välj nivå (valfritt)" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="">Ingen nivå angiven</SelectItem>
-    <SelectItem value="beginner">{t.course.levelBeginner}</SelectItem>
-    <SelectItem value="intermediate">{t.course.levelIntermediate}</SelectItem>
-    <SelectItem value="advanced">{t.course.levelAdvanced}</SelectItem>
-  </SelectContent>
-</Select>
-```
-
-4. **Update form submission** (where data is sent to database):
-When `level` is undefined/null, either:
-- Don't include it in the insert (database will use default 'beginner')
-- Or explicitly set it to 'beginner'
-
-### UI Result
+A reusable component that provides:
+- **Tab switching**: "Upload" vs "URL" modes
+- **File upload**: Validates image type, size (max 5MB)
+- **URL input**: Validates URL format
+- **Image preview**: Shows current/uploaded image
+- **Clear button**: Remove selected image
 
 ```text
-┌──────────────────────────────────┐
-│ Nivå (valfritt)                  │
-│ [ Välj nivå (valfritt)     ▼ ]   │
-│   ├─ Ingen nivå angiven          │  ← New option
-│   ├─ Nybörjare                   │
-│   ├─ Medel                       │
-│   └─ Avancerad                   │
-└──────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Kursbild                                       │
+├────────────────────────────────────────────────┤
+│  [Ladda upp] [URL]          ← Tab buttons      │
+├────────────────────────────────────────────────┤
+│                                                │
+│   ┌─────────────────────────────────────────┐  │
+│   │                                         │  │
+│   │        📷 Click to upload               │  │
+│   │        or drag and drop                 │  │
+│   │        (Max 5MB, JPG/PNG/WebP)          │  │
+│   │                                         │  │
+│   └─────────────────────────────────────────┘  │
+│                                                │
+│   [Preview shows here after upload/URL]        │
+│                                                │
+└────────────────────────────────────────────────┘
 ```
 
-### Files to Modify
+#### 3. Update Course Form (`Courses.tsx`)
 
-| File | Changes |
-|------|---------|
-| `src/pages/Courses.tsx` | Update schema to optional, update default, add empty option to Select |
+- Replace the simple URL input with `CourseImageUploader`
+- Update Zod schema to accept any string (upload returns a URL)
+- Handle the image URL from either upload or direct input
+
+#### 4. Translation Updates
+
+Add new translation keys for:
+- `uploadTab` / `urlTab` (tab labels)
+- `uploadInstructions` (drag/drop text)
+- `maxFileSize` (size limit message)
+- `removeImage` (clear button)
+- `imagePreview` (accessibility)
+
+### Files to Create/Modify
+
+| File | Action | Description |
+|------|--------|-------------|
+| Database migration | Create | Add `course-images` storage bucket with RLS policies |
+| `src/components/CourseImageUploader.tsx` | Create | New upload/URL picker component |
+| `src/pages/Courses.tsx` | Modify | Replace URL input with CourseImageUploader |
+| `src/locales/sv.ts` | Modify | Add Swedish translations |
+| `src/locales/en.ts` | Modify | Add English translations |
+| `src/locales/es.ts` | Modify | Add Spanish translations |
+
+### User Experience
+
+**Before:**
+```text
+Bild-URL
+[https://example.com/image.jpg___________]
+```
+
+**After:**
+```text
+Kursbild
+┌─────────────────────────────────────────┐
+│ [Ladda upp]  [URL]                      │
+├─────────────────────────────────────────┤
+│  📷 Klicka för att välja bild           │
+│     eller dra och släpp                 │
+│     Max 5MB • JPG, PNG, WebP            │
+└─────────────────────────────────────────┘
+
+[After uploading, shows preview with remove button]
+```
+
+### Technical Flow
+
+```text
+Admin selects file
+      ↓
+Validate type (image/*) and size (≤5MB)
+      ↓
+Upload to storage bucket 'course-images'
+      ↓
+Get public URL from Supabase
+      ↓
+Set form field image_url = publicUrl
+      ↓
+Course saves with URL pointing to storage
+```
 
