@@ -556,10 +556,10 @@ export default function Schema() {
       <div className="overflow-hidden">
         <div className="w-full">
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse table-fixed">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="sticky left-0 bg-muted/30 w-20 p-2 text-xs font-medium text-muted-foreground text-right border-r">
+                  <th className="sticky left-0 bg-muted/30 w-16 min-w-[64px] p-2 text-xs font-medium text-muted-foreground text-right border-r">
                     {t.schedule.time}
                   </th>
                   {days.map((day) => {
