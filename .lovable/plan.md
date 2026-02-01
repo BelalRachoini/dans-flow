@@ -1,136 +1,117 @@
 
-## Plan: Fix White Blank Page Issue on Biljetter Page
+
+## Plan: Fix Week View Glitch on Current Week (Desktop)
 
 ### Problem Identified
 
-After reviewing the code, I found that the Biljetter (Tickets) page can show a white blank screen because several async functions lack proper error handling. When an unhandled error occurs in an async function, React cannot catch it with error boundaries, causing the entire application to crash and show a blank white screen.
+The Schedule page "glitches and zooms in" on desktop when viewing the weekly view on the current week. This is caused by a **hydration mismatch / layout shift** due to how the `useIsMobile` hook initializes.
 
-### Root Causes
+### Root Cause Analysis
 
-1. **Multiple async functions without try...catch blocks:**
-   - `loadAdminCourses()` - No error handling
-   - `loadAdminEvents()` - No error handling  
-   - `loadCourseAttendees()` - Errors logged but not caught at top level
-   - `loadPackageClassesAttendance()` - Same issue
-   - `loadEventAttendees()` - Same issue
-   - `setupRealtimeSubscription()` - No try...catch around `supabase.auth.getUser()`
+1. **`useIsMobile` Hook Issue (Line 6-18 in use-mobile.tsx)**:
+   - The hook initializes `isMobile` as `undefined`
+   - The return statement uses `!!isMobile` which converts `undefined` → `false`
+   - **Problem**: On first render, before the `useEffect` runs, `isMobile` is `undefined` (treated as `false`)
+   - Once the effect runs and detects the actual width, the state updates and causes a re-render
+   
+2. **Schema.tsx Rendering (Line 965)**:
+   ```typescript
+   {viewMode === 'week' && (isMobile ? renderWeekViewMobile() : renderWeekView())}
+   ```
+   - On initial render: `isMobile` is `undefined` → `!!undefined` = `false` → renders desktop view
+   - After effect: `isMobile` updates to actual value (still `false` on desktop) → potentially triggers layout recalculation
 
-2. **useEffect hooks calling async functions without catching errors** - If any of these fail, the error is unhandled
+3. **Table Width Calculation Issue**:
+   - The week view table in `renderWeekView()` (lines 549-647) uses a fixed `w-20` for the time column and auto-expanding columns for days
+   - When the component re-renders after the `isMobile` state settles, the browser may recalculate the table layout
+   - Combined with `overflow-x: hidden` on body/html (index.css), this can cause a visual "zoom" effect as content reflows
 
-3. **No global unhandled rejection handler** - Nothing catches async errors that slip through
+4. **Current Week Effect**:
+   - The "isToday" highlighting (lines 566, 571-573, 577, 601, 611) adds extra styling
+   - This could trigger additional layout calculations specific to the current week
 
 ### Solution
 
-#### 1. Add Try...Catch to All Async Functions in Biljetter.tsx
+Fix the `useIsMobile` hook to prevent the flash/glitch by:
+1. Initializing with a server-safe default based on window check
+2. Adding a loading state that prevents rendering mismatched layouts
 
-Wrap all async functions with proper error handling:
-
-```typescript
-const loadAdminCourses = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('...')
-      .order('starts_at', { ascending: false });
-    
-    if (error) throw error;
-    setCourses(data || []);
-  } catch (error) {
-    console.error('Error loading courses:', error);
-    // Don't crash - just show empty state
-    setCourses([]);
-  }
-};
-```
-
-Apply this pattern to:
-- `loadAdminCourses()`
-- `loadAdminEvents()`
-- `loadCourseAttendees()`
-- `loadPackageClassesAttendance()`
-- `loadEventAttendees()`
-- `setupRealtimeSubscription()`
-
-#### 2. Add Global Unhandled Rejection Handler in App.tsx
-
-Add a safety net to catch any async errors that slip through:
-
-```typescript
-useEffect(() => {
-  const handleRejection = (event: PromiseRejectionEvent) => {
-    console.error("Unhandled rejection:", event.reason);
-    toast.error("An error occurred. Please try again.");
-    event.preventDefault();
-  };
-
-  window.addEventListener("unhandledrejection", handleRejection);
-  return () => window.removeEventListener("unhandledrejection", handleRejection);
-}, []);
-```
-
-#### 3. Fix Realtime Subscription Cleanup
-
-The current code has a subtle bug where the cleanup function isn't properly returned:
-
-```typescript
-// Current (buggy)
-useEffect(() => {
-  const setupRealtimeSubscription = async () => {
-    // ...
-    return () => { supabase.removeChannel(channel); };
-  };
-  setupRealtimeSubscription(); // Return value ignored!
-}, []);
-
-// Fixed
-useEffect(() => {
-  let channel: any;
-  
-  const setup = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.id) return;
-      
-      channel = supabase.channel('tickets_updates')
-        // ...subscriptions
-        .subscribe();
-    } catch (error) {
-      console.error('Error setting up realtime:', error);
-    }
-  };
-  
-  setup();
-  
-  return () => {
-    if (channel) supabase.removeChannel(channel);
-  };
-}, []);
-```
+Additionally, add a stable width to the week view table to prevent layout shifts.
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/Biljetter.tsx` | Add try...catch to all async functions, fix realtime cleanup |
-| `src/App.tsx` | Add global unhandled rejection handler |
+| `src/hooks/use-mobile.tsx` | Fix initial state to prevent layout shift |
+| `src/pages/Schema.tsx` | Add stable layout styling to prevent glitch during initial render |
 
-### Technical Details
+### Implementation Details
 
-**Affected Functions in Biljetter.tsx:**
+#### 1. Fix `useIsMobile` Hook
 
-| Function | Line | Issue | Fix |
-|----------|------|-------|-----|
-| `loadAdminCourses` | 543 | No error handling | Add try...catch |
-| `loadAdminEvents` | 554 | No error handling | Add try...catch |
-| `loadCourseAttendees` | 565 | Partial error handling | Wrap entire function |
-| `loadPackageClassesAttendance` | 642 | Partial error handling | Wrap entire function |
-| `loadEventAttendees` | 831 | Partial error handling | Wrap entire function |
-| `setupRealtimeSubscription` | 171 | No try...catch, bad cleanup | Full rewrite |
+**Current code (problematic):**
+```typescript
+const [isMobile, setIsMobile] = useState<boolean | undefined>(undefined);
+// ...
+return !!isMobile;
+```
 
-### Expected Result
+**Fixed code:**
+```typescript
+// Initialize with actual value if window is available (client-side)
+const [isMobile, setIsMobile] = useState<boolean>(() => {
+  if (typeof window !== 'undefined') {
+    return window.innerWidth < MOBILE_BREAKPOINT;
+  }
+  return false; // SSR fallback
+});
+```
 
-After these changes:
-- Errors in data fetching will be caught and logged
-- The page will show empty states instead of crashing
-- Users will see helpful error messages via toast notifications
-- The global handler prevents any remaining async errors from causing white screens
+This ensures:
+- The initial value is correct from the first render on client
+- No flash/glitch from `undefined` → actual value transition
+- No unnecessary re-render that triggers layout recalculation
+
+#### 2. Stabilize Week View Layout in Schema.tsx
+
+Add `table-fixed` class to the week view table to prevent dynamic column width recalculation:
+
+**Current (line 559):**
+```typescript
+<table className="w-full border-collapse">
+```
+
+**Fixed:**
+```typescript
+<table className="w-full border-collapse table-fixed">
+```
+
+And add explicit widths to ensure columns don't shift:
+
+**Time column header (line 562-563):**
+```typescript
+<th className="sticky left-0 bg-muted/30 w-16 min-w-[64px] p-2 ...">
+```
+
+### Why This Fixes The Issue
+
+1. **No Initial State Transition**: By initializing `isMobile` with the actual window width value, there's no `undefined → boolean` transition that causes re-renders
+
+2. **Stable Table Layout**: Using `table-fixed` prevents the browser from recalculating column widths based on content, eliminating the "zoom" effect
+
+3. **Explicit Widths**: Adding `min-w-[64px]` ensures the time column maintains consistent width across renders
+
+### Visual Before/After
+
+**Before (Glitchy):**
+```text
+Render 1: isMobile = undefined → false → renders week view (columns auto-sizing)
+Render 2: isMobile = false (confirmed) → re-renders → columns recalculate → GLITCH!
+```
+
+**After (Fixed):**
+```text
+Render 1: isMobile = false (from initialization) → renders week view (fixed columns)
+No re-render needed → stable layout → NO GLITCH
+```
+
