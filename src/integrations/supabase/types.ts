@@ -1070,6 +1070,63 @@ export type Database = {
           },
         ]
       }
+      swish_payments: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          id: string
+          member_id: string
+          metadata: Json
+          payment_request_id: string
+          payment_type: string
+          status: string
+          swish_callback_data: Json | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          id?: string
+          member_id: string
+          metadata?: Json
+          payment_request_id: string
+          payment_type: string
+          status?: string
+          swish_callback_data?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          member_id?: string
+          metadata?: Json
+          payment_request_id?: string
+          payment_type?: string
+          status?: string
+          swish_callback_data?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swish_payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swish_payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "v_member_revenue"
+            referencedColumns: ["member_id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           course_id: string | null
