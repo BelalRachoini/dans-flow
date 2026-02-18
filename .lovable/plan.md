@@ -1,29 +1,32 @@
 
-## Plan: Show Actual Revenue Per Client in Members CRM
 
-### Problem
+## Plan: Fix Payment Customer Names and Product Descriptions
 
-The "Total Revenue" KPI card and per-member revenue column in the Members CRM page all show **0 kr** because the `v_member_revenue` database view reads from the `payments` table, which is empty. All actual payments go through Stripe and are never recorded in the local `payments` table.
+### Root Cause
+
+The metadata (`user_id`, `course_id`, `event_id`, etc.) is stored on Stripe **Checkout Sessions**, not on PaymentIntents. Stripe does not automatically copy session metadata to the PaymentIntent. The `get-stripe-payments` edge function only reads PaymentIntent metadata, which is always empty -- resulting in "Unknown" customers and "Payment" descriptions.
 
 ### Solution
 
-Instead of trying to sync the local `payments` table, the CRM page will fetch Stripe payment data (via the existing `get-stripe-payments` Edge Function) and aggregate revenue per `user_id` from the Stripe metadata. This gives accurate, real-time revenue per client.
+Update the `get-stripe-payments` edge function to look up the **Checkout Session** for each PaymentIntent using `stripe.checkout.sessions.list({ payment_intent: pi.id })`. The session contains all the metadata needed (user_id, course_id, event_id, ticket_count, etc.).
 
-### Changes
+### File Changes
 
-| File | What Changes |
-|------|-------------|
-| `src/pages/MedlemmarCRM.tsx` | Replace the `v_member_revenue` query with a call to `get-stripe-payments` edge function, aggregate amounts by `userId`, and map to each member row |
+| File | Change |
+|------|--------|
+| `supabase/functions/get-stripe-payments/index.ts` | For each PaymentIntent, fetch its associated Checkout Session to get metadata, then use that metadata for customer lookup and description resolution |
 
 ### Technical Details
 
-1. **Fetch Stripe payments** using `supabase.functions.invoke('get-stripe-payments')` inside the existing `useQuery`
-2. **Aggregate by userId**: Group all `succeeded` payments by `userId` and sum `amountSEK` to get revenue per member
-3. **Map to member rows**: Replace the `revenueMap` (currently from empty `v_member_revenue`) with the Stripe-aggregated map
-4. **Remove the `v_member_revenue` query** since it returns zeros
+For each PaymentIntent, the function will:
 
-This means:
-- The "Total Revenue" KPI card will show the real total
-- The "Avg per member" KPI will be accurate
-- Each member row will show their actual spend
-- Sorting by revenue will work correctly
+1. Call `stripe.checkout.sessions.list({ payment_intent: pi.id, limit: 1 })` to get the session
+2. Read metadata from the session (user_id, course_id, event_id, etc.)
+3. Use `user_id` to look up the profile for customer name/email
+4. Use `course_id`/`event_id`/`lesson_id` to build the description (e.g., "Kurs: Salsa Nybojare")
+
+To keep performance acceptable, sessions will be fetched in parallel using `Promise.all` rather than sequentially.
+
+The fallback chain for customer name remains:
+- Profile (via session metadata user_id) -> Billing details (from expanded charge) -> Stripe Customer object -> "Unknown"
+
