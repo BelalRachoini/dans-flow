@@ -228,7 +228,7 @@ export default function Courses() {
         title: data.title,
         image_url: data.image_url || null,
         description: data.description,
-        level: data.level,
+        level: data.level || 'beginner',
         price_cents: Math.round(data.price * 100),
         capacity: data.capacity,
         primary_instructor: data.primary_instructor || null,
