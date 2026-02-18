@@ -48,9 +48,32 @@ serve(async (req) => {
 
     const paymentIntents = await stripe.paymentIntents.list(paymentIntentsParams);
 
-    // Batch-fetch all profiles by user_id from metadata
-    const userIds = paymentIntents.data
-      .map((pi: any) => pi.metadata?.user_id)
+    // For each PI, fetch its Checkout Session to get metadata (in parallel)
+    const sessionResults = await Promise.all(
+      paymentIntents.data.map(async (pi: any) => {
+        try {
+          const sessions = await stripe.checkout.sessions.list({
+            payment_intent: pi.id,
+            limit: 1,
+          });
+          return sessions.data[0] || null;
+        } catch (_e) {
+          return null;
+        }
+      })
+    );
+
+    // Build a map: paymentIntentId -> session metadata
+    const sessionMap: Record<string, any> = {};
+    for (let i = 0; i < paymentIntents.data.length; i++) {
+      const pi = paymentIntents.data[i];
+      const session = sessionResults[i];
+      sessionMap[pi.id] = session?.metadata || {};
+    }
+
+    // Batch-fetch all profiles by user_id from session metadata
+    const userIds = Object.values(sessionMap)
+      .map((meta: any) => meta.user_id)
       .filter((id: string) => id && id !== "unknown");
     
     const uniqueUserIds = [...new Set(userIds)];
@@ -72,7 +95,7 @@ serve(async (req) => {
     // Enrich payments
     const enrichedPayments = await Promise.all(
       paymentIntents.data.map(async (pi: any) => {
-        const metadata = pi.metadata || {};
+        const metadata = sessionMap[pi.id] || {};
         const latestCharge = pi.latest_charge;
         const billing = latestCharge?.billing_details;
 
@@ -97,7 +120,7 @@ serve(async (req) => {
           } catch (_e) { /* ignore */ }
         }
 
-        // 2. Determine payment type and description from metadata
+        // 2. Determine payment type and description from session metadata
         let paymentType = "other";
         let description = pi.description || "Payment";
 
