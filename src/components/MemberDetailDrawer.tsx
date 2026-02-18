@@ -135,36 +135,44 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     enabled: open && checkinDialogOpen,
   });
 
-  // Fetch revenue
-  const { data: revenue } = useQuery({
-    queryKey: ['member-revenue', memberId],
+  // Fetch Stripe payments for this member
+  const { data: stripePayments = [] } = useQuery({
+    queryKey: ['member-stripe-payments', memberId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('v_member_revenue')
-        .select('*')
-        .eq('member_id', memberId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-stripe-payments?limit=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      if (!res.ok) throw new Error('Failed to fetch payments');
+      const json = await res.json();
+      // Filter to this member only, paid status
+      return (json.payments || []).filter(
+        (p: any) => p.userId === memberId
+      );
     },
     enabled: open,
   });
 
-  // Fetch payments
-  const { data: payments = [] } = useQuery({
-    queryKey: ['member-payments', memberId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('member_id', memberId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data;
-    },
-    enabled: open,
-  });
+  // Compute revenue stats from Stripe data
+  const revenue = (() => {
+    const paidPayments = stripePayments.filter((p: any) => p.status === 'paid');
+    const revenueCents = paidPayments.reduce((sum: number, p: any) => sum + Math.round(p.amountSEK * 100), 0);
+    const lastPaidAt = paidPayments.length > 0
+      ? paidPayments.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]?.createdAt
+      : null;
+    return {
+      revenue_cents: revenueCents,
+      txn_count: paidPayments.length,
+      last_paid_at: lastPaidAt,
+    };
+  })();
 
   // Fetch tickets & checkins
   const { data: tickets = [] } = useQuery({
@@ -562,9 +570,11 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                       </CardHeader>
                       <CardContent>
                         <div className="text-sm">
-                          {checkinStats?.last_checkin_at
-                            ? format(new Date(checkinStats.last_checkin_at), 'yyyy-MM-dd')
-                            : '—'}
+                          {revenue.last_paid_at
+                            ? format(new Date(revenue.last_paid_at), 'yyyy-MM-dd')
+                            : checkinStats?.last_checkin_at
+                              ? format(new Date(checkinStats.last_checkin_at), 'yyyy-MM-dd')
+                              : '—'}
                         </div>
                       </CardContent>
                     </Card>
@@ -748,7 +758,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                 <TabsContent value="purchases">
                   <Card>
                     <CardContent className="pt-6">
-                      {payments.length === 0 ? (
+                      {stripePayments.length === 0 ? (
                         <p className="text-center text-muted-foreground py-8">{t.common.noData}</p>
                       ) : (
                         <div className="overflow-x-auto -mx-4 md:mx-0">
@@ -762,18 +772,18 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {payments.map((payment) => (
+                              {stripePayments.map((payment: any) => (
                                 <TableRow key={payment.id}>
-                                  <TableCell>{format(new Date(payment.created_at), 'yyyy-MM-dd')}</TableCell>
+                                  <TableCell>{format(new Date(payment.createdAt), 'yyyy-MM-dd')}</TableCell>
                                   <TableCell>{payment.description || '—'}</TableCell>
                                   <TableCell className="text-right">
-                                    {formatCurrency(payment.amount_cents)}
+                                    {new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK', minimumFractionDigits: 0 }).format(payment.amountSEK)}
                                   </TableCell>
                                   <TableCell>
                                     <Badge
-                                      variant={payment.status === 'succeeded' ? 'default' : 'secondary'}
+                                      variant={payment.status === 'paid' ? 'default' : 'secondary'}
                                     >
-                                      {payment.status}
+                                      {payment.status === 'paid' ? 'Betald' : payment.status}
                                     </Badge>
                                   </TableCell>
                                 </TableRow>
