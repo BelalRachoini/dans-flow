@@ -1,28 +1,19 @@
 
 
-## Plan: Fix Member Profile to Show Real Stripe Data
+## Plan: Fix Optional Level Field in Course Creation
 
 ### Problem
 
-The member detail drawer (Overview tab) shows "0 kr" for Total, "0" for Purchases, and no Last Activity because it queries the empty `v_member_revenue` view and `payments` table. All actual payment data is in Stripe.
+The `courses` table has the column `level text NOT NULL DEFAULT 'beginner'`. When no level is selected in the form, the value sent is `undefined`, which overrides the database default and attempts to insert `NULL` -- violating the `NOT NULL` constraint and causing the "kunde inte spara kursen" error.
 
 ### Solution
 
-Update the `MemberDetailDrawer` component to fetch payment data from the `get-stripe-payments` Edge Function and filter by the specific member's ID.
+In `src/pages/Courses.tsx`, when building the `courseData` object, omit the `level` field entirely when it is `undefined`/`null` so the database default (`'beginner'`) takes effect. Alternatively, explicitly fall back to `'beginner'`.
 
 ### File Changes
 
 | File | Change |
 |------|--------|
-| `src/components/MemberDetailDrawer.tsx` | Replace `v_member_revenue` and `payments` queries with a single call to `get-stripe-payments`, filter by `memberId`, and compute revenue/purchases/last activity from the Stripe data |
+| `src/pages/Courses.tsx` | On line 231, change `level: data.level` to `level: data.level || 'beginner'` so a missing level falls back to the default instead of sending `null` |
 
-### Technical Details
-
-1. **Replace the revenue query** (lines 139-151): Instead of querying `v_member_revenue`, call `get-stripe-payments` and filter results where `userId === memberId` and `status === 'paid'`
-2. **Replace the payments query** (lines 154-167): Use the same Stripe data to populate the Purchase History tab, instead of the empty `payments` table
-3. **Compute overview stats**: From the filtered Stripe payments, calculate:
-   - Total revenue (sum of `amountSEK`)
-   - Purchase count
-   - Last activity date (most recent payment date)
-4. **Purchase History tab**: Display actual Stripe transactions with description, amount, date, and status
-
+This is a one-line fix. When a user selects "Ingen niva angiven" (None), the form sets level to `undefined`. By falling back to `'beginner'`, the insert will always have a valid value, matching the database constraint.
