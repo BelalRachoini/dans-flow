@@ -78,14 +78,17 @@ export default function MedlemmarCRM() {
         throw profilesError;
       }
 
-      // Fetch revenue data separately
-      const { data: revenues, error: revenuesError } = await supabase
-        .from('v_member_revenue')
-        .select('*');
-
-      if (revenuesError) {
-        console.error('Error fetching revenues:', revenuesError);
-        throw revenuesError;
+      // Fetch revenue data from Stripe via edge function
+      let stripeRevenues: { userId: string; amountSEK: number; status: string }[] = [];
+      try {
+        const { data: stripeData, error: stripeError } = await supabase.functions.invoke('get-stripe-payments', {
+          body: null,
+        });
+        if (!stripeError && stripeData?.payments) {
+          stripeRevenues = stripeData.payments;
+        }
+      } catch (e) {
+        console.error('Error fetching Stripe payments:', e);
       }
 
       // Fetch available tickets for each member
@@ -108,10 +111,20 @@ export default function MedlemmarCRM() {
         }
       });
 
-      const revenueMap = new Map(revenues?.map(r => [r.member_id, r]) || []);
+      // Aggregate Stripe revenue by userId (only succeeded/paid payments)
+      const revenueMap = new Map<string, { revenue_cents: number; txn_count: number }>();
+      stripeRevenues.forEach((payment: any) => {
+        if (payment.status === 'paid' && payment.userId && payment.userId !== 'unknown') {
+          const existing = revenueMap.get(payment.userId) || { revenue_cents: 0, txn_count: 0 };
+          existing.revenue_cents += Math.round((payment.amountSEK || 0) * 100);
+          existing.txn_count += 1;
+          revenueMap.set(payment.userId, existing);
+        }
+      });
 
       return (userRolesData || []).map(ur => {
         const profile = (ur as any).profiles;
+        const rev = revenueMap.get(profile.id);
         return {
           id: profile.id,
           full_name: profile.full_name,
@@ -123,8 +136,8 @@ export default function MedlemmarCRM() {
           available_tickets: ticketsMap.get(profile.id) || 0,
           status: profile.status,
           created_at: profile.created_at,
-          revenue_cents: revenueMap.get(profile.id)?.revenue_cents || 0,
-          txn_count: revenueMap.get(profile.id)?.txn_count || 0,
+          revenue_cents: rev?.revenue_cents || 0,
+          txn_count: rev?.txn_count || 0,
         };
       }) as MemberWithRevenue[];
     },
