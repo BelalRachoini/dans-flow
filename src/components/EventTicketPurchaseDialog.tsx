@@ -150,13 +150,12 @@ export function EventTicketPurchaseDialog({
       if (error) throw error;
 
       if (data?.url) {
-        window.open(data.url, '_blank');
         onOpenChange(false);
+        window.open(data.url, '_blank');
       }
     } catch (error: any) {
       console.error('Purchase error:', error);
       toast.error(error.message || t.common.error);
-    } finally {
       setProcessing(false);
     }
   };
