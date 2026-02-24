@@ -1,19 +1,20 @@
 
-## Plan: Hide Prenumerationer and Betalningar from Instructor Sidebar
+
+## Plan: Hide Medlemmar from Instructor Sidebar
 
 ### Problem
 
-The sidebar navigation in `Layout.tsx` shows "Prenumerationer" and "Betalningar" links to instructors. These are admin-only features that instructors should not access.
+The sidebar navigation still shows "Medlemmar" to instructors. This should be an admin-only feature.
 
 ### Solution
 
-Remove `'INSTRUKTOR'` from the `roles` array for both menu items so only admins see them.
+Remove `'INSTRUKTOR'` from the `roles` array for the Medlemmar nav item in `src/components/Layout.tsx`.
 
 ### File Changes
 
 | File | Change |
 |------|--------|
-| `src/components/Layout.tsx` | Line 90: Change `roles: ['ADMIN', 'INSTRUKTOR']` to `roles: ['ADMIN']` for Prenumerationer |
-| `src/components/Layout.tsx` | Line 91: Change `roles: ['ADMIN', 'INSTRUKTOR']` to `roles: ['ADMIN']` for Betalningar |
+| `src/components/Layout.tsx` | Line 89: Change `roles: ['ADMIN', 'INSTRUKTOR']` to `roles: ['ADMIN']` for Medlemmar |
 
-This is a two-line change that restricts visibility of these nav items to admin users only.
+Single-line change restricting the members page to admin users only.
+
