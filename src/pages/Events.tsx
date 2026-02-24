@@ -84,6 +84,7 @@ export default function EventsPage() {
   });
 
   const isAdmin = role === 'admin';
+  const isInstructor = role === 'instructor';
   const watchPrice = watch('price');
   const watchDiscountType = watch('discount_type');
   const watchDiscountValue = watch('discount_value');
@@ -1058,6 +1059,18 @@ export default function EventsPage() {
                         <Trash2 size={16} />
                       </Button>
                     </>
+                  ) : isInstructor ? (
+                    <Button 
+                      variant="secondary" 
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewAttendees(event.id);
+                      }}
+                    >
+                      <Users size={16} className="mr-2" />
+                      {t.events.viewAttendees}
+                    </Button>
                   ) : (
                     availableSeats > 0 && (
                       <Button 
