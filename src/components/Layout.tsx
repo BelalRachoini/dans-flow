@@ -87,8 +87,8 @@ export const Layout = () => {
     { icon: PartyPopper, label: t.nav.event, path: '/event', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
     { icon: Ticket, label: t.nav.biljetter, path: '/biljetter', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
     { icon: Users, label: t.nav.medlemmar, path: '/medlemmar', roles: ['ADMIN', 'INSTRUKTOR'] },
-    { icon: Repeat, label: t.nav.prenumerationer, path: '/prenumerationer', roles: ['ADMIN', 'INSTRUKTOR'] },
-    { icon: CreditCard, label: t.nav.betalningar, path: '/betalningar', roles: ['ADMIN', 'INSTRUKTOR'] },
+    { icon: Repeat, label: t.nav.prenumerationer, path: '/prenumerationer', roles: ['ADMIN'] },
+    { icon: CreditCard, label: t.nav.betalningar, path: '/betalningar', roles: ['ADMIN'] },
   ];
 
   if (!userId || !role) return null;
