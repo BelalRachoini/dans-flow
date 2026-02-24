@@ -110,6 +110,33 @@ serve(async (req) => {
       console.log("[create-event-payment] New customer will be created by Stripe");
     }
 
+    // --- Duplicate session check (graceful, never blocks on failure) ---
+    if (customerId) {
+      try {
+        const thirtyMinAgo = Math.floor((Date.now() - 30 * 60 * 1000) / 1000);
+        const recentSessions = await stripe.checkout.sessions.list({
+          customer: customerId,
+          status: 'open',
+          created: { gte: thirtyMinAgo },
+          limit: 20,
+        });
+
+        const existingSession = recentSessions.data.find(
+          (s) => s.metadata?.event_id === event_id && s.metadata?.user_id === user.id
+        );
+
+        if (existingSession?.url) {
+          console.log("[create-event-payment] Reusing existing open session:", existingSession.id);
+          return new Response(
+            JSON.stringify({ url: existingSession.url, session_id: existingSession.id, reused: true }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+          );
+        }
+      } catch (dupCheckErr) {
+        console.warn("[create-event-payment] Duplicate check failed, proceeding to create new session:", dupCheckErr);
+      }
+    }
+
     // Create product name based on ticket count
     const productName = validatedTicketCount === 1 
       ? event.title 
