@@ -70,7 +70,7 @@ export default function InstructorEventAttendees() {
               <div className="w-full bg-muted rounded-full h-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all"
-                  style={{ width: `${Math.min((selectedEvent.sold_count / selectedEvent.capacity) * 100, 100)}%` }}
+                  style={{ width: `${selectedEvent.capacity > 0 ? Math.min((selectedEvent.sold_count / selectedEvent.capacity) * 100, 100) : 0}%` }}
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
