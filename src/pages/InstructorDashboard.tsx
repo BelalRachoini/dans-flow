@@ -4,9 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanLine, CalendarDays, Users, Info, Calendar, Music } from 'lucide-react';
+import { ScanLine, CalendarDays, Users, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import InstructorCourseAttendees from '@/components/InstructorCourseAttendees';
+import InstructorEventAttendees from '@/components/InstructorEventAttendees';
 
 export default function InstructorDashboard() {
   const { userId } = useAuthStore();
@@ -173,32 +175,26 @@ export default function InstructorDashboard() {
         </Card>
       </div>
 
-      {/* Tabs for additional views */}
+      {/* Attendee Views */}
       <Card>
         <CardHeader>
-          <CardTitle>Navigation</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Deltagare
+          </CardTitle>
+          <CardDescription>Se anmälda deltagare för dina kurser och event</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Översikt</TabsTrigger>
-              <TabsTrigger value="calendar">
-                <Link to="/schema" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Kalender
-                </Link>
-              </TabsTrigger>
-              <TabsTrigger value="events">
-                <Link to="/event" className="flex items-center gap-2">
-                  <Music className="h-4 w-4" />
-                  Event
-                </Link>
-              </TabsTrigger>
+          <Tabs defaultValue="courses" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="courses">Mina kurser</TabsTrigger>
+              <TabsTrigger value="events">Event</TabsTrigger>
             </TabsList>
-            <TabsContent value="overview" className="mt-4">
-              <p className="text-sm text-muted-foreground">
-                Du ser översikten ovan. Använd flikarna för att navigera till andra sektioner.
-              </p>
+            <TabsContent value="courses" className="mt-4">
+              {userId && <InstructorCourseAttendees userId={userId} />}
+            </TabsContent>
+            <TabsContent value="events" className="mt-4">
+              <InstructorEventAttendees />
             </TabsContent>
           </Tabs>
         </CardContent>
