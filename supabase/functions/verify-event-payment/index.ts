@@ -414,13 +414,32 @@ serve(async (req) => {
         attendeeNamesStr,
         createdBookings.length
       );
+      const amountCents = session.amount_total || 0;
+      const currency = (session.currency || 'sek').toUpperCase();
+      const receiptData = {
+        customerName,
+        customerEmail: user.email || '',
+        date: new Date().toLocaleDateString('sv-SE'),
+        items: [{
+          description: `${currentEvent?.title || 'Event'} (${ticket_count} person(er) × ${datesToBook.length} dag(ar))`,
+          quantity: 1,
+          unitPrice: amountCents,
+          currency,
+        }],
+        totalAmount: amountCents,
+        currency,
+        orderId: session_id,
+        companyInfo: { name: 'DanceVida', address: 'Gamlestadsv. 14, 415 02 Goteborg', phone: '073-702 11 34' },
+      };
+
       const emailResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: user.email,
           subject: `Eventbokning bekräftad: ${currentEvent?.title || "Event"} / Event booking confirmed`,
-          html: emailHtml
+          html: emailHtml,
+          receipt: receiptData,
         })
       });
       

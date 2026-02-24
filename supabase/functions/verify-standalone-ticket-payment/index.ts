@@ -261,13 +261,33 @@ serve(async (req) => {
     if (userData?.user?.email) {
       try {
         const emailHtml = buildTicketEmail(customerName, ticketCount, expiryDateFormatted);
+        
+        const amountCents = session.amount_total || 0;
+        const currency = (session.currency || 'sek').toUpperCase();
+        const receiptData = {
+          customerName,
+          customerEmail: userData.user.email || '',
+          date: new Date().toLocaleDateString('sv-SE'),
+          items: [{
+            description: `Klippkort / Ticket package (${ticketCount} st)`,
+            quantity: ticketCount,
+            unitPrice: Math.round(amountCents / ticketCount),
+            currency,
+          }],
+          totalAmount: amountCents,
+          currency,
+          orderId: `standalone:${session.id}`,
+          companyInfo: { name: 'DanceVida', address: 'Gamlestadsv. 14, 415 02 Goteborg', phone: '073-702 11 34' },
+        };
+
         const emailResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             to: userData.user.email,
             subject: `Biljettköp bekräftat / Ticket purchase confirmed`,
-            html: emailHtml
+            html: emailHtml,
+            receipt: receiptData,
           })
         });
         
