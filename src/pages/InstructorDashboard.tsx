@@ -26,8 +26,8 @@ export default function InstructorDashboard() {
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      // Fetch today's courses where user is instructor
-      const { data: coursesData } = await supabase
+      // Fetch today's courses where user is instructor (direct + via course_instructors)
+      const { data: directCourses } = await supabase
         .from('courses')
         .select('*')
         .eq('instructor_id', userId)
@@ -35,31 +35,60 @@ export default function InstructorDashboard() {
         .lte('starts_at', `${today}T23:59:59`)
         .order('starts_at', { ascending: true });
 
-      setTodayCourses(coursesData || []);
+      const { data: linkedCourses } = await supabase
+        .from('course_instructors')
+        .select('course_id, courses(*)')
+        .eq('instructor_id', userId);
 
-      // Fetch today's attendance
-      if (coursesData && coursesData.length > 0) {
-        const courseIds = coursesData.map(c => c.id);
+      // Merge and deduplicate
+      const courseMap = new Map<string, any>();
+      (directCourses || []).forEach(c => courseMap.set(c.id, c));
+      (linkedCourses || []).forEach(l => {
+        const c = l.courses as any;
+        if (c && c.starts_at) {
+          const courseDate = c.starts_at.split('T')[0];
+          if (courseDate === today && !courseMap.has(c.id)) {
+            courseMap.set(c.id, c);
+          }
+        }
+      });
+
+      const allTodayCourses = Array.from(courseMap.values()).sort(
+        (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+      );
+      setTodayCourses(allTodayCourses);
+
+      // Fetch today's attendance: first get ticket IDs, then checkins
+      if (allTodayCourses.length > 0) {
+        const courseIds = allTodayCourses.map(c => c.id);
         
-        const { data: attendanceData } = await supabase
-          .from('checkins')
-          .select(`
-            *,
-            tickets!inner (
-              course_id,
-              courses!inner (
-                title
-              ),
-              profiles!inner (
-                full_name
-              )
-            )
-          `)
-          .in('tickets.course_id', courseIds)
-          .gte('scanned_at', `${today}T00:00:00`)
-          .order('scanned_at', { ascending: false });
+        // Step 1: Get ticket IDs for these courses
+        const { data: ticketsData } = await supabase
+          .from('tickets')
+          .select('id, course_id')
+          .in('course_id', courseIds);
 
-        setAttendance(attendanceData || []);
+        const ticketIds = (ticketsData || []).map(t => t.id);
+
+        if (ticketIds.length > 0) {
+          // Step 2: Get checkins for those tickets today
+          const { data: attendanceData } = await supabase
+            .from('checkins')
+            .select(`
+              *,
+              tickets (
+                course_id,
+                member_id,
+                profiles:member_id (full_name),
+                courses:source_course_id (title)
+              )
+            `)
+            .in('ticket_id', ticketIds)
+            .gte('scanned_at', `${today}T00:00:00`)
+            .order('scanned_at', { ascending: false });
+
+          setAttendance(attendanceData || []);
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error);

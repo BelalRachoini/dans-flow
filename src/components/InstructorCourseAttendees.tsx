@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users, CheckCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 interface Props {
   userId: string;
@@ -53,6 +53,7 @@ export default function InstructorCourseAttendees({ userId }: Props) {
 
   const fetchAttendees = async (courseId: string) => {
     setLoading(true);
+    setAttendees([]);
     try {
       const { data: tickets } = await supabase
         .from('tickets')
