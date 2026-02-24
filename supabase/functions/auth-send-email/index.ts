@@ -1,10 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { Resend } from "npm:resend@4.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 function buildSignupEmail(email: string, confirmationUrl: string): string {
   return `<!doctype html>
@@ -400,7 +402,6 @@ serve(async (req) => {
     const tokenHash = emailData.token_hash;
     const redirectTo = emailData.redirect_to || "https://cms.dancevida.se";
     
-    // Build the confirmation/action URL
     let actionUrl = "";
     let subject = "";
     let htmlContent = "";
@@ -436,31 +437,18 @@ serve(async (req) => {
 
     console.log(`[auth-send-email] Sending ${emailType} email to: ${email}`);
 
-    const client = new SMTPClient({
-      connection: {
-        hostname: Deno.env.get("SMTP_HOST") || "send.one.com",
-        port: parseInt(Deno.env.get("SMTP_PORT") || "465"),
-        tls: true,
-        auth: {
-          username: Deno.env.get("SMTP_USER") || "",
-          password: Deno.env.get("SMTP_PASSWORD") || "",
-        },
-      },
-    });
-
-    const fromName = Deno.env.get("SMTP_FROM_NAME") || "Dance Vida Tickets";
-    const fromEmail = Deno.env.get("SMTP_FROM_EMAIL") || "tickets@dancevida.se";
-
-    await client.send({
-      from: `${fromName} <${fromEmail}>`,
-      to: email,
+    const { data, error } = await resend.emails.send({
+      from: "Dance Vida Tickets <tickets@dancevida.se>",
+      to: [email],
       subject: subject,
       html: htmlContent,
     });
-    
-    await client.close();
-    
-    console.log(`[auth-send-email] Email sent successfully to: ${email}`);
+
+    if (error) {
+      throw new Error(`Resend error: ${JSON.stringify(error)}`);
+    }
+
+    console.log(`[auth-send-email] Email sent successfully to: ${email}`, data);
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
