@@ -1,41 +1,50 @@
 
+# Migrate All Emails from SMTP to Resend
 
-# Prevent Duplicate Event Checkout Sessions
+## Overview
+Replace the current SMTP-based email sending (via `denomailer` + one.com) with Resend across all edge functions. The sender address stays `tickets@dancevida.se`.
 
-## Problem
-Users can trigger multiple Stripe Checkout sessions for the same event by clicking the purchase button rapidly or navigating back and clicking again. This led to a real double-charge incident.
+## What Changes
 
-## Solution
-Add a duplicate-session check in the `create-event-payment` edge function using the Stripe API to look for recent open/unpaid checkout sessions for the same user+event combination before creating a new one.
+### 1. Add `RESEND_API_KEY` secret
+- Store your Resend API key as a secret so all edge functions can use it.
 
-## Technical Approach
+### 2. Rewrite `send-email` edge function
+- Remove `denomailer` SMTP client
+- Replace with `Resend` from `npm:resend@4.0.0`
+- Same interface (`to`, `subject`, `html`) -- all callers remain unchanged
+- Send from `Dance Vida Tickets <tickets@dancevida.se>`
 
-### 1. Edge Function: `create-event-payment/index.ts`
+### 3. Rewrite `auth-send-email` edge function
+- Remove `denomailer` SMTP client
+- Replace with `Resend` for sending
+- Keep all existing HTML templates (signup, recovery, magic link) exactly as-is
+- Same payload parsing and routing logic
 
-After authenticating the user and validating the event, **before** creating a new checkout session, query Stripe for recent checkout sessions matching this user+event:
+### 4. No changes needed to callers
+Since `send-email` keeps the same request/response contract, these files need zero changes:
+- `verify-course-payment/index.ts` (calls `send-email`)
+- `verify-event-payment/index.ts` (calls `send-email`)
+- `verify-standalone-ticket-payment/index.ts` (calls `send-email`)
+- `src/pages/Auth.tsx` (calls `send-email` for welcome email)
 
-- Use `stripe.checkout.sessions.list()` filtered by the customer ID (if one exists) to find sessions created in the last 30 minutes
-- Check session metadata for matching `event_id` and `user_id`
-- If an **open** (unpaid) session is found, return its existing URL instead of creating a new one
-- If a **paid** session is found (meaning booking already completed or in progress), return an error to prevent double-purchase
-- Only create a new session if no recent matching sessions exist
+### 5. SMTP secrets
+The old SMTP secrets (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`) will no longer be used. They can be removed later if desired.
 
-Key details:
-- Time window: 30 minutes (Stripe sessions expire after 24h by default, but 30 min is a safe deduplication window)
-- Filter by `status: 'open'` to only catch unpaid sessions
-- Match on metadata fields (`event_id` + `user_id`) since multiple events could be in-flight
-- If no customer ID exists yet (new customer), skip the Stripe check since there can't be a prior session
-- This approach is resilient: if Stripe list fails for any reason, we fall through to creating a new session (no errors for edge cases)
+## Technical Details
 
-### 2. Frontend: `EventTicketPurchaseDialog.tsx`
+**`send-email/index.ts`** -- new implementation:
+```
+import { Resend } from "npm:resend@4.0.0"
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"))
 
-As a secondary safeguard, improve the UI:
-- The `processing` state already disables the button, but ensure the dialog also closes or shows a "redirecting" state after getting the URL, preventing re-clicks during the redirect window
+// Same { to, subject, html } interface
+// Send via: resend.emails.send({ from, to, subject, html })
+```
 
-### Why this is safe and won't cause future errors
+**`auth-send-email/index.ts`** -- same change pattern:
+- Replace SMTP client with Resend
+- All HTML template builder functions stay identical
+- Same auth payload parsing logic
 
-- **Graceful fallback**: If the Stripe sessions.list call fails, we catch the error, log it, and proceed to create a new session normally
-- **No database dependency**: We check Stripe directly (source of truth for payment state), not a local table that could get out of sync
-- **Expired sessions handled**: Stripe automatically expires old sessions; we only look at `open` status ones
-- **Race condition safe**: Even if two requests slip through simultaneously, the existing `verify-event-payment` function already has a duplicate-booking guard that prevents double-booking in the database
-
+Both functions deploy automatically after code changes.
