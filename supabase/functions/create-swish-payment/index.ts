@@ -10,9 +10,26 @@ const SWISH_API_URL = "https://cpc.getswish.net/swish-cpcapi/api/v2/paymentreque
 const PAYEE_ALIAS = "1230344705";
 
 function ensurePem(content: string, type: string): string {
-  const trimmed = content.trim();
-  if (trimmed.startsWith("-----BEGIN")) return trimmed;
-  return `-----BEGIN ${type}-----\n${trimmed}\n-----END ${type}-----`;
+  let trimmed = content.trim();
+  
+  // Strip existing PEM headers/footers to get raw base64
+  const beginTag = `-----BEGIN ${type}-----`;
+  const endTag = `-----END ${type}-----`;
+  if (trimmed.startsWith("-----BEGIN")) {
+    trimmed = trimmed
+      .replace(/-----BEGIN [A-Z ]+-----/g, "")
+      .replace(/-----END [A-Z ]+-----/g, "")
+      .trim();
+  }
+  
+  // Remove all whitespace from the base64 body, then re-chunk into 64-char lines
+  const rawBase64 = trimmed.replace(/\s+/g, "");
+  const lines: string[] = [];
+  for (let i = 0; i < rawBase64.length; i += 64) {
+    lines.push(rawBase64.substring(i, i + 64));
+  }
+  
+  return `${beginTag}\n${lines.join("\n")}\n${endTag}`;
 }
 
 serve(async (req) => {
