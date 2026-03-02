@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Ticket, Users, User, Check, CreditCard, Smartphone } from 'lucide-react';
+import { Ticket, Users, User, Check, CreditCard } from 'lucide-react';
+import { SwishIcon } from './icons/SwishIcon';
 import { useLanguageStore } from '@/store/languageStore';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -236,7 +237,7 @@ export function EventTicketPurchaseDialog({
                   <CreditCard className="h-4 w-4" /> Kort
                 </Button>
                 <Button variant={paymentMethod === 'swish' ? 'default' : 'outline'} onClick={() => setPaymentMethod('swish')} className="gap-2" type="button">
-                  <Smartphone className="h-4 w-4" /> Swish
+                  <SwishIcon className="h-4 w-4" /> Swish
                 </Button>
               </div>
             </div>
