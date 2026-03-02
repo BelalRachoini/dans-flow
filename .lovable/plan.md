@@ -1,30 +1,23 @@
 
 
-# Fix Swish Button Orange Background
+# Replace Swish Icon with Uploaded Image
 
-The orange background may not be applying correctly because `tailwind-merge` could be handling the class conflict between the outline variant's `bg-background` and the dynamic `bg-orange-500` unpredictably.
+## Changes
 
-## Root Cause
+1. **Copy uploaded image** to `src/assets/swish-logo.png`
 
-The Button component uses `cn(buttonVariants({ variant, size, className }))` where `tailwind-merge` resolves conflicting utility classes. While it *should* let `bg-orange-500` override `bg-background`, there may be edge cases or the preview may need a refresh.
+2. **Rewrite `src/components/icons/SwishIcon.tsx`** to use the new image instead of the inline SVG:
+   ```tsx
+   import swishLogo from '@/assets/swish-logo.png';
+   
+   interface SwishIconProps {
+     className?: string;
+   }
+   
+   export const SwishIcon = ({ className }: SwishIconProps) => (
+     <img src={swishLogo} alt="Swish" className={className} />
+   );
+   ```
 
-## Fix (4 files)
-
-In all 4 dialogs, instead of relying on className to override variant styles, conditionally set `variant="default"` vs `variant="outline"` **and** apply orange classes using inline `style` or use the `!important` modifier:
-
-- `src/components/EventTicketPurchaseDialog.tsx`
-- `src/components/StandaloneTicketPurchaseDialog.tsx`
-- `src/components/LessonBookingDialog.tsx`
-- `src/components/BundlePurchaseWizard.tsx`
-
-Change the Swish button from:
-```tsx
-<Button variant="outline" className={`gap-2 ${paymentMethod === 'swish' ? 'bg-orange-500 ...' : ''}`}>
-```
-To:
-```tsx
-<Button variant="outline" className="gap-2" style={paymentMethod === 'swish' ? { backgroundColor: '#f97316', color: 'white', borderColor: '#f97316' } : {}} >
-```
-
-Using inline `style` guarantees it overrides any Tailwind class specificity issues.
+This replaces the hand-drawn SVG path with the official Swish logo image across all 4 purchase dialogs automatically (they all import `SwishIcon`).
 
