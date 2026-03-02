@@ -202,7 +202,7 @@ export const LessonBookingDialog = ({ open, onOpenChange, lesson }: LessonBookin
                       <Button variant={paymentMethod === 'card' ? 'default' : 'outline'} onClick={() => setPaymentMethod('card')} className="gap-2" type="button" size="sm">
                         <CreditCard className="h-4 w-4" /> Kort
                       </Button>
-                      <Button variant="outline" onClick={() => setPaymentMethod('swish')} className={`gap-2 ${paymentMethod === 'swish' ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500' : ''}`} type="button" size="sm">
+                      <Button variant="outline" onClick={() => setPaymentMethod('swish')} className="gap-2" style={paymentMethod === 'swish' ? { backgroundColor: '#f97316', color: 'white', borderColor: '#f97316' } : {}} type="button" size="sm">
                         <SwishIcon className="h-4 w-4" /> Swish
                       </Button>
                     </div>
