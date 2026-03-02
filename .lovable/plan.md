@@ -1,37 +1,22 @@
 
 
-# Swish Payment Integration -- Ready to Implement
+# Replace Payment Method Icons with Actual Brand Icons
 
-All 3 Swish secrets (SWISH_CERT, SWISH_KEY, SWISH_CA) are confirmed in place. Here is the implementation breakdown:
+All 4 purchase dialogs currently use generic lucide icons (`CreditCard` for Kort, `Smartphone` for Swish). The plan is to replace these with actual brand-recognizable icons.
 
-## Step 1: Create `create-swish-payment` Edge Function
-- Authenticates user via JWT
-- Accepts `{ payment_type, amount_sek, metadata }` 
-- Generates UUID payment request ID, calls Swish API with mTLS
-- Saves record to `swish_payments` table
-- Returns `{ paymentRequestId, paymentRequestToken }`
+## Changes
 
-## Step 2: Create `swish-callback` Edge Function
-- No JWT (called by Swish directly)
-- On PAID: mirrors existing verify functions -- creates bookings/tickets, sends emails, records payments
-- On DECLINED/ERROR: updates swish_payments status
+1. **Create a Swish SVG icon component** (`src/components/icons/SwishIcon.tsx`) using the official Swish logo mark as an inline SVG.
 
-## Step 3: Update `config.toml`
-- Add `verify_jwt = false` for both new functions
+2. **Create a card/Visa-style icon component** (`src/components/icons/CardIcon.tsx`) — or keep the existing `CreditCard` lucide icon since it already looks like a card. Will use a more recognizable card brand icon if preferred.
 
-## Step 4: Create `SwishPaymentStatus.tsx`
-- Polling dialog that checks `swish_payments` table every 3s
-- Shows swish:// deep link on mobile
-- Success/error/timeout states
+3. **Update 4 files** to import and use the new icons:
+   - `EventTicketPurchaseDialog.tsx`
+   - `StandaloneTicketPurchaseDialog.tsx`
+   - `LessonBookingDialog.tsx`
+   - `BundlePurchaseWizard.tsx`
 
-## Step 5: Update 4 Purchase Dialogs
-- Add payment method selector (Kort / Swish) to EventTicketPurchaseDialog, StandaloneTicketPurchaseDialog, LessonBookingDialog, BundlePurchaseWizard
-- Swish path calls `create-swish-payment` then shows SwishPaymentStatus
+Each file: replace `<Smartphone className="h-4 w-4" />` with `<SwishIcon className="h-4 w-4" />` and optionally replace `<CreditCard>` with a better card icon.
 
-## Step 6: Update `get-stripe-payments`
-- Query `swish_payments` with PAID status, merge into response
-
----
-
-**9 files total**: 2 new edge functions, 1 new component, 4 modified dialogs, 1 modified edge function, 1 config update.
+**Scope**: 1 new icon component + 4 modified dialogs (single-line changes each).
 
