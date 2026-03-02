@@ -236,7 +236,7 @@ export function EventTicketPurchaseDialog({
                 <Button variant={paymentMethod === 'card' ? 'default' : 'outline'} onClick={() => setPaymentMethod('card')} className="gap-2" type="button">
                   <CreditCard className="h-4 w-4" /> Kort
                 </Button>
-                <Button variant={paymentMethod === 'swish' ? 'default' : 'outline'} onClick={() => setPaymentMethod('swish')} className="gap-2" type="button">
+                <Button variant="outline" onClick={() => setPaymentMethod('swish')} className={`gap-2 ${paymentMethod === 'swish' ? 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500' : ''}`} type="button">
                   <SwishIcon className="h-4 w-4" /> Swish
                 </Button>
               </div>
