@@ -3,7 +3,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Check, ChevronLeft, ChevronRight, Star, Ticket, Loader2, CreditCard, Smartphone } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Star, Ticket, Loader2, CreditCard } from 'lucide-react';
+import { SwishIcon } from './icons/SwishIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PackageClassSelector } from './PackageClassSelector';
@@ -237,7 +238,7 @@ export function BundlePurchaseWizard({ courseId, courseName }: BundlePurchaseWiz
                   <CreditCard className="h-4 w-4" /> Kort
                 </Button>
                 <Button variant={paymentMethod === 'swish' ? 'default' : 'outline'} onClick={() => setPaymentMethod('swish')} className="gap-2" type="button">
-                  <Smartphone className="h-4 w-4" /> Swish
+                  <SwishIcon className="h-4 w-4" /> Swish
                 </Button>
               </div>
             </div>

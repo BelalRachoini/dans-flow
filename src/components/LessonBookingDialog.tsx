@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { sv, enUS, es } from "date-fns/locale";
-import { Loader2, Calendar, Clock, MapPin, Ticket, CreditCard, Smartphone } from "lucide-react";
+import { Loader2, Calendar, Clock, MapPin, Ticket, CreditCard } from "lucide-react";
+import { SwishIcon } from "./icons/SwishIcon";
 import { SwishPaymentStatus } from "./SwishPaymentStatus";
 
 interface LessonBookingDialogProps {
@@ -202,7 +203,7 @@ export const LessonBookingDialog = ({ open, onOpenChange, lesson }: LessonBookin
                         <CreditCard className="h-4 w-4" /> Kort
                       </Button>
                       <Button variant={paymentMethod === 'swish' ? 'default' : 'outline'} onClick={() => setPaymentMethod('swish')} className="gap-2" type="button" size="sm">
-                        <Smartphone className="h-4 w-4" /> Swish
+                        <SwishIcon className="h-4 w-4" /> Swish
                       </Button>
                     </div>
                   </div>

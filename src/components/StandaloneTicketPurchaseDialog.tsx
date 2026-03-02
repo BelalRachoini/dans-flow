@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Ticket, Check, CreditCard, Smartphone } from 'lucide-react';
+import { Ticket, Check, CreditCard } from 'lucide-react';
+import { SwishIcon } from './icons/SwishIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLanguageStore } from '@/store/languageStore';
@@ -86,7 +87,7 @@ export function StandaloneTicketPurchaseDialog({ open, onOpenChange }: Standalon
                 <CreditCard className="h-4 w-4" /> Kort
               </Button>
               <Button variant={paymentMethod === 'swish' ? 'default' : 'outline'} onClick={() => setPaymentMethod('swish')} className="gap-2" type="button">
-                <Smartphone className="h-4 w-4" /> Swish
+                <SwishIcon className="h-4 w-4" /> Swish
               </Button>
             </div>
           </div>
