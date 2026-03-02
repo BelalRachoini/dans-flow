@@ -1,12 +1,17 @@
 
 
-# Update SwishIcon to Match Official Swish Logo
+# Make Swish Button Orange When Selected
 
-Replace the current generic SVG in `src/components/icons/SwishIcon.tsx` with the actual Swish brand mark — the colorful crescent/swoosh gradient icon from the uploaded reference image.
+Update the Swish payment method button to use an orange background (`bg-orange-500`) when selected, across all 4 purchase dialogs.
 
-## Changes
+## Changes (4 files)
 
-**1 file modified**: `src/components/icons/SwishIcon.tsx`
-- Replace the current single-color path with the official Swish logo mark SVG using gradient fills (purple → blue → green → yellow → orange → red crescent shape)
-- Keep the same component interface (`className` prop)
+In each dialog, change the Swish button's selected variant from `variant="default"` to explicit orange styling:
+
+- `src/components/EventTicketPurchaseDialog.tsx`
+- `src/components/StandaloneTicketPurchaseDialog.tsx`
+- `src/components/LessonBookingDialog.tsx`
+- `src/components/BundlePurchaseWizard.tsx`
+
+Replace the Swish `<Button>` so that when `paymentMethod === 'swish'`, it uses `className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"` with `variant="outline"` base, instead of `variant="default"`.
 
