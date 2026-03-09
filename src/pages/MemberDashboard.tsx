@@ -357,6 +357,13 @@ export default function MemberDashboard() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="font-medium">{booking.events?.title}</p>
+                          {(() => {
+                            const names = booking.attendee_names;
+                            const name = Array.isArray(names) && names[0] ? String(names[0]) : null;
+                            return name ? (
+                              <p className="text-sm text-primary font-medium mt-0.5">För: {name}</p>
+                            ) : null;
+                          })()}
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                             <Clock className="h-3 w-3" />
                             {new Date(booking.events?.start_at).toLocaleDateString(getLocale(), {
