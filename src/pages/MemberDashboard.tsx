@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CalendarDays, Ticket, Clock, MapPin, QrCode, Calendar as CalendarIcon, PartyPopper } from 'lucide-react';
+import { CalendarDays, Ticket, Clock, MapPin, QrCode, Calendar as CalendarIcon, PartyPopper, CreditCard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
@@ -18,6 +18,8 @@ export default function MemberDashboard() {
   const { t, language } = useLanguageStore();
   const [upcomingItems, setUpcomingItems] = useState<any[]>([]);
   const [myBookings, setMyBookings] = useState<any[]>([]);
+  const [myEventBookings, setMyEventBookings] = useState<any[]>([]);
+  const [myTicketPackages, setMyTicketPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Lesson booking dialog state
@@ -38,7 +40,12 @@ export default function MemberDashboard() {
 
   const fetchData = async () => {
     try {
-      await Promise.all([fetchUpcomingItems(), fetchMyBookings()]);
+      await Promise.all([
+        fetchUpcomingItems(),
+        fetchMyBookings(),
+        fetchMyEventBookings(),
+        fetchMyTicketPackages(),
+      ]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -47,7 +54,6 @@ export default function MemberDashboard() {
   };
 
   const fetchUpcomingItems = async () => {
-    // Fetch upcoming lessons
     const { data: lessonsData } = await supabase
       .from('course_lessons')
       .select('*, courses!inner(id, title)')
@@ -55,7 +61,6 @@ export default function MemberDashboard() {
       .order('starts_at', { ascending: true })
       .limit(5);
 
-    // Fetch upcoming events
     const { data: eventsData } = await supabase
       .from('events')
       .select('*')
@@ -64,7 +69,6 @@ export default function MemberDashboard() {
       .order('start_at', { ascending: true })
       .limit(5);
 
-    // Combine and sort by date, take first 3
     const combinedItems = [
       ...(lessonsData || []).map(l => ({
         ...l,
@@ -85,21 +89,43 @@ export default function MemberDashboard() {
 
   const fetchMyBookings = async () => {
     if (!userId) return;
-
     const { data } = await supabase
       .from('lesson_bookings')
-      .select(`
-        *,
-        course_lessons (
-          id, title, starts_at, ends_at, venue
-        )
-      `)
+      .select(`*, course_lessons (id, title, starts_at, ends_at, venue)`)
       .eq('member_id', userId)
       .eq('status', 'valid')
       .order('purchased_at', { ascending: false })
       .limit(5);
-
     setMyBookings(data || []);
+  };
+
+  const fetchMyEventBookings = async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from('event_bookings')
+      .select(`*, events (id, title, start_at, end_at, venue, image_url)`)
+      .eq('member_id', userId)
+      .in('status', ['confirmed', 'checked_in'])
+      .order('booked_at', { ascending: false })
+      .limit(5);
+
+    // Filter to only future events
+    const futureBookings = (data || []).filter(
+      (b: any) => b.events && new Date(b.events.start_at) >= new Date()
+    );
+    setMyEventBookings(futureBookings);
+  };
+
+  const fetchMyTicketPackages = async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from('tickets')
+      .select(`*, courses:source_course_id (id, title)`)
+      .eq('member_id', userId)
+      .eq('status', 'valid')
+      .order('purchased_at', { ascending: false })
+      .limit(5);
+    setMyTicketPackages(data || []);
   };
 
   const handleBookLesson = (lesson: any) => {
@@ -113,10 +139,7 @@ export default function MemberDashboard() {
       const dataUrl = await QRCodeLib.toDataURL(booking.qr_payload, {
         width: 600,
         margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF',
-        },
+        color: { dark: '#000000', light: '#FFFFFF' },
       });
       setQrDataUrl(dataUrl);
       setQrModalOpen(true);
@@ -133,18 +156,12 @@ export default function MemberDashboard() {
         p_location: 'Self Check-in',
         p_device_info: navigator.userAgent
       });
-
       if (error) throw error;
-
       const result = data as any;
-
       if (result?.success) {
-        sonnerToast.success(
-          t.qr.success,
-          {
-            description: `${result.lesson_title || 'Lektion'}`
-          }
-        );
+        sonnerToast.success(t.qr.success, {
+          description: `${result.lesson_title || 'Lektion'}`
+        });
         await fetchMyBookings();
       } else {
         sonnerToast.error('Incheckning misslyckades', {
@@ -169,12 +186,13 @@ export default function MemberDashboard() {
   };
 
   const getLocale = () => {
-    const localeMap: { [key: string]: string } = {
-      sv: 'sv-SE',
-      en: 'en-US',
-      es: 'es-ES'
-    };
+    const localeMap: { [key: string]: string } = { sv: 'sv-SE', en: 'en-US', es: 'es-ES' };
     return localeMap[language] || 'sv-SE';
+  };
+
+  const isExpired = (expiresAt: string | null) => {
+    if (!expiresAt) return false;
+    return new Date(expiresAt) < new Date();
   };
 
   return (
@@ -211,12 +229,9 @@ export default function MemberDashboard() {
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                             <Clock className="h-3 w-3" />
                             {new Date(item.date).toLocaleDateString(getLocale(), {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric'
+                              weekday: 'short', month: 'short', day: 'numeric'
                             })} {new Date(item.date).toLocaleTimeString(getLocale(), {
-                              hour: '2-digit',
-                              minute: '2-digit'
+                              hour: '2-digit', minute: '2-digit'
                             })}
                           </div>
                           {item.venue && (
@@ -283,12 +298,9 @@ export default function MemberDashboard() {
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                           <Clock className="h-3 w-3" />
                           {new Date(booking.course_lessons?.starts_at).toLocaleDateString(getLocale(), {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric'
+                            weekday: 'short', month: 'short', day: 'numeric'
                           })} {new Date(booking.course_lessons?.starts_at).toLocaleTimeString(getLocale(), {
-                            hour: '2-digit',
-                            minute: '2-digit'
+                            hour: '2-digit', minute: '2-digit'
                           })}
                         </div>
                         {booking.course_lessons?.venue && (
@@ -299,11 +311,7 @@ export default function MemberDashboard() {
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openQRModal(booking)}
-                        >
+                        <Button size="sm" variant="outline" onClick={() => openQRModal(booking)}>
                           <QrCode className="h-4 w-4 mr-1" />
                           {t.tickets.showQR}
                         </Button>
@@ -323,6 +331,129 @@ export default function MemberDashboard() {
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">
                   {t.dashboard.noBookings}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* My Events Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PartyPopper className="h-5 w-5" />
+                {t.dashboard.myEvents}
+              </CardTitle>
+              <CardDescription>{t.dashboard.myEventsDescription}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  <div className="h-20 bg-muted animate-pulse rounded" />
+                </div>
+              ) : myEventBookings.length > 0 ? (
+                <div className="space-y-3">
+                  {myEventBookings.map((booking: any) => (
+                    <div key={booking.id} className="p-3 rounded-lg border space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium">{booking.events?.title}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(booking.events?.start_at).toLocaleDateString(getLocale(), {
+                              weekday: 'short', month: 'short', day: 'numeric'
+                            })} {new Date(booking.events?.start_at).toLocaleTimeString(getLocale(), {
+                              hour: '2-digit', minute: '2-digit'
+                            })}
+                          </div>
+                          {booking.events?.venue && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                              <MapPin className="h-3 w-3" />
+                              {booking.events.venue}
+                            </div>
+                          )}
+                        </div>
+                        <Badge variant="outline">
+                          {booking.ticket_count} {t.dashboard.tickets}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {booking.qr_payload && (
+                          <Button size="sm" variant="outline" onClick={() => openQRModal(booking)}>
+                            <QrCode className="h-4 w-4 mr-1" />
+                            {t.tickets.showQR}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate(`/event/${booking.event_id}`)}
+                        >
+                          {t.dashboard.viewAll}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {t.dashboard.noEvents}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* My Ticket Packages Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5" />
+                    {t.dashboard.myTicketPackages}
+                  </CardTitle>
+                  <CardDescription>{t.dashboard.myTicketPackagesDescription}</CardDescription>
+                </div>
+                <Button size="sm" variant="ghost" asChild>
+                  <Link to="/biljetter">{t.dashboard.viewAll}</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  <div className="h-16 bg-muted animate-pulse rounded" />
+                </div>
+              ) : myTicketPackages.length > 0 ? (
+                <div className="space-y-3">
+                  {myTicketPackages.map((pkg: any) => {
+                    const remaining = pkg.total_tickets - pkg.tickets_used;
+                    const expired = isExpired(pkg.expires_at);
+                    return (
+                      <div key={pkg.id} className={`p-3 rounded-lg border space-y-1 ${expired ? 'opacity-50' : ''}`}>
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-sm">
+                            {pkg.courses?.title || 'Klippkort'}
+                          </p>
+                          {expired ? (
+                            <Badge variant="destructive">{t.dashboard.expired}</Badge>
+                          ) : (
+                            <Badge variant="secondary">
+                              {remaining} {t.dashboard.ticketsRemaining}
+                            </Badge>
+                          )}
+                        </div>
+                        {pkg.expires_at && (
+                          <p className="text-xs text-muted-foreground">
+                            {t.dashboard.expires}: {new Date(pkg.expires_at).toLocaleDateString(getLocale())}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {t.dashboard.noTicketPackages}
                 </p>
               )}
             </CardContent>
@@ -351,19 +482,15 @@ export default function MemberDashboard() {
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 p-6">
             {qrDataUrl && (
-              <img
-                src={qrDataUrl}
-                alt="QR Code"
-                className="w-full max-w-sm"
-              />
+              <img src={qrDataUrl} alt="QR Code" className="w-full max-w-sm" />
             )}
             {selectedBooking && (
               <div className="text-center space-y-1">
                 <p className="font-medium">
-                  {selectedBooking.course_lessons?.title || 'Lektion'}
+                  {selectedBooking.course_lessons?.title || selectedBooking.events?.title || 'Biljett'}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {new Date(selectedBooking.course_lessons?.starts_at).toLocaleDateString(getLocale())}
+                  {new Date(selectedBooking.course_lessons?.starts_at || selectedBooking.events?.start_at).toLocaleDateString(getLocale())}
                 </p>
               </div>
             )}
