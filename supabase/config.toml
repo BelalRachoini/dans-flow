@@ -3,6 +3,9 @@ project_id = "stxcclfxadjcbpfnuxae"
 [functions."admin-create-member"]
 verify_jwt = true
 
+[functions."admin-delete-member"]
+verify_jwt = false
+
 [functions."create-swish-payment"]
 verify_jwt = false
 

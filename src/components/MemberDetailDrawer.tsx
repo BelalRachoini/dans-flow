@@ -336,13 +336,14 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     },
   });
 
-  // Delete member mutation
+  // Delete member mutation (uses edge function to remove auth user too)
   const deleteMemberMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc('admin_delete_member', {
-        target_user_id: memberId,
+      const { data, error } = await supabase.functions.invoke('admin-delete-member', {
+        body: { user_id: memberId },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: () => {
