@@ -314,6 +314,14 @@ export default function Auth() {
                   >
                     {loading ? 'Loggar in...' : 'Logga in'}
                   </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="w-full text-sm text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {t.auth.forgotPassword}
+                  </button>
                 </form>
               </TabsContent>
 
