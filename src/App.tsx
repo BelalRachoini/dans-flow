@@ -93,6 +93,7 @@ const AppRoutes = () => {
         <Route path="/event" element={<EventsPage />} />
         <Route path="/event/:id" element={<EventDetail />} />
         <Route path="/biljetter" element={<Biljetter />} />
+        <Route path="/mina-betalningar" element={<MyPayments />} />
       </Route>
 
       {/* Instructor Routes */}

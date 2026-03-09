@@ -86,6 +86,7 @@ export const Layout = () => {
     { icon: Calendar, label: t.nav.schema, path: '/schema', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
     { icon: PartyPopper, label: t.nav.event, path: '/event', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
     { icon: Ticket, label: t.nav.biljetter, path: '/biljetter', roles: ['ADMIN', 'INSTRUKTOR', 'MEDLEM'] },
+    { icon: CreditCard, label: t.myPayments.navLabel, path: '/mina-betalningar', roles: ['MEDLEM'] },
     { icon: Users, label: t.nav.medlemmar, path: '/medlemmar', roles: ['ADMIN'] },
     { icon: Repeat, label: t.nav.prenumerationer, path: '/prenumerationer', roles: ['ADMIN'] },
     { icon: CreditCard, label: t.nav.betalningar, path: '/betalningar', roles: ['ADMIN'] },

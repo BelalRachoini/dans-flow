@@ -798,4 +798,16 @@ export const en = {
     attendees: 'Attendees',
     checkinsProgress: 'Check-ins',
   },
+
+  // My Payments
+  myPayments: {
+    title: 'My Payments',
+    subtitle: 'View your payment history and download receipts',
+    noPayments: 'No payments found.',
+    downloadReceipt: 'Receipt',
+    downloadError: 'Could not download receipt',
+    statusPaid: 'Paid',
+    statusPending: 'Pending',
+    navLabel: 'My Payments',
+  },
 };

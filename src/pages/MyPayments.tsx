@@ -121,7 +121,7 @@ const MyPayments = () => {
 
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
-    if (isPaid(s)) return <Badge className="bg-green-600 text-white">{t.myPayments.statusPaid}</Badge>;
+    if (isPaid(s)) return <Badge className="bg-primary text-primary-foreground">{t.myPayments.statusPaid}</Badge>;
     if (s === 'created' || s === 'pending') return <Badge variant="secondary">{t.myPayments.statusPending}</Badge>;
     return <Badge variant="destructive">{status}</Badge>;
   };
