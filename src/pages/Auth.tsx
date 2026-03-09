@@ -205,6 +205,23 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setResetSent(true);
+      toast.success(t.auth.resetLinkSent);
+    } catch (error: any) {
+      toast.error(error.message || 'Kunde inte skicka återställningslänk');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDanceRoleSelected = async () => {
     setShowDanceRoleSelector(false);
     if (newUserId) {
