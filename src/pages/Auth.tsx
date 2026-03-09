@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import logo from '@/assets/dance-vida-logo.png';
 import { useAuthStore } from '@/store/authStore';
 import DanceRoleSelector from '@/components/DanceRoleSelector';
+import { useLanguageStore } from '@/store/languageStore';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
