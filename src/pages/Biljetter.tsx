@@ -1976,6 +1976,13 @@ export default function Biljetter() {
                 <div className="bg-white p-4 rounded-lg">
                   <img src={qrDataUrl} alt="QR Code" className="w-full max-w-sm" />
                 </div>
+                {selectedTicket?.type === 'event' && (() => {
+                  const names = selectedTicket.attendee_names;
+                  const name = Array.isArray(names) && names[0] ? String(names[0]) : null;
+                  return name ? (
+                    <p className="text-base font-medium text-center">{name}</p>
+                  ) : null;
+                })()}
                 <p className="text-sm text-muted-foreground text-center">
                   Visa denna kod för instruktören att skanna
                 </p>
