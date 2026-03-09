@@ -30,6 +30,7 @@ import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancelled from "@/pages/PaymentCancelled";
 import NotFound from "@/pages/NotFound";
 import ResetPassword from "@/pages/ResetPassword";
+import MyPayments from "@/pages/MyPayments";
 
 const queryClient = new QueryClient();
 
