@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import logo from '@/assets/dance-vida-logo.png';
 import { useAuthStore } from '@/store/authStore';
 import DanceRoleSelector from '@/components/DanceRoleSelector';
+import { useLanguageStore } from '@/store/languageStore';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -19,8 +20,12 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [showDanceRoleSelector, setShowDanceRoleSelector] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
   const navigate = useNavigate();
   const { initialize } = useAuthStore();
+  const { t } = useLanguageStore();
 
   const getRoleRedirect = async (userId: string) => {
     // Prefer user_roles; fall back to RPC check
@@ -200,6 +205,23 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setResetSent(true);
+      toast.success(t.auth.resetLinkSent);
+    } catch (error: any) {
+      toast.error(error.message || 'Kunde inte skicka återställningslänk');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDanceRoleSelected = async () => {
     setShowDanceRoleSelector(false);
     if (newUserId) {
@@ -292,6 +314,14 @@ export default function Auth() {
                   >
                     {loading ? 'Loggar in...' : 'Logga in'}
                   </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="w-full text-sm text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {t.auth.forgotPassword}
+                  </button>
                 </form>
               </TabsContent>
 
@@ -374,6 +404,60 @@ export default function Auth() {
           </a>
         </p>
       </div>
+
+      {/* Forgot Password Dialog */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>{t.auth.resetPassword}</CardTitle>
+              <CardDescription>
+                {resetSent ? t.auth.checkEmail : t.auth.enterEmailForReset}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {resetSent ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">{t.auth.resetLinkSent}</p>
+                  <Button
+                    className="w-full"
+                    onClick={() => { setShowForgotPassword(false); setResetSent(false); setResetEmail(''); }}
+                  >
+                    {t.auth.backToLogin}
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">{t.auth.email || 'E-post'}</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="din@email.se"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      required
+                      disabled={loading}
+                      className="h-11"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full h-11" disabled={loading}>
+                    {loading ? '...' : t.auth.sendResetLink}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => { setShowForgotPassword(false); setResetSent(false); }}
+                  >
+                    {t.auth.backToLogin}
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Dance Role Selector Dialog */}
       {showDanceRoleSelector && newUserId && (

@@ -27,6 +27,18 @@ export const sv = {
     phone: 'Telefon',
     pleaseLogin: 'Vänligen logga in för att anmäla dig',
     loginRequired: 'Du måste vara inloggad',
+    forgotPassword: 'Glömt lösenord?',
+    resetPassword: 'Återställ lösenord',
+    newPassword: 'Nytt lösenord',
+    confirmPassword: 'Bekräfta lösenord',
+    sendResetLink: 'Skicka återställningslänk',
+    resetLinkSent: 'En återställningslänk har skickats till din e-post.',
+    checkEmail: 'Kolla din e-post',
+    passwordResetSuccess: 'Lösenordet har återställts!',
+    backToLogin: 'Tillbaka till inloggning',
+    passwordsDoNotMatch: 'Lösenorden matchar inte',
+    enterEmailForReset: 'Ange din e-postadress så skickar vi en återställningslänk.',
+    updatePassword: 'Uppdatera lösenord',
   },
 
   // Lesson Booking

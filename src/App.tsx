@@ -29,6 +29,7 @@ import EventDetail from "@/pages/EventDetail";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancelled from "@/pages/PaymentCancelled";
 import NotFound from "@/pages/NotFound";
+import ResetPassword from "@/pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route path="/auth/callback" element={<Auth />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       
       {/* Payment Routes - Outside auth guard for redirect handling */}
       <Route path="/payment-success" element={<PaymentSuccess />} />

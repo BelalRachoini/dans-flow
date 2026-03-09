@@ -27,6 +27,18 @@ export const en = {
     phone: 'Phone',
     pleaseLogin: 'Please log in to enroll',
     loginRequired: 'You must be logged in',
+    forgotPassword: 'Forgot password?',
+    resetPassword: 'Reset password',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm password',
+    sendResetLink: 'Send reset link',
+    resetLinkSent: 'A reset link has been sent to your email.',
+    checkEmail: 'Check your email',
+    passwordResetSuccess: 'Password has been reset!',
+    backToLogin: 'Back to login',
+    passwordsDoNotMatch: 'Passwords do not match',
+    enterEmailForReset: 'Enter your email address and we will send you a reset link.',
+    updatePassword: 'Update password',
   },
 
   // Lesson Booking
