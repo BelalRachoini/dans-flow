@@ -496,6 +496,13 @@ export default function MemberDashboard() {
                 <p className="font-medium">
                   {selectedBooking.course_lessons?.title || selectedBooking.events?.title || 'Biljett'}
                 </p>
+                {(() => {
+                  const names = selectedBooking.attendee_names;
+                  const name = Array.isArray(names) && names[0] ? String(names[0]) : null;
+                  return name ? (
+                    <p className="text-base font-medium text-primary">{name}</p>
+                  ) : null;
+                })()}
                 <p className="text-sm text-muted-foreground">
                   {new Date(selectedBooking.course_lessons?.starts_at || selectedBooking.events?.start_at).toLocaleDateString(getLocale())}
                 </p>
