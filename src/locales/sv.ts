@@ -798,4 +798,16 @@ export const sv = {
     attendees: 'Deltagare',
     checkinsProgress: 'Incheckningar',
   },
+
+  // My Payments
+  myPayments: {
+    title: 'Mina betalningar',
+    subtitle: 'Visa din betalningshistorik och ladda ner kvitton',
+    noPayments: 'Inga betalningar hittades.',
+    downloadReceipt: 'Kvitto',
+    downloadError: 'Kunde inte ladda ner kvittot',
+    statusPaid: 'Betald',
+    statusPending: 'Väntar',
+    navLabel: 'Mina betalningar',
+  },
 };

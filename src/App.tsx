@@ -30,6 +30,7 @@ import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancelled from "@/pages/PaymentCancelled";
 import NotFound from "@/pages/NotFound";
 import ResetPassword from "@/pages/ResetPassword";
+import MyPayments from "@/pages/MyPayments";
 
 const queryClient = new QueryClient();
 
@@ -92,6 +93,7 @@ const AppRoutes = () => {
         <Route path="/event" element={<EventsPage />} />
         <Route path="/event/:id" element={<EventDetail />} />
         <Route path="/biljetter" element={<Biljetter />} />
+        <Route path="/mina-betalningar" element={<MyPayments />} />
       </Route>
 
       {/* Instructor Routes */}

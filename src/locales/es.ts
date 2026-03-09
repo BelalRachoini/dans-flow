@@ -798,4 +798,16 @@ export const es = {
     attendees: 'Asistentes',
     checkinsProgress: 'Check-ins',
   },
+
+  // My Payments
+  myPayments: {
+    title: 'Mis Pagos',
+    subtitle: 'Ve tu historial de pagos y descarga recibos',
+    noPayments: 'No se encontraron pagos.',
+    downloadReceipt: 'Recibo',
+    downloadError: 'No se pudo descargar el recibo',
+    statusPaid: 'Pagado',
+    statusPending: 'Pendiente',
+    navLabel: 'Mis Pagos',
+  },
 };
