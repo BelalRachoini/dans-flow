@@ -129,6 +129,17 @@ export const es = {
     myBookingsDescription: 'Tus lecciones reservadas',
     noBookings: 'No hay lecciones reservadas',
     bookNow: 'Reservar Ahora',
+    myEvents: 'Mis Eventos',
+    myEventsDescription: 'Eventos para los que tienes entradas',
+    noEvents: 'No hay reservas de eventos próximos',
+    tickets: 'entradas',
+    myTicketPackages: 'Mis Paquetes de Entradas',
+    myTicketPackagesDescription: 'Tus paquetes de entradas activos',
+    noTicketPackages: 'No hay paquetes de entradas activos',
+    ticketsRemaining: 'entradas restantes',
+    expires: 'Expira',
+    viewAll: 'Ver todo',
+    expired: 'Expirado',
   },
 
   // Courses & Points

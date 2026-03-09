@@ -129,6 +129,17 @@ export const sv = {
     myBookingsDescription: 'Dina bokade lektioner',
     noBookings: 'Inga bokade lektioner',
     bookNow: 'Boka nu',
+    myEvents: 'Mina Event',
+    myEventsDescription: 'Event du har biljetter till',
+    noEvents: 'Inga kommande eventbokningar',
+    tickets: 'biljetter',
+    myTicketPackages: 'Mina Klippkort',
+    myTicketPackagesDescription: 'Dina aktiva klippkortspaket',
+    noTicketPackages: 'Inga aktiva klippkort',
+    ticketsRemaining: 'klipp kvar',
+    expires: 'Går ut',
+    viewAll: 'Visa alla',
+    expired: 'Utgånget',
   },
 
   // Courses & Points

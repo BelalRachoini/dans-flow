@@ -129,6 +129,17 @@ export const en = {
     myBookingsDescription: 'Your booked lessons',
     noBookings: 'No booked lessons',
     bookNow: 'Book Now',
+    myEvents: 'My Events',
+    myEventsDescription: 'Events you have tickets for',
+    noEvents: 'No upcoming event bookings',
+    tickets: 'tickets',
+    myTicketPackages: 'My Ticket Packages',
+    myTicketPackagesDescription: 'Your active ticket packages',
+    noTicketPackages: 'No active ticket packages',
+    ticketsRemaining: 'tickets remaining',
+    expires: 'Expires',
+    viewAll: 'View all',
+    expired: 'Expired',
   },
 
   // Courses & Points
