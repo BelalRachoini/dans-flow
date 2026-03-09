@@ -27,6 +27,18 @@ export const es = {
     phone: 'Teléfono',
     pleaseLogin: 'Por favor inicia sesión para inscribirte',
     loginRequired: 'Debes iniciar sesión',
+    forgotPassword: '¿Olvidaste tu contraseña?',
+    resetPassword: 'Restablecer contraseña',
+    newPassword: 'Nueva contraseña',
+    confirmPassword: 'Confirmar contraseña',
+    sendResetLink: 'Enviar enlace de restablecimiento',
+    resetLinkSent: 'Se ha enviado un enlace de restablecimiento a tu correo.',
+    checkEmail: 'Revisa tu correo',
+    passwordResetSuccess: '¡Contraseña restablecida!',
+    backToLogin: 'Volver al inicio de sesión',
+    passwordsDoNotMatch: 'Las contraseñas no coinciden',
+    enterEmailForReset: 'Ingresa tu correo electrónico y te enviaremos un enlace de restablecimiento.',
+    updatePassword: 'Actualizar contraseña',
   },
 
   // Lesson Booking

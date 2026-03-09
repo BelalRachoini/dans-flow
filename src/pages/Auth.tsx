@@ -20,8 +20,12 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [showDanceRoleSelector, setShowDanceRoleSelector] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
   const navigate = useNavigate();
   const { initialize } = useAuthStore();
+  const { t } = useLanguageStore();
 
   const getRoleRedirect = async (userId: string) => {
     // Prefer user_roles; fall back to RPC check
