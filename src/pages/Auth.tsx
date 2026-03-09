@@ -405,6 +405,60 @@ export default function Auth() {
         </p>
       </div>
 
+      {/* Forgot Password Dialog */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>{t.auth.resetPassword}</CardTitle>
+              <CardDescription>
+                {resetSent ? t.auth.checkEmail : t.auth.enterEmailForReset}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {resetSent ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">{t.auth.resetLinkSent}</p>
+                  <Button
+                    className="w-full"
+                    onClick={() => { setShowForgotPassword(false); setResetSent(false); setResetEmail(''); }}
+                  >
+                    {t.auth.backToLogin}
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">{t.auth.email || 'E-post'}</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="din@email.se"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      required
+                      disabled={loading}
+                      className="h-11"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full h-11" disabled={loading}>
+                    {loading ? '...' : t.auth.sendResetLink}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => { setShowForgotPassword(false); setResetSent(false); }}
+                  >
+                    {t.auth.backToLogin}
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Dance Role Selector Dialog */}
       {showDanceRoleSelector && newUserId && (
         <DanceRoleSelector

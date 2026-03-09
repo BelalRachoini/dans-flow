@@ -76,6 +76,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route path="/auth/callback" element={<Auth />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       
       {/* Payment Routes - Outside auth guard for redirect handling */}
       <Route path="/payment-success" element={<PaymentSuccess />} />
