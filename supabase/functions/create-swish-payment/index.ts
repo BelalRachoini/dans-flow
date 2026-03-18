@@ -10,35 +10,55 @@ const SWISH_API_URL = "https://cpc.getswish.net/swish-cpcapi/api/v2/paymentreque
 const PAYEE_ALIAS = "1230344705";
 
 /**
- * Extract individual PEM blocks from a string that may contain one or more
- * PEM-encoded certificates/keys. Preserves headers and base64 content as-is.
+ * Strictly canonicalize a single PEM block:
+ * 1. Extract the label (CERTIFICATE, PRIVATE KEY, etc.)
+ * 2. Strip everything except base64 characters
+ * 3. Re-wrap at 64 chars per line with proper headers
  */
-function extractPemBlocks(raw: string): string[] {
-  const blocks: string[] = [];
-  const regex = /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(raw)) !== null) {
-    blocks.push(match[0].trim());
+function canonicalizeSinglePem(block: string): string {
+  // Extract the label from BEGIN line
+  const labelMatch = block.match(/-----BEGIN ([A-Z ]+)-----/);
+  if (!labelMatch) {
+    throw new Error("No PEM BEGIN marker found in block");
   }
-  return blocks;
+  const label = labelMatch[1];
+
+  // Remove headers/footers
+  let body = block
+    .replace(/-----BEGIN [A-Z ]+-----/g, "")
+    .replace(/-----END [A-Z ]+-----/g, "");
+
+  // Strip ALL whitespace (spaces, newlines, tabs, carriage returns)
+  body = body.replace(/\s+/g, "");
+
+  // Re-wrap at 64 characters per line
+  const lines: string[] = [];
+  for (let i = 0; i < body.length; i += 64) {
+    lines.push(body.substring(i, i + 64));
+  }
+
+  return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----`;
 }
 
 /**
- * Ensure raw secret content is valid PEM. If it already contains PEM markers,
- * return as-is. Otherwise wrap the base64 content with the given type markers.
+ * Extract and canonicalize all PEM blocks from a raw string.
+ * Handles bundles (multiple certs in one string).
  */
-function normalizePem(raw: string, type: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("-----BEGIN ")) {
-    return trimmed;
+function extractAndCanonicalizeBlocks(raw: string): string[] {
+  const regex = /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g;
+  const matches = raw.match(regex);
+
+  if (!matches || matches.length === 0) {
+    // Maybe raw base64 without headers — wrap as CERTIFICATE
+    const clean = raw.trim().replace(/\s+/g, "");
+    const lines: string[] = [];
+    for (let i = 0; i < clean.length; i += 64) {
+      lines.push(clean.substring(i, i + 64));
+    }
+    return [`-----BEGIN CERTIFICATE-----\n${lines.join("\n")}\n-----END CERTIFICATE-----`];
   }
-  // Raw base64 without headers — wrap it
-  const cleanBase64 = trimmed.replace(/\s+/g, "");
-  const lines: string[] = [];
-  for (let i = 0; i < cleanBase64.length; i += 64) {
-    lines.push(cleanBase64.substring(i, i + 64));
-  }
-  return `-----BEGIN ${type}-----\n${lines.join("\n")}\n-----END ${type}-----`;
+
+  return matches.map((block) => canonicalizeSinglePem(block));
 }
 
 serve(async (req) => {
@@ -86,7 +106,6 @@ serve(async (req) => {
 
     const callbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/swish-callback`;
 
-    // Build Swish request payload
     const swishPayload = {
       payeeAlias: PAYEE_ALIAS,
       amount: amount_sek.toFixed(2),
@@ -113,26 +132,26 @@ serve(async (req) => {
       throw new Error(`Missing Swish certificate secrets: ${missing.join(", ")}`);
     }
 
-    // Normalize cert and key (single PEM blocks)
-    const certPem = normalizePem(certRaw, "CERTIFICATE");
-    const keyPem = normalizePem(keyRaw, "PRIVATE KEY");
+    // Strictly canonicalize all PEM material
+    const certBlocks = extractAndCanonicalizeBlocks(certRaw);
+    const keyBlocks = extractAndCanonicalizeBlocks(keyRaw);
+    const caBlocks = extractAndCanonicalizeBlocks(caRaw);
 
-    // Extract CA certs as individual PEM blocks (handles bundles)
-    const caCerts = extractPemBlocks(caRaw);
-    if (caCerts.length === 0) {
-      // Fallback: maybe raw base64 without headers
-      const fallback = normalizePem(caRaw, "CERTIFICATE");
-      caCerts.push(fallback);
-    }
+    // certChain = all cert blocks joined; privateKey = first key block
+    const certPem = certBlocks.join("\n");
+    const keyPem = keyBlocks[0];
 
-    console.log("[create-swish-payment] Certs loaded — cert PEM:", certPem.substring(0, 40) + "...", "key PEM:", keyPem.substring(0, 40) + "...", "CA blocks:", caCerts.length);
+    console.log("[create-swish-payment] Canonicalized — cert blocks:", certBlocks.length,
+      "key blocks:", keyBlocks.length, "CA blocks:", caBlocks.length,
+      "cert length:", certPem.length, "key length:", keyPem.length,
+      "CA lengths:", caBlocks.map(b => b.length));
 
     // Create HTTP client with mTLS
     console.log("[create-swish-payment] Creating HTTP client...");
     const httpClient = Deno.createHttpClient({
       certChain: certPem,
       privateKey: keyPem,
-      caCerts: caCerts,
+      caCerts: caBlocks,
     });
     console.log("[create-swish-payment] HTTP client created successfully");
 
