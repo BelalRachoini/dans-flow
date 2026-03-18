@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PAYEE_ALIAS = "1236032999";
+const PAYEE_ALIAS = "1230344705";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

@@ -1,22 +1,23 @@
 
 
-## Finding
+# Replace Swish Icon with Uploaded Image
 
-**File:** `supabase/functions/create-swish-payment/index.ts`
-**Line 9:** `const PAYEE_ALIAS = "1236032999";`
+## Changes
 
-This was changed from `1230344705` to `1236032999` in the previous implementation based on project memory — which you've now confirmed is wrong.
+1. **Copy uploaded image** to `src/assets/swish-logo.png`
 
-The certificate subject CN is `1230344705`, so the payee alias must match.
+2. **Rewrite `src/components/icons/SwishIcon.tsx`** to use the new image instead of the inline SVG:
+   ```tsx
+   import swishLogo from '@/assets/swish-logo.png';
+   
+   interface SwishIconProps {
+     className?: string;
+   }
+   
+   export const SwishIcon = ({ className }: SwishIconProps) => (
+     <img src={swishLogo} alt="Swish" className={className} />
+   );
+   ```
 
-## Plan
-
-Change line 9 of `supabase/functions/create-swish-payment/index.ts`:
-
-```
-- const PAYEE_ALIAS = "1236032999";
-+ const PAYEE_ALIAS = "1230344705";
-```
-
-Single line change. No other files reference this value.
+This replaces the hand-drawn SVG path with the official Swish logo image across all 4 purchase dialogs automatically (they all import `SwishIcon`).
 
