@@ -9,27 +9,36 @@ const corsHeaders = {
 const SWISH_API_URL = "https://cpc.getswish.net/swish-cpcapi/api/v2/paymentrequests";
 const PAYEE_ALIAS = "1230344705";
 
-function ensurePem(content: string, type: string): string {
-  let trimmed = content.trim();
-  
-  // Strip existing PEM headers/footers to get raw base64
-  const beginTag = `-----BEGIN ${type}-----`;
-  const endTag = `-----END ${type}-----`;
-  if (trimmed.startsWith("-----BEGIN")) {
-    trimmed = trimmed
-      .replace(/-----BEGIN [A-Z ]+-----/g, "")
-      .replace(/-----END [A-Z ]+-----/g, "")
-      .trim();
+/**
+ * Extract individual PEM blocks from a string that may contain one or more
+ * PEM-encoded certificates/keys. Preserves headers and base64 content as-is.
+ */
+function extractPemBlocks(raw: string): string[] {
+  const blocks: string[] = [];
+  const regex = /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(raw)) !== null) {
+    blocks.push(match[0].trim());
   }
-  
-  // Remove all whitespace from the base64 body, then re-chunk into 64-char lines
-  const rawBase64 = trimmed.replace(/\s+/g, "");
+  return blocks;
+}
+
+/**
+ * Ensure raw secret content is valid PEM. If it already contains PEM markers,
+ * return as-is. Otherwise wrap the base64 content with the given type markers.
+ */
+function normalizePem(raw: string, type: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("-----BEGIN ")) {
+    return trimmed;
+  }
+  // Raw base64 without headers — wrap it
+  const cleanBase64 = trimmed.replace(/\s+/g, "");
   const lines: string[] = [];
-  for (let i = 0; i < rawBase64.length; i += 64) {
-    lines.push(rawBase64.substring(i, i + 64));
+  for (let i = 0; i < cleanBase64.length; i += 64) {
+    lines.push(cleanBase64.substring(i, i + 64));
   }
-  
-  return `${beginTag}\n${lines.join("\n")}\n${endTag}`;
+  return `-----BEGIN ${type}-----\n${lines.join("\n")}\n-----END ${type}-----`;
 }
 
 serve(async (req) => {
@@ -87,7 +96,7 @@ serve(async (req) => {
       payeePaymentReference: paymentRequestId.substring(0, 35),
     };
 
-    console.log("[create-swish-payment] Calling Swish API:", paymentRequestId);
+    console.log("[create-swish-payment] Payload built, payment ID:", paymentRequestId);
 
     // Load mTLS certificates
     const certRaw = Deno.env.get("SWISH_CERT");
@@ -104,18 +113,31 @@ serve(async (req) => {
       throw new Error(`Missing Swish certificate secrets: ${missing.join(", ")}`);
     }
 
-    const certPem = ensurePem(certRaw, "CERTIFICATE");
-    const keyPem = ensurePem(keyRaw, "PRIVATE KEY");
-    const caPem = ensurePem(caRaw, "CERTIFICATE");
+    // Normalize cert and key (single PEM blocks)
+    const certPem = normalizePem(certRaw, "CERTIFICATE");
+    const keyPem = normalizePem(keyRaw, "PRIVATE KEY");
+
+    // Extract CA certs as individual PEM blocks (handles bundles)
+    const caCerts = extractPemBlocks(caRaw);
+    if (caCerts.length === 0) {
+      // Fallback: maybe raw base64 without headers
+      const fallback = normalizePem(caRaw, "CERTIFICATE");
+      caCerts.push(fallback);
+    }
+
+    console.log("[create-swish-payment] Certs loaded — cert PEM:", certPem.substring(0, 40) + "...", "key PEM:", keyPem.substring(0, 40) + "...", "CA blocks:", caCerts.length);
 
     // Create HTTP client with mTLS
+    console.log("[create-swish-payment] Creating HTTP client...");
     const httpClient = Deno.createHttpClient({
       certChain: certPem,
       privateKey: keyPem,
-      caCerts: [caPem],
+      caCerts: caCerts,
     });
+    console.log("[create-swish-payment] HTTP client created successfully");
 
     // Call Swish API
+    console.log("[create-swish-payment] Calling Swish API...");
     const swishResponse = await fetch(`${SWISH_API_URL}/${paymentRequestId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -123,6 +145,8 @@ serve(async (req) => {
       // @ts-ignore Deno unstable API
       client: httpClient,
     });
+
+    console.log("[create-swish-payment] Swish response status:", swishResponse.status);
 
     if (swishResponse.status !== 201) {
       const errorBody = await swishResponse.text();
@@ -164,6 +188,8 @@ serve(async (req) => {
       console.error("[create-swish-payment] DB insert error:", insertError);
       throw new Error("Failed to save payment record");
     }
+
+    console.log("[create-swish-payment] DB record saved successfully");
 
     httpClient.close();
 
