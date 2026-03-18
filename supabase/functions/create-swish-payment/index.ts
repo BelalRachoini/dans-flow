@@ -90,9 +90,23 @@ serve(async (req) => {
     console.log("[create-swish-payment] Calling Swish API:", paymentRequestId);
 
     // Load mTLS certificates
-    const certPem = ensurePem(Deno.env.get("SWISH_CERT")!, "CERTIFICATE");
-    const keyPem = ensurePem(Deno.env.get("SWISH_KEY")!, "PRIVATE KEY");
-    const caPem = ensurePem(Deno.env.get("SWISH_CA")!, "CERTIFICATE");
+    const certRaw = Deno.env.get("SWISH_CERT");
+    const keyRaw = Deno.env.get("SWISH_KEY");
+    const caRaw = Deno.env.get("SWISH_CA");
+
+    if (!certRaw || !keyRaw || !caRaw) {
+      const missing = [
+        !certRaw && "SWISH_CERT",
+        !keyRaw && "SWISH_KEY",
+        !caRaw && "SWISH_CA",
+      ].filter(Boolean);
+      console.error("[create-swish-payment] Missing secrets:", missing);
+      throw new Error(`Missing Swish certificate secrets: ${missing.join(", ")}`);
+    }
+
+    const certPem = ensurePem(certRaw, "CERTIFICATE");
+    const keyPem = ensurePem(keyRaw, "PRIVATE KEY");
+    const caPem = ensurePem(caRaw, "CERTIFICATE");
 
     // Create HTTP client with mTLS
     const httpClient = Deno.createHttpClient({
