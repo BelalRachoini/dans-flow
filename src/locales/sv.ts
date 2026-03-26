@@ -365,8 +365,6 @@ export const sv = {
     paymentMethods: 'Betalningsmetoder',
     stripe: 'Stripe',
     paypal: 'PayPal',
-    swish: 'Swish',
-    swishNote: 'Swish-integration kräver bankens Swish-konto samt klientcertifikat (TLS + signeringscertifikat) från Swish Certificate System.',
     total: 'Totalt',
     pay: 'Betala',
   },

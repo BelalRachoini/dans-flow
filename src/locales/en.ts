@@ -365,8 +365,6 @@ export const en = {
     paymentMethods: 'Payment methods',
     stripe: 'Stripe',
     paypal: 'PayPal',
-    swish: 'Swish',
-    swishNote: 'Swish integration requires bank Swish account and client certificates (TLS + signing certificate) from Swish Certificate System.',
     total: 'Total',
     pay: 'Pay',
   },
