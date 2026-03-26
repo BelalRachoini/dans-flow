@@ -6,12 +6,6 @@ verify_jwt = true
 [functions."admin-delete-member"]
 verify_jwt = false
 
-[functions."create-swish-payment"]
-verify_jwt = false
-
-[functions."swish-callback"]
-verify_jwt = false
-
 [functions."send-email"]
 verify_jwt = false
 

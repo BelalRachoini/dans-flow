@@ -193,65 +193,8 @@ serve(async (req) => {
       })
     );
 
-    // ── Merge Swish payments ──────────────────────────────────────
-    let swishPayments: any[] = [];
-    try {
-      const { data: swishData } = await supabaseClient
-        .from("swish_payments")
-        .select("*, profiles:member_id(full_name, email)")
-        .eq("status", "PAID")
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (swishData) {
-        swishPayments = swishData.map((sp: any) => {
-          const profile = sp.profiles;
-          let paymentType = sp.payment_type || "other";
-          let description = `[Swish] ${sp.payment_type}`;
-          const meta = sp.metadata || {};
-
-          if (sp.payment_type === "standalone_tickets") {
-            paymentType = "tickets";
-            description = `[Swish] Klippkort: ${meta.ticket_count || "?"} st`;
-          } else if (sp.payment_type === "lesson") {
-            paymentType = "lesson";
-            const ticketLabel = meta.ticket_type === "couple" ? "Par" : meta.ticket_type === "trio" ? "Trio" : "Singel";
-            description = `[Swish] Drop-in (${ticketLabel})`;
-          } else if (sp.payment_type === "event") {
-            paymentType = "event";
-            description = `[Swish] Event`;
-          } else if (sp.payment_type === "course") {
-            paymentType = "course";
-            description = `[Swish] Kurs`;
-          }
-
-          return {
-            id: `swish_${sp.id}`,
-            userId: sp.member_id,
-            userName: profile?.full_name || "Unknown",
-            userEmail: profile?.email || "unknown@example.com",
-            amountSEK: sp.amount_cents / 100,
-            type: paymentType,
-            status: "paid" as const,
-            description,
-            createdAt: sp.created_at,
-            paidAt: sp.updated_at,
-            method: "swish",
-            stripePaymentIntentId: undefined,
-            stripeCustomerId: undefined,
-          };
-        });
-      }
-    } catch (swishErr) {
-      console.warn("[get-stripe-payments] Swish merge failed:", swishErr);
-    }
-
-    // Combine and sort by date
-    const allPayments = [...enrichedPayments, ...swishPayments]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
     return new Response(
-      JSON.stringify({ payments: allPayments, has_more: paymentIntents.has_more }),
+      JSON.stringify({ payments: enrichedPayments, has_more: paymentIntents.has_more }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {

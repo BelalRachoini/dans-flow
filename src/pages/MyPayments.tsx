@@ -5,7 +5,7 @@ import { useLanguageStore } from '@/store/languageStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, CreditCard, Smartphone, Loader2 } from 'lucide-react';
+import { Download, CreditCard, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -16,7 +16,6 @@ interface PaymentRow {
   status: string;
   created_at: string;
   description: string;
-  source: 'swish' | 'stripe';
 }
 
 const MyPayments = () => {
@@ -31,54 +30,22 @@ const MyPayments = () => {
     if (!userId) return;
     const fetchPayments = async () => {
       setLoading(true);
-      const results: PaymentRow[] = [];
 
-      // Fetch Swish payments
-      const { data: swish } = await supabase
-        .from('swish_payments')
-        .select('id, amount_cents, currency, status, created_at, payment_type, metadata')
-        .eq('member_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (swish) {
-        for (const p of swish) {
-          const meta = p.metadata as any;
-          const desc = meta?.description || meta?.event_title || meta?.course_title || p.payment_type || 'Swish';
-          results.push({
-            id: p.id,
-            amount_cents: p.amount_cents,
-            currency: p.currency,
-            status: p.status,
-            created_at: p.created_at,
-            description: desc,
-            source: 'swish',
-          });
-        }
-      }
-
-      // Fetch Stripe/card payments
       const { data: stripe } = await supabase
         .from('payments')
         .select('id, amount_cents, currency, status, created_at, description')
         .eq('member_id', userId)
         .order('created_at', { ascending: false });
 
-      if (stripe) {
-        for (const p of stripe) {
-          results.push({
-            id: p.id,
-            amount_cents: p.amount_cents,
-            currency: p.currency,
-            status: p.status,
-            created_at: p.created_at,
-            description: p.description || 'Kortbetalning',
-            source: 'stripe',
-          });
-        }
-      }
+      const results: PaymentRow[] = (stripe || []).map((p) => ({
+        id: p.id,
+        amount_cents: p.amount_cents,
+        currency: p.currency,
+        status: p.status,
+        created_at: p.created_at,
+        description: p.description || 'Kortbetalning',
+      }));
 
-      // Sort combined by date desc
-      results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setPayments(results);
       setLoading(false);
     };
@@ -90,12 +57,11 @@ const MyPayments = () => {
     setDownloadingId(payment.id);
     try {
       const { data, error } = await supabase.functions.invoke('generate-receipt', {
-        body: { payment_id: payment.id, payment_source: payment.source },
+        body: { payment_id: payment.id, payment_source: 'stripe' },
       });
 
       if (error) throw error;
 
-      // data is an ArrayBuffer from the edge function
       const blob = new Blob([data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -150,18 +116,17 @@ const MyPayments = () => {
       ) : (
         <div className="space-y-3">
           {payments.map((payment) => (
-            <Card key={`${payment.source}-${payment.id}`}>
+            <Card key={payment.id}>
               <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="shrink-0 rounded-full bg-muted p-2">
-                    {payment.source === 'swish' ? <Smartphone className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+                    <CreditCard className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{payment.description}</p>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(payment.created_at), 'yyyy-MM-dd HH:mm')}
-                      {' · '}
-                      {payment.source === 'swish' ? 'Swish' : 'Kort'}
+                      {' · Kort'}
                     </p>
                   </div>
                 </div>

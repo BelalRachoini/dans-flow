@@ -98,7 +98,7 @@ export interface Invoice {
 }
 
 export interface PaymentProvider {
-  id: 'stripe' | 'paypal' | 'swish';
+  id: 'stripe' | 'paypal';
   enabled: boolean;
   note?: string;
 }
