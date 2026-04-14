@@ -31,6 +31,7 @@ import PaymentCancelled from "@/pages/PaymentCancelled";
 import NotFound from "@/pages/NotFound";
 import ResetPassword from "@/pages/ResetPassword";
 import MyPayments from "@/pages/MyPayments";
+import Confirmation from "@/pages/Confirmation";
 
 const queryClient = new QueryClient();
 

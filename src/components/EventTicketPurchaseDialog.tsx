@@ -9,6 +9,7 @@ import { Ticket, Users, User, Check } from 'lucide-react';
 import { useLanguageStore } from '@/store/languageStore';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PaymentMethodStep } from './PaymentMethodStep';
 
 interface Event {
   id: string;
@@ -30,6 +31,7 @@ interface EventTicketPurchaseDialogProps {
 }
 
 type TicketOption = 1 | 2 | 3;
+type Step = 'select' | 'payment';
 
 export function EventTicketPurchaseDialog({
   open,
@@ -41,6 +43,7 @@ export function EventTicketPurchaseDialog({
   const [attendeeNames, setAttendeeNames] = useState<string[]>(['', '', '']);
   const [processing, setProcessing] = useState(false);
   const [buyerName, setBuyerName] = useState<string>('');
+  const [step, setStep] = useState<Step>('select');
 
   const availableSpots = event.capacity - event.sold_count;
 
@@ -60,6 +63,7 @@ export function EventTicketPurchaseDialog({
       fetchBuyerName();
       setSelectedOption(1);
       setAttendeeNames(['', '', '']);
+      setStep('select');
     }
   }, [open]);
 
@@ -103,7 +107,7 @@ export function EventTicketPurchaseDialog({
 
   const canSelectOption = (option: TicketOption) => availableSpots >= option;
 
-  const handlePurchase = async () => {
+  const handleStripePayment = async () => {
     if (!isFormValid()) {
       toast.error(t.eventTickets?.fillAllNames || 'Please fill in all attendee names');
       return;
@@ -131,6 +135,14 @@ export function EventTicketPurchaseDialog({
     }
   };
 
+  const handleProceedToPayment = () => {
+    if (!isFormValid()) {
+      toast.error(t.eventTickets?.fillAllNames || 'Please fill in all attendee names');
+      return;
+    }
+    setStep('payment');
+  };
+
   const ticketOptions = [
     { count: 1 as TicketOption, label: t.eventTickets?.singleTicket || '1 Ticket', price: singlePrice, originalPrice: hasDiscount ? baseSinglePrice : null, savings: 0, icon: User },
     { count: 2 as TicketOption, label: t.eventTickets?.coupleTickets || '2 Tickets (Couple)', price: couplePrice, originalPrice: null, savings: coupleSavings, icon: Users },
@@ -148,64 +160,76 @@ export function EventTicketPurchaseDialog({
           <DialogDescription>{event.title}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Ticket Options */}
-          <div className="space-y-3">
-            {ticketOptions.map((option) => {
-              const isSelected = selectedOption === option.count;
-              const isDisabled = !canSelectOption(option.count);
-              const Icon = option.icon;
-              return (
-                <Card key={option.count} className={`p-4 cursor-pointer transition-all border-2 ${isSelected ? 'border-primary bg-primary/5' : isDisabled ? 'opacity-50 cursor-not-allowed border-muted' : 'border-border hover:border-primary/50'}`} onClick={() => !isDisabled && handleOptionSelect(option.count)}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><Icon className="h-4 w-4" /></div>
-                      <div>
-                        <p className="font-medium">{option.label}</p>
-                        {option.savings > 0 && <Badge variant="secondary" className="text-xs mt-1">{t.eventTickets?.save || 'Save'} {formatPrice(option.savings)}</Badge>}
+        {step === 'select' ? (
+          <div className="space-y-4">
+            {/* Ticket Options */}
+            <div className="space-y-3">
+              {ticketOptions.map((option) => {
+                const isSelected = selectedOption === option.count;
+                const isDisabled = !canSelectOption(option.count);
+                const Icon = option.icon;
+                return (
+                  <Card key={option.count} className={`p-4 cursor-pointer transition-all border-2 ${isSelected ? 'border-primary bg-primary/5' : isDisabled ? 'opacity-50 cursor-not-allowed border-muted' : 'border-border hover:border-primary/50'}`} onClick={() => !isDisabled && handleOptionSelect(option.count)}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><Icon className="h-4 w-4" /></div>
+                        <div>
+                          <p className="font-medium">{option.label}</p>
+                          {option.savings > 0 && <Badge variant="secondary" className="text-xs mt-1">{t.eventTickets?.save || 'Save'} {formatPrice(option.savings)}</Badge>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {option.originalPrice ? (
+                          <div>
+                            <p className="text-sm text-muted-foreground line-through">{formatPrice(option.originalPrice)}</p>
+                            <p className="text-lg font-bold text-green-600">{formatPrice(option.price)}</p>
+                          </div>
+                        ) : (
+                          <p className="text-lg font-bold">{formatPrice(option.price)}</p>
+                        )}
+                        {isDisabled && <p className="text-xs text-muted-foreground">{t.eventTickets?.notEnoughSpots || 'Not enough spots'}</p>}
                       </div>
                     </div>
-                    <div className="text-right">
-                      {option.originalPrice ? (
-                        <div>
-                          <p className="text-sm text-muted-foreground line-through">{formatPrice(option.originalPrice)}</p>
-                          <p className="text-lg font-bold text-green-600">{formatPrice(option.price)}</p>
-                        </div>
-                      ) : (
-                        <p className="text-lg font-bold">{formatPrice(option.price)}</p>
-                      )}
-                      {isDisabled && <p className="text-xs text-muted-foreground">{t.eventTickets?.notEnoughSpots || 'Not enough spots'}</p>}
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Attendee Names */}
-          {selectedOption > 1 && (
-            <div className="space-y-3 pt-4 border-t">
-              <Label className="text-base font-semibold">{t.eventTickets?.attendeeNames || 'Attendee Names'}</Label>
-              <p className="text-sm text-muted-foreground">{t.eventTickets?.attendeeNamesDescription || 'Enter the name of each person attending'}</p>
-              <div>
-                <Label className="text-sm">{t.eventTickets?.person || 'Person'} 1</Label>
-                <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-muted rounded-md">
-                  <Check className="h-4 w-4 text-green-600" /><span className="text-sm font-medium">{buyerName || '...'}</span>
-                </div>
-              </div>
-              {Array.from({ length: selectedOption - 1 }).map((_, index) => (
-                <div key={index}>
-                  <Label htmlFor={`attendee-${index}`} className="text-sm">{t.eventTickets?.person || 'Person'} {index + 2}</Label>
-                  <Input id={`attendee-${index}`} value={attendeeNames[index]} onChange={(e) => handleAttendeeNameChange(index, e.target.value)} placeholder={`${t.eventTickets?.enterName || 'Enter name'}...`} className="mt-1" />
-                </div>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
-          )}
 
-          <Button onClick={handlePurchase} disabled={processing || !isFormValid()} className="w-full" size="lg">
-            {processing ? (t.common.loading || 'Processing...') : `${t.eventTickets?.buyNow || 'Buy Now'} - ${formatPrice(getSelectedPrice())}`}
-          </Button>
-        </div>
+            {/* Attendee Names */}
+            {selectedOption > 1 && (
+              <div className="space-y-3 pt-4 border-t">
+                <Label className="text-base font-semibold">{t.eventTickets?.attendeeNames || 'Attendee Names'}</Label>
+                <p className="text-sm text-muted-foreground">{t.eventTickets?.attendeeNamesDescription || 'Enter the name of each person attending'}</p>
+                <div>
+                  <Label className="text-sm">{t.eventTickets?.person || 'Person'} 1</Label>
+                  <div className="flex items-center gap-2 mt-1 px-3 py-2 bg-muted rounded-md">
+                    <Check className="h-4 w-4 text-green-600" /><span className="text-sm font-medium">{buyerName || '...'}</span>
+                  </div>
+                </div>
+                {Array.from({ length: selectedOption - 1 }).map((_, index) => (
+                  <div key={index}>
+                    <Label htmlFor={`attendee-${index}`} className="text-sm">{t.eventTickets?.person || 'Person'} {index + 2}</Label>
+                    <Input id={`attendee-${index}`} value={attendeeNames[index]} onChange={(e) => handleAttendeeNameChange(index, e.target.value)} placeholder={`${t.eventTickets?.enterName || 'Enter name'}...`} className="mt-1" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Button onClick={handleProceedToPayment} disabled={!isFormValid()} className="w-full" size="lg">
+              {`${t.eventTickets?.buyNow || 'Buy Now'} - ${formatPrice(getSelectedPrice())}`}
+            </Button>
+          </div>
+        ) : (
+          <PaymentMethodStep
+            itemName={event.title}
+            itemType="event"
+            amount={getSelectedPrice()}
+            quantity={selectedOption}
+            onSelectStripe={handleStripePayment}
+            onBack={() => setStep('select')}
+            processing={processing}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
