@@ -1,74 +1,105 @@
 
 
-# Remove All Swish Payment Integration
+# Add Swish Payment Option + Confirmation Page
 
 ## Summary
-Remove Swish as a payment method from the entire application. All purchase dialogs will use card (Stripe) only. The `swish_payments` database table will be kept (it may contain historical data) but no code will reference it.
+Add a payment method selection step to all three purchase flows (Events, Courses, Tickets). The "Buy Now" button will show a payment method chooser instead of immediately redirecting to Stripe. Swish redirects to an external WordPress/WooCommerce URL. A new `/confirmation` route handles the return.
 
-## Files to Delete
-1. `src/components/SwishPaymentStatus.tsx` — Swish polling dialog
-2. `src/components/icons/SwishIcon.tsx` — Swish logo component
-3. `src/assets/swish-logo.png` — Swish logo image
-4. `supabase/functions/create-swish-payment/index.ts` — Edge function
-5. `supabase/functions/swish-callback/index.ts` — Callback edge function
+## Architecture
 
-## Files to Edit
+```text
+User clicks "Buy Now"
+        │
+        ▼
+┌─────────────────────────┐
+│ Payment Method Step      │
+│ (inside same modal)      │
+│                          │
+│ Order Summary            │
+│ ┌──────────────────────┐ │
+│ │ Betala med kort      │ │ → Existing Stripe flow (unchanged)
+│ └──────────────────────┘ │
+│ ┌──────────────────────┐ │
+│ │ Betala med Swish     │ │ → window.location.href redirect to dancevida.se
+│ └──────────────────────┘ │
+│                          │
+│ ← Tillbaka               │
+└─────────────────────────┘
+```
 
-### 1. `src/components/EventTicketPurchaseDialog.tsx`
-- Remove imports: `SwishIcon`, `SwishPaymentStatus`, `CreditCard`, `Label`
-- Remove state: `paymentMethod`, `swishPaymentId`, `swishToken`
-- Remove `paymentMethod === 'swish'` branch in `handlePurchase()` — keep only the Stripe/card branch
-- Remove payment method selector UI (the Kort/Swish toggle)
-- Remove `<SwishPaymentStatus>` component at bottom
-- Remove reset of `swishPaymentId` and `paymentMethod` in useEffect
+## New Files
 
-### 2. `src/components/LessonBookingDialog.tsx`
-- Remove imports: `SwishIcon`, `SwishPaymentStatus`, `CreditCard`, `Label`
-- Remove state: `paymentMethod`, `swishPaymentId`, `swishToken`
-- Remove `paymentMethod === 'swish'` branch in `handleBuyDropIn()` — keep only Stripe
-- Remove payment method selector UI
-- Remove `<SwishPaymentStatus>` at bottom
+### 1. `src/components/PaymentMethodStep.tsx`
+Shared component used by all three purchase flows. Props:
+- `itemName: string`
+- `itemType: 'event' | 'course' | 'ticket'`
+- `amount: number` (in SEK, not cents)
+- `quantity: number`
+- `onSelectStripe: () => void` — calls existing Stripe logic
+- `onBack: () => void` — returns to previous step
+- `processing: boolean`
 
-### 3. `src/components/StandaloneTicketPurchaseDialog.tsx`
-- Remove imports: `SwishIcon`, `SwishPaymentStatus`, `CreditCard`, `Label`
-- Remove state: `paymentMethod`, `swishPaymentId`, `swishToken`
-- Remove `paymentMethod === 'swish'` branch in `handlePurchase()` — keep only Stripe
-- Remove payment method selector UI
-- Remove `<SwishPaymentStatus>` at bottom
+Behavior:
+- Fetches `customer_email` and `customer_name` from `supabase.auth.getSession()` + profiles table
+- If not logged in, shows email + name input fields
+- "Betala med kort" button triggers `onSelectStripe()`
+- "Betala med Swish" button builds the redirect URL and does `window.location.href = ...`
+- Shows order summary (item name, type label, quantity, total)
+- "← Tillbaka" link at bottom calls `onBack()`
 
-### 4. `src/components/BundlePurchaseWizard.tsx`
-- Remove imports: `SwishIcon`, `SwishPaymentStatus`, `CreditCard`, `Label`
-- Remove state: `paymentMethod`, `swishPaymentId`, `swishToken`
-- Remove `paymentMethod === 'swish'` branch in `handleProceedToCheckout()` — keep only Stripe
-- Remove payment method selector UI in summary step
-- Remove `<SwishPaymentStatus>` at bottom
+### 2. `src/pages/Confirmation.tsx`
+New route at `/confirmation`. Reads query params: `order_id`, `status`, `amount`, `item_name`, `item_type`.
+- If `status === "success"`: green checkmark, "Betalning genomförd! 🎉", amount + item info, back button linking to appropriate page
+- Otherwise: generic thank you message with link to `/`
 
-### 5. `src/pages/MyPayments.tsx`
-- Remove Swish payment fetching (the `swish_payments` query block)
-- Remove `source: 'swish'` references
-- Remove `Smartphone` icon import
-- Simplify: only show Stripe/card payments
-- Change `PaymentRow.source` type to just `'stripe'`
+## Modified Files
 
-### 6. `supabase/functions/get-stripe-payments/index.ts`
-- Remove the "Merge Swish payments" block (lines ~196-247)
-- Only return Stripe payments
+### 3. `src/App.tsx`
+- Import `Confirmation` page
+- Add route: `<Route path="/confirmation" element={<Confirmation />} />` (outside auth guard, next to payment-success/payment-cancelled)
 
-### 7. `src/types/index.ts`
-- Remove `'swish'` from `PaymentProvider.id` union type
+### 4. `src/components/EventTicketPurchaseDialog.tsx`
+- Add state: `step: 'select' | 'payment'` (default `'select'`)
+- Current ticket selection UI shows when `step === 'select'`
+- Current "Buy Now" button changes to set `step = 'payment'` instead of calling `handlePurchase()`
+- When `step === 'payment'`, render `<PaymentMethodStep>` with:
+  - `itemName={event.title}`, `itemType="event"`, `amount={getSelectedPrice()}`, `quantity={selectedOption}`
+  - `onSelectStripe` calls the existing `handlePurchase()` logic
+  - `onBack` sets `step = 'select'`
+- Reset `step` to `'select'` when dialog opens
 
-### 8. `src/locales/en.ts`, `src/locales/es.ts`, `src/locales/sv.ts`
-- Remove `swish` and `swishNote` translation keys from payments section
+### 5. `src/components/StandaloneTicketPurchaseDialog.tsx`
+- Add state: `step: 'select' | 'payment'`, `selectedPackage`
+- Current ticket package grid shows when `step === 'select'`
+- "Köp nu" buttons set `selectedPackage` and `step = 'payment'`
+- When `step === 'payment'`, render `<PaymentMethodStep>` with:
+  - `itemName="{count} Klipp"`, `itemType="ticket"`, `amount={pkg.price}`, `quantity={pkg.count}`
+  - `onSelectStripe` calls existing `handlePurchase(selectedPackage.count)`
+  - `onBack` sets `step = 'select'`
 
-### 9. `supabase/config.toml`
-- Remove `[functions."create-swish-payment"]` and `[functions."swish-callback"]` blocks
+### 6. `src/components/BundlePurchaseWizard.tsx`
+- Add a new wizard step `'payment'` after `'summary'`
+- The "Fortsätt till betalning" button in summary step sets `step = 'payment'` instead of calling `handleProceedToCheckout()`
+- When `step === 'payment'`, render `<PaymentMethodStep>` with:
+  - `itemName={courseName + ' - ' + selectedTier.name}`, `itemType="course"`, `amount={selectedTier.price_cents / 100}`, `quantity=1`
+  - `onSelectStripe` calls existing `handleProceedToCheckout()`
+  - `onBack` sets `step = 'summary'`
+- Update progress indicator to show 4 steps instead of 3
 
-## Database
-- The `swish_payments` table will NOT be dropped (preserves any historical data)
-- No migration needed
+## Swish Redirect URL Construction (inside PaymentMethodStep)
 
-## What stays unchanged
-- All Stripe payment flows (card payments work exactly as before)
-- Frontend purchase dialogs still work, just without the payment method toggle
-- The buy button directly triggers Stripe checkout
+```
+https://dancevida.se/swish-checkout/?item_name=${encodeURIComponent(itemName)}&item_type=${encodeURIComponent(itemType)}&amount=${encodeURIComponent(amount)}&quantity=${encodeURIComponent(quantity)}&customer_email=${encodeURIComponent(email)}&customer_name=${encodeURIComponent(name)}&return_url=${encodeURIComponent('https://cms.dancevida.se/confirmation')}
+```
+
+## UI Details
+- "Betala med kort" button: existing gold/amber primary color, `CreditCard` icon
+- "Betala med Swish" button: `bg-[#00B9ED] hover:bg-[#00a5d4] text-white`, `Smartphone` icon
+- Order summary: card with item name, type badge, quantity, total price
+- All text in Swedish
+
+## No Backend Changes
+- No edge functions modified
+- No database changes
+- Stripe logic completely untouched — just called from a different UI path
 
