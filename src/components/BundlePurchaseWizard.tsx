@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PackageClassSelector } from './PackageClassSelector';
 import { useLanguageStore } from '@/store/languageStore';
+import { PaymentMethodStep } from './PaymentMethodStep';
 
 interface BundleTier {
   id: string;
@@ -24,7 +25,7 @@ interface BundlePurchaseWizardProps {
   courseName: string;
 }
 
-type WizardStep = 'tier' | 'classes' | 'summary';
+type WizardStep = 'tier' | 'classes' | 'summary' | 'payment';
 
 export function BundlePurchaseWizard({ courseId, courseName }: BundlePurchaseWizardProps) {
   const { t } = useLanguageStore();
@@ -98,6 +99,7 @@ export function BundlePurchaseWizard({ courseId, courseName }: BundlePurchaseWiz
   const goBack = () => {
     if (step === 'classes') { setStep('tier'); setSelectedTier(null); setSelectedClassIds([]); }
     else if (step === 'summary') { setStep('classes'); }
+    else if (step === 'payment') { setStep('summary'); }
   };
 
   const goNext = () => { if (step === 'classes' && selectedClassIds.length > 0) setStep('summary'); };
@@ -110,28 +112,25 @@ export function BundlePurchaseWizard({ courseId, courseName }: BundlePurchaseWiz
     return <Card className="p-6"><p className="text-muted-foreground text-center">Inga paket tillgängliga för denna kurs.</p></Card>;
   }
 
+  const stepLabels = ['Välj paket', 'Välj klasser', 'Bekräfta', 'Betala'];
+  const stepKeys: WizardStep[] = ['tier', 'classes', 'summary', 'payment'];
+  const currentStepIndex = stepKeys.indexOf(step);
+
   return (
     <div className="space-y-6">
       {/* Progress indicator */}
       <div className="flex items-center justify-center gap-2">
-        <div className={`flex items-center gap-2 ${step === 'tier' ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${step === 'tier' ? 'bg-primary text-primary-foreground' : 'bg-primary/20 text-primary'}`}>
-            {step !== 'tier' ? <Check className="h-4 w-4" /> : '1'}
+        {stepLabels.map((label, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            {idx > 0 && <div className="w-6 h-px bg-border" />}
+            <div className={`flex items-center gap-2 ${idx === currentStepIndex ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${idx === currentStepIndex ? 'bg-primary text-primary-foreground' : idx < currentStepIndex ? 'bg-primary/20 text-primary' : 'bg-muted'}`}>
+                {idx < currentStepIndex ? <Check className="h-4 w-4" /> : idx + 1}
+              </div>
+              <span className="hidden sm:inline text-xs">{label}</span>
+            </div>
           </div>
-          <span className="hidden sm:inline">Välj paket</span>
-        </div>
-        <div className="w-8 h-px bg-border" />
-        <div className={`flex items-center gap-2 ${step === 'classes' ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${step === 'classes' ? 'bg-primary text-primary-foreground' : step === 'summary' ? 'bg-primary/20 text-primary' : 'bg-muted'}`}>
-            {step === 'summary' ? <Check className="h-4 w-4" /> : '2'}
-          </div>
-          <span className="hidden sm:inline">Välj klasser</span>
-        </div>
-        <div className="w-8 h-px bg-border" />
-        <div className={`flex items-center gap-2 ${step === 'summary' ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${step === 'summary' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>3</div>
-          <span className="hidden sm:inline">Bekräfta</span>
-        </div>
+        ))}
       </div>
 
       {/* Step 1: Tier Selection */}
@@ -202,10 +201,23 @@ export function BundlePurchaseWizard({ courseId, courseName }: BundlePurchaseWiz
             </CardContent>
           </Card>
 
-          <Button onClick={handleProceedToCheckout} disabled={processing} size="lg" className="w-full gap-2">
-            {processing ? (<><Loader2 className="h-4 w-4 animate-spin" />Bearbetar...</>) : (<><Ticket className="h-4 w-4" />Fortsätt till betalning</>)}
+          <Button onClick={() => setStep('payment')} size="lg" className="w-full gap-2">
+            <Ticket className="h-4 w-4" />Fortsätt till betalning
           </Button>
         </div>
+      )}
+
+      {/* Step 4: Payment Method */}
+      {step === 'payment' && selectedTier && (
+        <PaymentMethodStep
+          itemName={`${courseName} - ${selectedTier.name}`}
+          itemType="course"
+          amount={selectedTier.price_cents / 100}
+          quantity={1}
+          onSelectStripe={handleProceedToCheckout}
+          onBack={() => setStep('summary')}
+          processing={processing}
+        />
       )}
     </div>
   );
