@@ -83,6 +83,7 @@ const AppRoutes = () => {
       {/* Payment Routes - Outside auth guard for redirect handling */}
       <Route path="/payment-success" element={<PaymentSuccess />} />
       <Route path="/payment-cancelled" element={<PaymentCancelled />} />
+      <Route path="/confirmation" element={<Confirmation />} />
       
       {/* Member Routes */}
       <Route element={<RoleGuard allowedRoles={['member', 'instructor', 'admin']}><Layout /></RoleGuard>}>
