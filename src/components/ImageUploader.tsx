@@ -9,16 +9,18 @@ import { Label } from '@/components/ui/label';
 import { Upload, Link, X, Loader2, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface CourseImageUploaderProps {
+interface ImageUploaderProps {
   value: string;
   onChange: (url: string) => void;
   disabled?: boolean;
+  pathPrefix?: string;
+  label?: string;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-export function CourseImageUploader({ value, onChange, disabled }: CourseImageUploaderProps) {
+export function ImageUploader({ value, onChange, disabled, pathPrefix = 'courses', label }: ImageUploaderProps) {
   const { t } = useLanguageStore();
   const [activeTab, setActiveTab] = useState<'upload' | 'url'>(value?.startsWith('http') && !value?.includes('supabase') ? 'url' : 'upload');
   const [urlInput, setUrlInput] = useState(value?.startsWith('http') && !value?.includes('supabase') ? value : '');
@@ -29,13 +31,11 @@ export function CourseImageUploader({ value, onChange, disabled }: CourseImageUp
   const handleFileSelect = useCallback(async (file: File) => {
     if (!file) return;
 
-    // Validate file type
     if (!ACCEPTED_TYPES.includes(file.type)) {
       toast.error(t.imageUpload?.invalidType || 'Only JPG, PNG and WebP images are allowed');
       return;
     }
 
-    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       toast.error(t.imageUpload?.fileTooLarge || 'File size must be less than 5MB');
       return;
@@ -43,19 +43,16 @@ export function CourseImageUploader({ value, onChange, disabled }: CourseImageUp
 
     setIsUploading(true);
     try {
-      // Generate unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `courses/${fileName}`;
+      const filePath = `${pathPrefix}/${fileName}`;
 
-      // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('course-images')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('course-images')
         .getPublicUrl(filePath);
@@ -68,12 +65,11 @@ export function CourseImageUploader({ value, onChange, disabled }: CourseImageUp
     } finally {
       setIsUploading(false);
     }
-  }, [onChange, t]);
+  }, [onChange, t, pathPrefix]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    
     const file = e.dataTransfer.files[0];
     if (file) handleFileSelect(file);
   }, [handleFileSelect]);
@@ -114,7 +110,7 @@ export function CourseImageUploader({ value, onChange, disabled }: CourseImageUp
 
   return (
     <div className="space-y-3">
-      <Label>{t.imageUpload?.courseImage || 'Course Image'}</Label>
+      <Label>{label || t.imageUpload?.courseImage || 'Image'}</Label>
       
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'url')}>
         <TabsList className="grid w-full grid-cols-2">

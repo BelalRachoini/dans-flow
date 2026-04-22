@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EventTicketPurchaseDialog } from '@/components/EventTicketPurchaseDialog';
+import { ImageUploader } from '@/components/ImageUploader';
 
 type EventData = Tables<'events'>;
 type EventBooking = Tables<'event_bookings'> & {
@@ -679,8 +680,12 @@ export default function EventsPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="image_url">{t.events.imageUrl}</Label>
-                    <Input id="image_url" {...register('image_url')} placeholder="https://..." />
+                    <ImageUploader
+                      value={watch('image_url') || ''}
+                      onChange={(url) => setValue('image_url', url, { shouldValidate: true })}
+                      pathPrefix="events"
+                      label={t.events.imageUrl}
+                    />
                     {errors.image_url && <p className="text-sm text-destructive mt-1">{errors.image_url.message}</p>}
                   </div>
 
