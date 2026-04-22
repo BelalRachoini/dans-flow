@@ -217,6 +217,7 @@ export function BundlePurchaseWizard({ courseId, courseName }: BundlePurchaseWiz
           onSelectStripe={handleProceedToCheckout}
           onBack={() => setStep('summary')}
           processing={processing}
+          attendeeNames={[]}
         />
       )}
     </div>

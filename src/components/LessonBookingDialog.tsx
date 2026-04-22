@@ -203,6 +203,7 @@ export const LessonBookingDialog = ({ open, onOpenChange, lesson }: LessonBookin
             onSelectStripe={handleStripePayment}
             onBack={() => setStep('select')}
             processing={loading}
+            attendeeNames={[]}
           />
         )}
       </DialogContent>

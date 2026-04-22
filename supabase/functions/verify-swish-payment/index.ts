@@ -26,10 +26,24 @@ serve(async (req) => {
       amount_cents,
       quantity,
       wp_order_id,
+      attendee_names,
     } = await req.json();
 
     if (!item_type || !user_id || !amount_cents) {
       throw new Error("Missing required fields: item_type, user_id, amount_cents");
+    }
+
+    // Parse attendee_names safely (accept array or JSON-encoded string)
+    let attendeeNamesArr: string[] = [];
+    try {
+      if (Array.isArray(attendee_names)) {
+        attendeeNamesArr = attendee_names.filter((n) => typeof n === "string");
+      } else if (typeof attendee_names === "string" && attendee_names.trim()) {
+        const parsed = JSON.parse(attendee_names);
+        if (Array.isArray(parsed)) attendeeNamesArr = parsed.filter((n) => typeof n === "string");
+      }
+    } catch (_e) {
+      attendeeNamesArr = [];
     }
 
     // ── EVENT ──
@@ -82,7 +96,11 @@ serve(async (req) => {
               ticket_count: 1,
               checkins_allowed: 1,
               checkins_used: 0,
-              attendee_names: [customer_name || `Person ${i + 1}`],
+              attendee_names: [
+                (attendeeNamesArr[i] && attendeeNamesArr[i].trim()) ||
+                  customer_name ||
+                  `Person ${i + 1}`,
+              ],
               qr_payload: crypto.randomUUID(),
             })
             .select()
