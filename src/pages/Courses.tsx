@@ -13,7 +13,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CourseLessons } from '@/components/CourseLessons';
-import { CourseImageUploader } from '@/components/CourseImageUploader';
+import { ImageUploader } from '@/components/ImageUploader';
 import { CourseClasses } from '@/components/CourseClasses';
 import { Calendar, Plus, PartyPopper, Edit, Trash2, CalendarIcon, Clock, Copy, Package, Percent } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
@@ -480,9 +480,10 @@ export default function Courses() {
                   {errors.title && <p className="text-sm text-destructive mt-1">{errors.title.message}</p>}
                 </div>
 
-                <CourseImageUploader
+                <ImageUploader
                   value={watch('image_url') || ''}
                   onChange={(url) => setValue('image_url', url)}
+                  pathPrefix="courses"
                 />
 
                 <div>
