@@ -15,6 +15,7 @@ interface PaymentMethodStepProps {
   onSelectStripe: () => void;
   onBack: () => void;
   processing: boolean;
+  attendeeNames?: string[];
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -31,6 +32,7 @@ export function PaymentMethodStep({
   onSelectStripe,
   onBack,
   processing,
+  attendeeNames,
 }: PaymentMethodStepProps) {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -67,6 +69,9 @@ export function PaymentMethodStep({
       customer_name: customerName,
       return_url: 'https://cms.dancevida.se/confirmation',
     });
+    if (attendeeNames && attendeeNames.length > 0) {
+      params.set('attendee_names', JSON.stringify(attendeeNames));
+    }
     window.location.href = `https://dancevida.se/swish-checkout/?${params.toString()}`;
   };
 

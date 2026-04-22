@@ -131,6 +131,7 @@ export function StandaloneTicketPurchaseDialog({ open, onOpenChange }: Standalon
             onSelectStripe={handleStripePayment}
             onBack={() => setStep('select')}
             processing={purchasing}
+            attendeeNames={[]}
           />
         )}
       </DialogContent>

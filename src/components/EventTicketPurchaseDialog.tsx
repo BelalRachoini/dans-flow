@@ -228,6 +228,11 @@ export function EventTicketPurchaseDialog({
             onSelectStripe={handleStripePayment}
             onBack={() => setStep('select')}
             processing={processing}
+            attendeeNames={
+              selectedOption > 1
+                ? [buyerName, ...attendeeNames.slice(0, selectedOption - 1).map(n => n.trim())]
+                : [buyerName]
+            }
           />
         )}
       </DialogContent>

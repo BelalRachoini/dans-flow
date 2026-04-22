@@ -22,6 +22,7 @@ interface CheckinResult {
   message?: string;
   member_name?: string;
   member_id?: string;
+  attendee_name?: string;
   
   // Lesson bookings
   lesson_id?: string;
@@ -42,6 +43,7 @@ interface CheckinResult {
   event_title?: string;
   event_start_at?: string;
   is_event?: boolean;
+  ticket_count?: number;
   
   // Common
   scanned_at?: string;
@@ -416,8 +418,13 @@ export default function Scan() {
                           <div className="text-sm space-y-1">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4" />
-                              <span>{lastResult.member_name || 'Okänd medlem'}</span>
+                              <span>{lastResult.attendee_name || lastResult.member_name || 'Okänd medlem'}</span>
                             </div>
+                            {lastResult.is_event && lastResult.attendee_name && lastResult.member_name && lastResult.attendee_name !== lastResult.member_name && (
+                              <div className="text-xs text-muted-foreground pl-6">
+                                Köpt av: {lastResult.member_name}
+                              </div>
+                            )}
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4" />
                               <span>
@@ -428,9 +435,16 @@ export default function Scan() {
                                     : (lastResult.course_title || 'Klippkort (flexibel biljett)')}
                               </span>
                             </div>
-                            <div className="text-muted-foreground">
-                              Incheckningar: {lastResult.checked_in_count} / {lastResult.max_checkins}
-                            </div>
+                            {lastResult.is_event && (lastResult.ticket_count ?? 1) > 1 && (
+                              <div className="text-muted-foreground">
+                                Biljett {lastResult.checkins_used} av {lastResult.ticket_count}
+                              </div>
+                            )}
+                            {!lastResult.is_event && (
+                              <div className="text-muted-foreground">
+                                Incheckningar: {lastResult.checked_in_count} / {lastResult.max_checkins}
+                              </div>
+                            )}
                           </div>
                         </>
                       ) : (
@@ -493,8 +507,13 @@ export default function Scan() {
                           <div className="text-sm space-y-1">
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4" />
-                              <span>{lastResult.member_name || 'Okänd medlem'}</span>
+                              <span>{lastResult.attendee_name || lastResult.member_name || 'Okänd medlem'}</span>
                             </div>
+                            {lastResult.is_event && lastResult.attendee_name && lastResult.member_name && lastResult.attendee_name !== lastResult.member_name && (
+                              <div className="text-xs text-muted-foreground pl-6">
+                                Köpt av: {lastResult.member_name}
+                              </div>
+                            )}
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4" />
                               <span>
@@ -532,10 +551,22 @@ export default function Scan() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Member Name */}
+            {/* Display name (attendee for events, member otherwise) */}
             <div className="flex items-center gap-3">
               <User className="h-5 w-5 text-muted-foreground" />
-              <span className="text-lg font-semibold">{lastResult?.member_name || 'Okänd medlem'}</span>
+              <div className="flex flex-col">
+                <span className="text-lg font-semibold">
+                  {lastResult?.attendee_name || lastResult?.member_name || 'Okänd medlem'}
+                </span>
+                {lastResult?.is_event &&
+                  lastResult?.attendee_name &&
+                  lastResult?.member_name &&
+                  lastResult.attendee_name !== lastResult.member_name && (
+                    <span className="text-xs text-muted-foreground">
+                      Köpt av: {lastResult.member_name}
+                    </span>
+                  )}
+              </div>
             </div>
             
             {/* Title - dynamic based on type */}
@@ -555,6 +586,22 @@ export default function Scan() {
               <Clock className="h-5 w-5 text-muted-foreground" />
               <span>{lastResult?.scanned_at ? formatDate(lastResult.scanned_at) : formatDate(new Date().toISOString())}</span>
             </div>
+
+            {/* Event-specific: ticket position + event start date */}
+            {lastResult?.is_event && (
+              <>
+                {(lastResult?.ticket_count ?? 1) > 1 && (
+                  <div className="text-sm text-muted-foreground">
+                    Biljett {lastResult?.checkins_used} av {lastResult?.ticket_count}
+                  </div>
+                )}
+                {lastResult?.event_start_at && (
+                  <div className="text-sm text-muted-foreground">
+                    Eventdatum: {formatDate(lastResult.event_start_at)}
+                  </div>
+                )}
+              </>
+            )}
             
             {/* Remaining Tickets - only for non-events */}
             {!lastResult?.is_event && (
