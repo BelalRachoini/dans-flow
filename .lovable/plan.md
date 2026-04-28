@@ -1,51 +1,51 @@
+# Polish the /confirmation Swish Return Page
 
+Make the post-Swish landing page (`cms.dancevida.se/confirmation`) feel celebratory and on-brand, with a 2-second "verifying" stage followed by an animated success screen.
 
-# Fix Event Image Upload
+## Behavior
 
-## Problem
-The Events admin form only has a plain text input for `image_url` — no file upload. Users can only paste a URL, which is why they can't upload an image. Courses already have a working uploader (`CourseImageUploader`) that supports both file upload (to Supabase Storage) and pasting a URL.
+URL params read from `useSearchParams`: `status`, `order_id`, `amount`, `item_name`, `item_type`.
 
-## Fix
+### When `status === "success"`
 
-### 1. Make `CourseImageUploader` reusable
-Rename the component to `ImageUploader` and add an optional `pathPrefix` prop (default `"courses"`).
+**Stage 1 — Verifying (2 seconds)**
+- Dark olive/brown background (matching app sidebar tone)
+- Centered Swish-blue spinner (`#00B9ED`, `animate-spin`)
+- Title: "Verifierar din betalning..."
+- Subtitle: "Vänta ett ögonblick"
 
-- **New file**: `src/components/ImageUploader.tsx` — copy of `CourseImageUploader` with:
-  - Renamed export `ImageUploader`
-  - New prop `pathPrefix?: string` (defaults to `'courses'`) used in `const filePath = ${pathPrefix}/${fileName}`
-  - New prop `label?: string` to override the "Course Image" label
-- **Update** `src/pages/Courses.tsx` to import and use `ImageUploader` instead of `CourseImageUploader`.
-- **Delete** `src/components/CourseImageUploader.tsx`.
+After 2000 ms (`setTimeout` in `useEffect`), `isVerifying` flips to `false`.
 
-> Reuses existing public `course-images` bucket (already configured, public). No new bucket or RLS migration needed. Event images will live under the `events/` path inside that bucket.
+**Stage 2 — Success**
+- White card on dark background, centered, max-w-md
+- Animated green checkmark (CheckCircle2, green-500) inside a soft green circle, popping in via `animate-scale-in` + `animate-fade-in`
+- H1: "Betalning genomförd! 🎉"
+- Subtitle: "Tack för ditt köp! Din bekräftelse har skickats till din e-post."
+- Gold pill: `SEK {amount}` (primary/gold background, rounded-full, font-semibold) — only when `amount` present
+- Item name line: `{item_name}` in larger semibold text — only when present
+- Divider (`<Separator />` or `border-t`)
+- Buttons stacked full-width:
+  - Primary gold: "Visa mina biljetter" → `/biljetter`
+  - Ghost/outline: "Gå till evenemang" → `/event`
+- Footer micro-copy: "Dina biljetter finns under Mina Biljetter i menyn"
 
-### 2. Replace the plain URL input on the Events form
-In `src/pages/Events.tsx` around lines 681–685, replace:
-```tsx
-<Label htmlFor="image_url">{t.events.imageUrl}</Label>
-<Input id="image_url" {...register('image_url')} placeholder="https://..." />
-```
-with:
-```tsx
-<ImageUploader
-  value={watch('image_url') || ''}
-  onChange={(url) => setValue('image_url', url, { shouldValidate: true })}
-  pathPrefix="events"
-  label={t.events.imageUrl}
-/>
-```
-- Add the import at the top of `Events.tsx`.
-- Keep the existing `image_url` zod schema (it already accepts any `https://...` URL, including the Supabase public storage URL).
+### When `status` missing or not `"success"`
+- Same dark background, white card
+- Amber `AlertTriangle` icon (amber-500)
+- H1: "Något gick fel"
+- Subtitle: "Om du betalat men inte fått bekräftelse, kontakta oss på info@dancevida.se"
+- Button: "Gå tillbaka" → `/event`
 
-## What stays unchanged
-- Database schema, RLS, and existing event records.
-- The `course-images` storage bucket (still public, still used for both courses and events).
-- Courses image upload behavior (just imports a renamed component).
-- All Swish/Stripe payment logic.
+## Technical notes
+
+- Edit only `src/pages/Confirmation.tsx`. No routing or DB changes.
+- Use existing design tokens: `bg-primary` for gold, `text-primary-foreground`, `Card`, `Button` (variant `default` for gold, `outline` for secondary).
+- Dark page background: inline `bg-[hsl(40_30%_15%)]` to match the sidebar olive/brown family without adding new tokens.
+- Spinner: `<Loader2 className="h-12 w-12 animate-spin" style={{ color: '#00B9ED' }} />`.
+- Animations reuse existing Tailwind keyframes already in `tailwind.config.ts`: `animate-scale-in`, `animate-fade-in` on the checkmark wrapper. No new keyframes needed.
+- Use `useSearchParams` from `react-router-dom` (already imported in current file) for params.
+- Internal routes are `/biljetter` (tickets) and `/event` (events) — the request says `/tickets` and `/events`; we'll use the actual app routes so the buttons work. If you'd prefer the literal paths, let me know.
+- No changes to the existing `getBackLink`/Link imports beyond what's needed; final file will use `useNavigate` for button clicks.
 
 ## Files touched
-1. **Create** `src/components/ImageUploader.tsx` (generalized from `CourseImageUploader`)
-2. **Delete** `src/components/CourseImageUploader.tsx`
-3. **Edit** `src/pages/Courses.tsx` — swap import and component name
-4. **Edit** `src/pages/Events.tsx` — replace plain URL input with `<ImageUploader pathPrefix="events" />`
-
+1. `src/pages/Confirmation.tsx` — rewrite to implement the two-stage flow above.
