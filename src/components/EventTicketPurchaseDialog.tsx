@@ -223,6 +223,7 @@ export function EventTicketPurchaseDialog({
           <PaymentMethodStep
             itemName={event.title}
             itemType="event"
+            itemId={event.id}
             amount={getSelectedPrice()}
             quantity={selectedOption}
             onSelectStripe={handleStripePayment}
