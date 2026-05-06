@@ -622,8 +622,10 @@ export default function Betalningar() {
                       <TableCell>
                         <Badge variant="outline">{getTypeLabel(payment.type)}</Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {payment.method || '-'}
+                      <TableCell>
+                        <Badge variant={payment.method === 'swish' ? 'default' : 'secondary'} className="capitalize">
+                          {payment.method === 'swish' ? 'Swish' : payment.method === 'card' ? 'Kort' : (payment.method || '-')}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(payment.status)}

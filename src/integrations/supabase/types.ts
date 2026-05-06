@@ -940,6 +940,9 @@ export type Database = {
           description: string | null
           id: string
           member_id: string
+          order_id: string | null
+          payment_method: string
+          payment_type: string | null
           status: string
         }
         Insert: {
@@ -949,6 +952,9 @@ export type Database = {
           description?: string | null
           id?: string
           member_id: string
+          order_id?: string | null
+          payment_method?: string
+          payment_type?: string | null
           status: string
         }
         Update: {
@@ -958,6 +964,9 @@ export type Database = {
           description?: string | null
           id?: string
           member_id?: string
+          order_id?: string | null
+          payment_method?: string
+          payment_type?: string | null
           status?: string
         }
         Relationships: [

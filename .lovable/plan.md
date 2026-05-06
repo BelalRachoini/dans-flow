@@ -1,79 +1,127 @@
-# Fix Swish: Register Tickets, QR Codes, and Proper Emails
+# Make Swish Payments Visible to Admin (Parity with Stripe)
 
 ## Root Cause
 
-The Swish flow currently does **only** a UI redirect:
+When a Swish payment succeeds, `verify-swish-payment` only inserts into `event_bookings` / `tickets` — it never writes a row to the `payments` table.
 
-1. `PaymentMethodStep.handleSwish` sends the user to `dancevida.se/swish-checkout/?...` with: `item_name`, `item_type`, `amount`, `quantity`, `customer_email`, `customer_name`, `attendee_names`, `return_url`.
-2. After payment, the user lands on `cms.dancevida.se/confirmation`.
-3. `Confirmation.tsx` just shows a celebratory screen. **It never calls `verify-swish-payment`.**
-4. The Swish URL is **missing `item_id` and `user_id`**, so even if WordPress did call `verify-swish-payment`, the function would fail (it requires those fields for events/courses).
+Meanwhile, every admin view of "payments / revenue" reads exclusively from Stripe (via the `get-stripe-payments` edge function, which calls `stripe.paymentIntents.list`). Swish transactions are invisible to:
 
-Result: no `event_bookings` / `tickets` row is ever inserted → no QR code → confirmation email (the simple plain-text one in `verify-swish-payment`) has no QR / no portal link to a real booking.
+- `Betalningar.tsx` (admin payments page)
+- `MedlemmarCRM.tsx` (per-member revenue column)
+- `MemberDetailDrawer.tsx` (member drawer revenue stats)
+- `MyPayments.tsx` (member's own payment history / receipt download)
+
+So a Swish purchase = ticket created, but **zero footprint** in any admin/finance UI.
 
 ## Fix
 
-### 1. Pass full purchase context into the Swish URL
+The cleanest path is: **write Swish payments into the same `payments` table Stripe uses**, then make `get-stripe-payments` merge in Swish rows. No UI logic has to change — every place that already lists Stripe payments will automatically show Swish too.
 
-In `src/components/PaymentMethodStep.tsx`, also include:
-- `user_id` (from `supabase.auth.getSession()`, fetched in the existing `useEffect`)
-- `item_id` (new prop on `PaymentMethodStepProps`)
+### 1. `verify-swish-payment` — record the payment
 
-Then add the same `user_id`, `item_id`, `item_type`, `quantity`, `amount`, `attendee_names`, `customer_email`, `customer_name` into `return_url` as query params, so the confirmation page receives them back from WordPress.
-
-Update the four callers to pass `itemId`:
-- `EventTicketPurchaseDialog.tsx` → `event.id`
-- `LessonBookingDialog.tsx` → lesson/ticket id (use empty for ticket purchases that aren't tied to a course)
-- `StandaloneTicketPurchaseDialog.tsx` → no id (standalone tickets)
-- `BundlePurchaseWizard.tsx` → `courseId`
-
-### 2. Trigger registration from the confirmation page
-
-In `src/pages/Confirmation.tsx`, when `status === 'success'`, during the existing 2-second "verifying" phase, call `verify-swish-payment` via `supabase.functions.invoke('verify-swish-payment', { body: {...} })` with the params received from the URL:
+In all three branches (event / course / standalone ticket), after the booking/ticket is created (and only if `already_exists` is false), insert a row into `payments`:
 
 ```ts
-{ item_type, item_id, user_id, customer_email, customer_name,
-  amount_cents: Math.round(Number(amount) * 100),
-  quantity: Number(quantity) || 1,
-  wp_order_id: order_id,
-  attendee_names: parsed array }
+await supabaseClient.from('payments').insert({
+  member_id: user_id,
+  amount_cents,
+  currency: 'SEK',
+  status: 'paid',
+  description, // see table below
+});
 ```
 
-Behavior:
-- The function is already **idempotent** (checks existing `event_bookings` / `tickets` by member+event or `order_id`), so it's safe to call from the client even if WordPress also calls it.
-- Show error UI (existing amber state) if the call fails or required params are missing.
-- Only flip `isVerifying` to `false` after the function returns (cap at e.g. 8 s with a fallback timer to keep UX snappy).
+| item_type   | description                                     |
+|-------------|-------------------------------------------------|
+| event       | `Event: ${currentEvent.title}` (× ticketCount × dates implicit in amount) |
+| course      | `Kurs: ${course.title}`                         |
+| ticket      | `Klippkort: ${ticketCount} st`                  |
 
-### 3. Send a proper confirmation email with QR/portal info
+Also store a `swish:` order tag so we can dedupe and download receipts:
+- Add `order_id text` column to `payments` (currently doesn't exist — see migration below) **OR** put the wp_order_id into `description` as a suffix. Cleaner: add the column.
 
-In `supabase/functions/verify-swish-payment/index.ts`, replace the plain `<p>...</p>` emails with the same rich HTML used in `verify-event-payment` (already shows attendee count, dates, and a "Visa mina biljetter" CTA pointing to `cms.dancevida.se/biljetter` where the QR is rendered).
+### 2. `payments` table migration
 
-For events: build the email using the booked `event_dates`, `ticketCount`, and `attendeeNamesArr`, mirroring the structure of `verify-event-payment`'s `buildEmailHtml`.
+Add fields needed for parity and dedupe:
 
-For course / standalone tickets: keep simple but link to `/biljetter` so the user can see the QR.
+```sql
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS order_id text,
+  ADD COLUMN IF NOT EXISTS payment_method text NOT NULL DEFAULT 'stripe',
+  ADD COLUMN IF NOT EXISTS payment_type text;
 
-QR codes themselves continue to live in the portal (consistent with the Stripe flow today — that flow also doesn't embed QR images in the email, it links to the portal). The user's complaint that "the email doesn't have the QR" is really that **no booking was ever created**, so the portal had nothing to show.
+CREATE UNIQUE INDEX IF NOT EXISTS payments_order_id_unique
+  ON public.payments(order_id) WHERE order_id IS NOT NULL;
 
-### 4. WordPress side (heads-up, not in this PR)
+-- Allow members to read their own payments (for MyPayments page)
+CREATE POLICY "Members can view own payments"
+  ON public.payments FOR SELECT
+  USING (member_id = auth.uid());
+```
 
-The WP `swish-checkout` page should forward all the new query params (`user_id`, `item_id`, etc.) into both:
-- the POST body it sends to `verify-swish-payment` (server-to-server, preferred)
-- the `return_url` query string (so the confirmation page can also self-heal)
+`payment_method` lets the UI show "Swish" vs "Kort". `payment_type` mirrors the Stripe-derived `type` (`event` / `course` / `tickets` / `lesson`). `order_id` makes the WP→Supabase call idempotent at the payment-row level.
 
-The confirmation-page call alone is already enough to register the ticket — the WP-side call becomes a redundant safety net.
+### 3. `get-stripe-payments` → also fetch Swish rows from DB
 
-## Files Changed
+Rename conceptually (file name stays the same to avoid touching all callers). At the end, before returning, query the `payments` table for `payment_method = 'swish'` and merge those rows into `enrichedPayments`, mapped to the same shape:
 
-1. `src/components/PaymentMethodStep.tsx` — add `itemId` prop; include `user_id`, `item_id`, and bounce-back params in Swish URL.
-2. `src/pages/Confirmation.tsx` — invoke `verify-swish-payment` during the verifying phase; handle errors.
-3. `src/components/EventTicketPurchaseDialog.tsx` — pass `itemId={event.id}`.
-4. `src/components/BundlePurchaseWizard.tsx` — pass `itemId={courseId}`.
-5. `src/components/LessonBookingDialog.tsx` — pass `itemId` (lesson id when applicable).
-6. `src/components/StandaloneTicketPurchaseDialog.tsx` — no `itemId` needed.
-7. `supabase/functions/verify-swish-payment/index.ts` — richer event/course/ticket confirmation email HTML mirroring `verify-event-payment`.
+```ts
+const { data: swishRows } = await supabaseClient
+  .from('payments')
+  .select('id, member_id, amount_cents, currency, status, description, created_at, payment_type, order_id, profiles:profiles!payments_member_id_fkey(full_name, email)')
+  .eq('payment_method', 'swish')
+  .order('created_at', { ascending: false })
+  .limit(200);
+
+const swishMapped = (swishRows ?? []).map(r => ({
+  id: r.id,
+  userId: r.member_id,
+  userName: r.profiles?.full_name ?? 'Unknown',
+  userEmail: r.profiles?.email ?? '',
+  amountSEK: r.amount_cents / 100,
+  type: r.payment_type ?? 'other',
+  status: r.status === 'paid' ? 'paid' : 'pending',
+  description: r.description,
+  createdAt: r.created_at,
+  paidAt: r.created_at,
+  method: 'swish',
+  stripePaymentIntentId: r.order_id ?? undefined,
+}));
+
+return new Response(JSON.stringify({
+  payments: [...enrichedPayments, ...swishMapped]
+              .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+  has_more: paymentIntents.has_more,
+}), ...);
+```
+
+Now every admin surface that consumes this function (Betalningar, MedlemmarCRM, MemberDetailDrawer) automatically shows Swish payments — no UI changes required.
+
+### 4. `MyPayments.tsx` — already works
+
+It already queries the `payments` table directly. Once Swish writes into `payments` and the new RLS policy is in place, members will see their Swish purchases listed alongside Stripe ones.
+
+### 5. `generate-receipt` — handle Swish from `payments` table
+
+Change the receipt download path so `payment_source: 'stripe'` actually means "look it up in the `payments` table" regardless of method (since both flows now live there). For the existing Swish branch (which queries `swish_payments`), keep it as a fallback but route normal Swish receipts through the unified `payments` flow (frontend always sends `'stripe'`).
+
+Frontend: in `MyPayments.tsx`, no change — still passes `payment_source: 'stripe'` and the function fetches from the unified `payments` table.
+
+### 6. (Optional polish) Show payment method in Betalningar table
+
+Tiny UI tweak: in `Betalningar.tsx` table, render the `method` column (already in the data model, currently shown only in CSV export). Add a column "Metod" displaying `Kort` / `Swish` for clarity.
+
+## Files Touched
+
+1. **Migration** — add `order_id`, `payment_method`, `payment_type` to `payments`; add member-read RLS.
+2. `supabase/functions/verify-swish-payment/index.ts` — insert into `payments` in all three branches.
+3. `supabase/functions/get-stripe-payments/index.ts` — merge Swish rows from DB into the response.
+4. `supabase/functions/generate-receipt/index.ts` — unified lookup so Swish receipts work via the `payments` row.
+5. `src/pages/Betalningar.tsx` — small column addition for "Metod".
 
 ## What Stays the Same
 
-- Stripe flow (`verify-event-payment`, `verify-course-payment`, `verify-standalone-ticket-payment`) is untouched.
-- Idempotency rules in `verify-swish-payment` are untouched.
-- QR codes continue to be displayed in `/biljetter` (not embedded as images in the email), matching today's Stripe behavior.
+- Stripe flow untouched (still writes to `payments` for the funcs that already do; admin view still pulls live from Stripe API for richest metadata).
+- All Swish booking/ticket creation logic in `verify-swish-payment` is unchanged.
+- WordPress side is unchanged — it already calls `verify-swish-payment` correctly.
+- `MedlemmarCRM`, `MemberDetailDrawer`, `Betalningar` — no logic change; they automatically gain Swish visibility through the merged response.

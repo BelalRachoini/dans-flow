@@ -118,6 +118,18 @@ serve(async (req) => {
           .eq("id", item_id);
       }
 
+      // Record payment for admin/finance visibility
+      await supabaseClient.from("payments").insert({
+        member_id: user_id,
+        amount_cents,
+        currency: "SEK",
+        status: "paid",
+        description: `Event: ${currentEvent?.title || "okänt"}`,
+        payment_method: "swish",
+        payment_type: "event",
+        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+      });
+
       // Build a richer confirmation email
       const datesList = datesToBook
         .map((d) => {
@@ -243,6 +255,17 @@ serve(async (req) => {
 
       if (error) throw error;
 
+      await supabaseClient.from("payments").insert({
+        member_id: user_id,
+        amount_cents,
+        currency: "SEK",
+        status: "paid",
+        description: `Kurs: ${course.title}`,
+        payment_method: "swish",
+        payment_type: "course",
+        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+      });
+
       try {
         await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
           method: "POST",
@@ -304,6 +327,17 @@ serve(async (req) => {
         .single();
 
       if (error) throw error;
+
+      await supabaseClient.from("payments").insert({
+        member_id: user_id,
+        amount_cents,
+        currency: "SEK",
+        status: "paid",
+        description: `Klippkort: ${ticketCount} st`,
+        payment_method: "swish",
+        payment_type: "tickets",
+        order_id: orderTag,
+      });
 
       try {
         await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
