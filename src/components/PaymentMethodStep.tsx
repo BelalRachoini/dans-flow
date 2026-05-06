@@ -28,6 +28,7 @@ const TYPE_LABELS: Record<string, string> = {
 export function PaymentMethodStep({
   itemName,
   itemType,
+  itemId,
   amount,
   quantity,
   onSelectStripe,
@@ -37,6 +38,7 @@ export function PaymentMethodStep({
 }: PaymentMethodStepProps) {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [userId, setUserId] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [loadingUser, setLoadingUser] = useState(true);
 
