@@ -339,6 +339,9 @@ serve(async (req) => {
         order_id: orderTag,
       });
 
+      try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             to: customer_email,
