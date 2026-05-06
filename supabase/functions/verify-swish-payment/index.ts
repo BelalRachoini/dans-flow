@@ -118,6 +118,18 @@ serve(async (req) => {
           .eq("id", item_id);
       }
 
+      // Record payment for admin/finance visibility
+      await supabaseClient.from("payments").insert({
+        member_id: user_id,
+        amount_cents,
+        currency: "SEK",
+        status: "paid",
+        description: `Event: ${currentEvent?.title || "okänt"}`,
+        payment_method: "swish",
+        payment_type: "event",
+        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+      });
+
       // Build a richer confirmation email
       const datesList = datesToBook
         .map((d) => {
