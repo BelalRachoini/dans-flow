@@ -193,8 +193,48 @@ serve(async (req) => {
       })
     );
 
+    // Merge in Swish payments stored in the payments table
+    const { data: swishRows } = await supabaseClient
+      .from("payments")
+      .select("id, member_id, amount_cents, currency, status, description, created_at, payment_type, order_id")
+      .eq("payment_method", "swish")
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    let swishProfileMap: Record<string, { full_name: string | null; email: string | null }> = {};
+    const swishUserIds = [...new Set((swishRows ?? []).map((r: any) => r.member_id).filter(Boolean))];
+    if (swishUserIds.length > 0) {
+      const { data: profs } = await supabaseClient
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", swishUserIds);
+      for (const p of profs ?? []) swishProfileMap[p.id] = { full_name: p.full_name, email: p.email };
+    }
+
+    const swishMapped = (swishRows ?? []).map((r: any) => {
+      const prof = swishProfileMap[r.member_id];
+      return {
+        id: r.id,
+        userId: r.member_id,
+        userName: prof?.full_name || "Okänd",
+        userEmail: prof?.email || "",
+        amountSEK: r.amount_cents / 100,
+        type: r.payment_type || "other",
+        status: r.status === "paid" ? "paid" : (r.status === "failed" ? "failed" : "pending"),
+        description: r.description || "Swish-betalning",
+        createdAt: r.created_at,
+        paidAt: r.created_at,
+        method: "swish",
+        stripePaymentIntentId: r.order_id || undefined,
+      };
+    });
+
+    const allPayments = [...enrichedPayments, ...swishMapped].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
     return new Response(
-      JSON.stringify({ payments: enrichedPayments, has_more: paymentIntents.has_more }),
+      JSON.stringify({ payments: allPayments, has_more: paymentIntents.has_more }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
