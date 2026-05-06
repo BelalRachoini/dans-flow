@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface PaymentMethodStepProps {
   itemName: string;
   itemType: 'event' | 'course' | 'ticket';
+  itemId?: string;
   amount: number;
   quantity: number;
   onSelectStripe: () => void;
@@ -27,6 +28,7 @@ const TYPE_LABELS: Record<string, string> = {
 export function PaymentMethodStep({
   itemName,
   itemType,
+  itemId,
   amount,
   quantity,
   onSelectStripe,
@@ -36,6 +38,7 @@ export function PaymentMethodStep({
 }: PaymentMethodStepProps) {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [userId, setUserId] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [loadingUser, setLoadingUser] = useState(true);
 
@@ -43,6 +46,7 @@ export function PaymentMethodStep({
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
+        setUserId(session.user.id);
         setCustomerEmail(session.user.email || '');
         const { data: profile } = await supabase
           .from('profiles')
@@ -60,6 +64,24 @@ export function PaymentMethodStep({
   }, []);
 
   const handleSwish = () => {
+    // Build the return URL with all context so the confirmation page can
+    // call verify-swish-payment itself (idempotent + safe even if WP also calls it).
+    const returnParams = new URLSearchParams({
+      status: 'success',
+      item_name: itemName,
+      item_type: itemType,
+      amount: String(amount),
+      quantity: String(quantity),
+      customer_email: customerEmail,
+      customer_name: customerName,
+      user_id: userId,
+    });
+    if (itemId) returnParams.set('item_id', itemId);
+    if (attendeeNames && attendeeNames.length > 0) {
+      returnParams.set('attendee_names', JSON.stringify(attendeeNames));
+    }
+    const returnUrl = `https://cms.dancevida.se/confirmation?${returnParams.toString()}`;
+
     const params = new URLSearchParams({
       item_name: itemName,
       item_type: itemType,
@@ -67,15 +89,17 @@ export function PaymentMethodStep({
       quantity: String(quantity),
       customer_email: customerEmail,
       customer_name: customerName,
-      return_url: 'https://cms.dancevida.se/confirmation',
+      user_id: userId,
+      return_url: returnUrl,
     });
+    if (itemId) params.set('item_id', itemId);
     if (attendeeNames && attendeeNames.length > 0) {
       params.set('attendee_names', JSON.stringify(attendeeNames));
     }
     window.location.href = `https://dancevida.se/swish-checkout/?${params.toString()}`;
   };
 
-  const canSwish = customerEmail.trim().length > 0 && customerName.trim().length > 0;
+  const canSwish = customerEmail.trim().length > 0 && customerName.trim().length > 0 && userId.length > 0;
 
   if (loadingUser) {
     return (

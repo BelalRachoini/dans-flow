@@ -1,51 +1,79 @@
-# Polish the /confirmation Swish Return Page
+# Fix Swish: Register Tickets, QR Codes, and Proper Emails
 
-Make the post-Swish landing page (`cms.dancevida.se/confirmation`) feel celebratory and on-brand, with a 2-second "verifying" stage followed by an animated success screen.
+## Root Cause
 
-## Behavior
+The Swish flow currently does **only** a UI redirect:
 
-URL params read from `useSearchParams`: `status`, `order_id`, `amount`, `item_name`, `item_type`.
+1. `PaymentMethodStep.handleSwish` sends the user to `dancevida.se/swish-checkout/?...` with: `item_name`, `item_type`, `amount`, `quantity`, `customer_email`, `customer_name`, `attendee_names`, `return_url`.
+2. After payment, the user lands on `cms.dancevida.se/confirmation`.
+3. `Confirmation.tsx` just shows a celebratory screen. **It never calls `verify-swish-payment`.**
+4. The Swish URL is **missing `item_id` and `user_id`**, so even if WordPress did call `verify-swish-payment`, the function would fail (it requires those fields for events/courses).
 
-### When `status === "success"`
+Result: no `event_bookings` / `tickets` row is ever inserted → no QR code → confirmation email (the simple plain-text one in `verify-swish-payment`) has no QR / no portal link to a real booking.
 
-**Stage 1 — Verifying (2 seconds)**
-- Dark olive/brown background (matching app sidebar tone)
-- Centered Swish-blue spinner (`#00B9ED`, `animate-spin`)
-- Title: "Verifierar din betalning..."
-- Subtitle: "Vänta ett ögonblick"
+## Fix
 
-After 2000 ms (`setTimeout` in `useEffect`), `isVerifying` flips to `false`.
+### 1. Pass full purchase context into the Swish URL
 
-**Stage 2 — Success**
-- White card on dark background, centered, max-w-md
-- Animated green checkmark (CheckCircle2, green-500) inside a soft green circle, popping in via `animate-scale-in` + `animate-fade-in`
-- H1: "Betalning genomförd! 🎉"
-- Subtitle: "Tack för ditt köp! Din bekräftelse har skickats till din e-post."
-- Gold pill: `SEK {amount}` (primary/gold background, rounded-full, font-semibold) — only when `amount` present
-- Item name line: `{item_name}` in larger semibold text — only when present
-- Divider (`<Separator />` or `border-t`)
-- Buttons stacked full-width:
-  - Primary gold: "Visa mina biljetter" → `/biljetter`
-  - Ghost/outline: "Gå till evenemang" → `/event`
-- Footer micro-copy: "Dina biljetter finns under Mina Biljetter i menyn"
+In `src/components/PaymentMethodStep.tsx`, also include:
+- `user_id` (from `supabase.auth.getSession()`, fetched in the existing `useEffect`)
+- `item_id` (new prop on `PaymentMethodStepProps`)
 
-### When `status` missing or not `"success"`
-- Same dark background, white card
-- Amber `AlertTriangle` icon (amber-500)
-- H1: "Något gick fel"
-- Subtitle: "Om du betalat men inte fått bekräftelse, kontakta oss på info@dancevida.se"
-- Button: "Gå tillbaka" → `/event`
+Then add the same `user_id`, `item_id`, `item_type`, `quantity`, `amount`, `attendee_names`, `customer_email`, `customer_name` into `return_url` as query params, so the confirmation page receives them back from WordPress.
 
-## Technical notes
+Update the four callers to pass `itemId`:
+- `EventTicketPurchaseDialog.tsx` → `event.id`
+- `LessonBookingDialog.tsx` → lesson/ticket id (use empty for ticket purchases that aren't tied to a course)
+- `StandaloneTicketPurchaseDialog.tsx` → no id (standalone tickets)
+- `BundlePurchaseWizard.tsx` → `courseId`
 
-- Edit only `src/pages/Confirmation.tsx`. No routing or DB changes.
-- Use existing design tokens: `bg-primary` for gold, `text-primary-foreground`, `Card`, `Button` (variant `default` for gold, `outline` for secondary).
-- Dark page background: inline `bg-[hsl(40_30%_15%)]` to match the sidebar olive/brown family without adding new tokens.
-- Spinner: `<Loader2 className="h-12 w-12 animate-spin" style={{ color: '#00B9ED' }} />`.
-- Animations reuse existing Tailwind keyframes already in `tailwind.config.ts`: `animate-scale-in`, `animate-fade-in` on the checkmark wrapper. No new keyframes needed.
-- Use `useSearchParams` from `react-router-dom` (already imported in current file) for params.
-- Internal routes are `/biljetter` (tickets) and `/event` (events) — the request says `/tickets` and `/events`; we'll use the actual app routes so the buttons work. If you'd prefer the literal paths, let me know.
-- No changes to the existing `getBackLink`/Link imports beyond what's needed; final file will use `useNavigate` for button clicks.
+### 2. Trigger registration from the confirmation page
 
-## Files touched
-1. `src/pages/Confirmation.tsx` — rewrite to implement the two-stage flow above.
+In `src/pages/Confirmation.tsx`, when `status === 'success'`, during the existing 2-second "verifying" phase, call `verify-swish-payment` via `supabase.functions.invoke('verify-swish-payment', { body: {...} })` with the params received from the URL:
+
+```ts
+{ item_type, item_id, user_id, customer_email, customer_name,
+  amount_cents: Math.round(Number(amount) * 100),
+  quantity: Number(quantity) || 1,
+  wp_order_id: order_id,
+  attendee_names: parsed array }
+```
+
+Behavior:
+- The function is already **idempotent** (checks existing `event_bookings` / `tickets` by member+event or `order_id`), so it's safe to call from the client even if WordPress also calls it.
+- Show error UI (existing amber state) if the call fails or required params are missing.
+- Only flip `isVerifying` to `false` after the function returns (cap at e.g. 8 s with a fallback timer to keep UX snappy).
+
+### 3. Send a proper confirmation email with QR/portal info
+
+In `supabase/functions/verify-swish-payment/index.ts`, replace the plain `<p>...</p>` emails with the same rich HTML used in `verify-event-payment` (already shows attendee count, dates, and a "Visa mina biljetter" CTA pointing to `cms.dancevida.se/biljetter` where the QR is rendered).
+
+For events: build the email using the booked `event_dates`, `ticketCount`, and `attendeeNamesArr`, mirroring the structure of `verify-event-payment`'s `buildEmailHtml`.
+
+For course / standalone tickets: keep simple but link to `/biljetter` so the user can see the QR.
+
+QR codes themselves continue to live in the portal (consistent with the Stripe flow today — that flow also doesn't embed QR images in the email, it links to the portal). The user's complaint that "the email doesn't have the QR" is really that **no booking was ever created**, so the portal had nothing to show.
+
+### 4. WordPress side (heads-up, not in this PR)
+
+The WP `swish-checkout` page should forward all the new query params (`user_id`, `item_id`, etc.) into both:
+- the POST body it sends to `verify-swish-payment` (server-to-server, preferred)
+- the `return_url` query string (so the confirmation page can also self-heal)
+
+The confirmation-page call alone is already enough to register the ticket — the WP-side call becomes a redundant safety net.
+
+## Files Changed
+
+1. `src/components/PaymentMethodStep.tsx` — add `itemId` prop; include `user_id`, `item_id`, and bounce-back params in Swish URL.
+2. `src/pages/Confirmation.tsx` — invoke `verify-swish-payment` during the verifying phase; handle errors.
+3. `src/components/EventTicketPurchaseDialog.tsx` — pass `itemId={event.id}`.
+4. `src/components/BundlePurchaseWizard.tsx` — pass `itemId={courseId}`.
+5. `src/components/LessonBookingDialog.tsx` — pass `itemId` (lesson id when applicable).
+6. `src/components/StandaloneTicketPurchaseDialog.tsx` — no `itemId` needed.
+7. `supabase/functions/verify-swish-payment/index.ts` — richer event/course/ticket confirmation email HTML mirroring `verify-event-payment`.
+
+## What Stays the Same
+
+- Stripe flow (`verify-event-payment`, `verify-course-payment`, `verify-standalone-ticket-payment`) is untouched.
+- Idempotency rules in `verify-swish-payment` are untouched.
+- QR codes continue to be displayed in `/biljetter` (not embedded as images in the email), matching today's Stripe behavior.

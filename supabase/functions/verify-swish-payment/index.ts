@@ -118,7 +118,57 @@ serve(async (req) => {
           .eq("id", item_id);
       }
 
-      // Send confirmation email
+      // Build a richer confirmation email
+      const datesList = datesToBook
+        .map((d) => {
+          if (!d.start_at) return '';
+          try {
+            return `<li>${new Date(d.start_at).toLocaleDateString('sv-SE', {
+              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+              hour: '2-digit', minute: '2-digit',
+            })}</li>`;
+          } catch { return ''; }
+        })
+        .filter(Boolean)
+        .join('');
+
+      const attendeesList = (attendeeNamesArr.length > 0 ? attendeeNamesArr : [customer_name])
+        .filter(Boolean)
+        .map((n, i) => `<li>Person ${i + 1}: ${n}</li>`)
+        .join('');
+
+      const totalQRs = ticketCount * datesToBook.length;
+      const multiDayNote = datesToBook.length > 1
+        ? `<p style="background:#fef3c7;padding:10px 12px;border-radius:8px;font-size:13px;color:#374151;">⚠️ Du har fått ${totalQRs} separata QR-koder – en per person per dag. Visa rätt QR-kod vid entrén varje dag.</p>`
+        : '';
+
+      const emailHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
+          <div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;">
+            <div style="font-size:18px;font-weight:700;">DanceVida</div>
+            <div style="font-size:13px;opacity:0.85;margin-top:4px;">Bekräftelse på eventköp (Swish)</div>
+          </div>
+          <div style="padding:24px;">
+            <h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Du är bokad! 🎉</h1>
+            <p style="margin:0 0 16px;color:#374151;font-size:14px;">Tack ${customer_name || ''}! Här är din bekräftelse för <strong>${currentEvent?.title || 'eventet'}</strong>.</p>
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+              <strong style="font-size:14px;color:#111827;">Datum</strong>
+              <ul style="margin:6px 0 0;padding-left:18px;color:#374151;font-size:13px;">${datesList || '<li>Se eventdetaljer i portalen</li>'}</ul>
+              <p style="margin:10px 0 0;color:#374151;font-size:13px;"><strong>Antal biljetter:</strong> ${ticketCount} person(er) × ${datesToBook.length} dag(ar) = ${totalQRs} QR-koder</p>
+            </div>
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+              <strong style="font-size:14px;color:#111827;">Deltagare</strong>
+              <ul style="margin:6px 0 0;padding-left:18px;color:#374151;font-size:13px;">${attendeesList}</ul>
+            </div>
+            ${multiDayNote}
+            <p style="color:#374151;font-size:13px;">QR-koderna finns i din portal. Logga in och gå till <strong>Mina biljetter</strong>.</p>
+            <p style="margin-top:18px;">
+              <a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14px;">Visa mina biljetter</a>
+            </p>
+          </div>
+        </div>
+      </body></html>`;
+
       try {
         await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
           method: "POST",
@@ -126,7 +176,7 @@ serve(async (req) => {
           body: JSON.stringify({
             to: customer_email,
             subject: `Eventbokning bekräftad: ${currentEvent?.title}`,
-            html: `<p>Tack ${customer_name}! Din bokning för ${currentEvent?.title} är bekräftad. Logga in på <a href="https://cms.dancevida.se">cms.dancevida.se</a> för att se dina biljetter och QR-koder.</p>`,
+            html: emailHtml,
           }),
         });
       } catch (emailErr) {
@@ -200,7 +250,7 @@ serve(async (req) => {
           body: JSON.stringify({
             to: customer_email,
             subject: `Kursköp bekräftat: ${course.title}`,
-            html: `<p>Tack ${customer_name}! Ditt kursköp för ${course.title} är bekräftat. Logga in på <a href="https://cms.dancevida.se">cms.dancevida.se</a> för att se din biljett.</p>`,
+            html: `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Kursköp bekräftat (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Ditt kursköp för <strong>${course.title}</strong> är bekräftat. Din QR-kod (klippkort) finns i portalen.</p><p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`,
           }),
         });
       } catch (emailErr) {
@@ -262,7 +312,7 @@ serve(async (req) => {
           body: JSON.stringify({
             to: customer_email,
             subject: `Biljetter bekräftade / Tickets confirmed`,
-            html: `<p>Tack ${customer_name}! Dina ${ticketCount} biljetter är bekräftade. Logga in på <a href="https://cms.dancevida.se">cms.dancevida.se</a> för att se dem.</p>`,
+            html: `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Biljetter bekräftade (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Dina <strong>${ticketCount} klipp</strong> är bekräftade och giltiga i 3 månader. Din QR-kod finns i portalen.</p><p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`,
           }),
         });
       } catch (emailErr) {

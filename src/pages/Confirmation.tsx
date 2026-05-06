@@ -4,15 +4,25 @@ import { CheckCircle2, Loader2, AlertTriangle, Ticket, Calendar } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { supabase } from '@/integrations/supabase/client';
 
 const Confirmation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [isVerifying, setIsVerifying] = useState(true);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   const status = searchParams.get('status');
   const amount = searchParams.get('amount');
   const itemName = searchParams.get('item_name');
+  const itemType = searchParams.get('item_type');
+  const itemId = searchParams.get('item_id');
+  const userId = searchParams.get('user_id');
+  const customerEmail = searchParams.get('customer_email') || '';
+  const customerName = searchParams.get('customer_name') || '';
+  const quantity = searchParams.get('quantity');
+  const attendeeNamesRaw = searchParams.get('attendee_names');
+  const orderId = searchParams.get('order_id') || searchParams.get('wp_order_id');
   const isSuccess = status === 'success';
 
   useEffect(() => {
@@ -20,9 +30,66 @@ const Confirmation = () => {
       setIsVerifying(false);
       return;
     }
-    const t = setTimeout(() => setIsVerifying(false), 2000);
-    return () => clearTimeout(t);
-  }, [isSuccess]);
+
+    let cancelled = false;
+    // Hard cap so the spinner never hangs forever.
+    const fallback = setTimeout(() => {
+      if (!cancelled) setIsVerifying(false);
+    }, 8000);
+
+    const minDelay = new Promise((r) => setTimeout(r, 1500));
+
+    const register = async () => {
+      // If we don't have what we need, just show success (WP-side may have handled it).
+      if (!itemType || !userId) {
+        await minDelay;
+        if (!cancelled) setIsVerifying(false);
+        return;
+      }
+      try {
+        let attendeeNames: string[] = [];
+        if (attendeeNamesRaw) {
+          try {
+            const parsed = JSON.parse(attendeeNamesRaw);
+            if (Array.isArray(parsed)) attendeeNames = parsed;
+          } catch { /* ignore */ }
+        }
+
+        const amountCents = amount ? Math.round(Number(amount) * 100) : 0;
+        const { error } = await supabase.functions.invoke('verify-swish-payment', {
+          body: {
+            item_type: itemType,
+            item_id: itemId || undefined,
+            user_id: userId,
+            customer_email: customerEmail,
+            customer_name: customerName,
+            amount_cents: amountCents,
+            quantity: quantity ? Number(quantity) : 1,
+            wp_order_id: orderId || undefined,
+            attendee_names: attendeeNames,
+          },
+        });
+
+        if (error) {
+          console.error('verify-swish-payment failed:', error);
+          if (!cancelled) setVerifyError(error.message || 'Verification failed');
+        }
+      } catch (e) {
+        console.error('verify-swish-payment exception:', e);
+        if (!cancelled) setVerifyError(e instanceof Error ? e.message : 'Verification failed');
+      } finally {
+        await minDelay;
+        if (!cancelled) setIsVerifying(false);
+      }
+    };
+
+    register();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(fallback);
+    };
+  }, [isSuccess, itemType, itemId, userId, customerEmail, customerName, amount, quantity, attendeeNamesRaw, orderId]);
 
   return (
     <div
@@ -42,7 +109,7 @@ const Confirmation = () => {
             <p className="text-white/70">Vänta ett ögonblick</p>
           </div>
         </div>
-      ) : isSuccess ? (
+      ) : isSuccess && !verifyError ? (
         <Card className="max-w-md w-full shadow-2xl animate-fade-in">
           <CardContent className="p-8 text-center space-y-6">
             <div className="flex justify-center animate-scale-in">
@@ -111,7 +178,9 @@ const Confirmation = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold">Något gick fel</h1>
+              <h1 className="text-2xl font-bold">
+                {verifyError ? 'Kunde inte registrera biljetten' : 'Något gick fel'}
+              </h1>
               <p className="text-muted-foreground">
                 Om du betalat men inte fått bekräftelse, kontakta oss på{' '}
                 <a
@@ -121,6 +190,9 @@ const Confirmation = () => {
                   info@dancevida.se
                 </a>
               </p>
+              {verifyError && (
+                <p className="text-xs text-muted-foreground mt-2">{verifyError}</p>
+              )}
             </div>
             <Button
               onClick={() => navigate('/event')}
