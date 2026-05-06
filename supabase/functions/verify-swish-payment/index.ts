@@ -255,9 +255,17 @@ serve(async (req) => {
 
       if (error) throw error;
 
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
-          method: "POST",
+      await supabaseClient.from("payments").insert({
+        member_id: user_id,
+        amount_cents,
+        currency: "SEK",
+        status: "paid",
+        description: `Kurs: ${course.title}`,
+        payment_method: "swish",
+        payment_type: "course",
+        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+      });
+
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             to: customer_email,
