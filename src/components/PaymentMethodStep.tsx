@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface PaymentMethodStepProps {
   itemName: string;
   itemType: 'event' | 'course' | 'ticket';
+  itemId?: string;
   amount: number;
   quantity: number;
   onSelectStripe: () => void;
