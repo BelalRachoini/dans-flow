@@ -46,6 +46,7 @@ export function PaymentMethodStep({
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
+        setUserId(session.user.id);
         setCustomerEmail(session.user.email || '');
         const { data: profile } = await supabase
           .from('profiles')
