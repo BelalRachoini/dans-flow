@@ -266,6 +266,9 @@ serve(async (req) => {
         order_id: wp_order_id ? `swish:${wp_order_id}` : null,
       });
 
+      try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             to: customer_email,
