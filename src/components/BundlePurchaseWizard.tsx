@@ -212,6 +212,7 @@ export function BundlePurchaseWizard({ courseId, courseName }: BundlePurchaseWiz
         <PaymentMethodStep
           itemName={`${courseName} - ${selectedTier.name}`}
           itemType="course"
+          itemId={courseId}
           amount={selectedTier.price_cents / 100}
           quantity={1}
           onSelectStripe={handleProceedToCheckout}
