@@ -1,76 +1,27 @@
-## Problem
+## Findings
+- The Swish booking itself was created successfully and a QR payload exists.
+- The custom DanceVida email was sent once by the backend, but the screenshot shows WooCommerce also sends its own order email, which does not include the DanceVida QR.
+- Swish payments are not being recorded in the unified payments table because the code inserts `status: "paid"`, while the database only allows `succeeded`, `refunded`, `failed`, and `pending`. This can also break admin/payment-history visibility.
+- If Swish verification is called again for the same event, the current idempotency branch returns early and skips sending the DanceVida account/QR email again.
 
-The three Swish confirmation emails (event, course, standalone tickets) currently send a plain HTML body with only a "Visa mina biljetter" button. They contain:
-- No QR code(s) for the ticket
-- No PDF invoice/receipt attachment
+## Plan
+1. **Make Swish payment recording valid and visible**
+   - Update `verify-swish-payment` to store Swish rows with a database-valid status (`succeeded`).
+   - Update `get-stripe-payments` mapping so both `succeeded` and any older `paid` rows display as paid in the admin payment view.
 
-Stripe flows already attach a PDF receipt via `send-email` (which supports a `receipt` payload) and customers can view QRs in the portal — but Swish skipped both.
+2. **Make the QR/account email reliable**
+   - In `verify-swish-payment`, change the “already exists” event/course/ticket logic so it still sends the DanceVida confirmation email with QR/account link using the existing booking/ticket instead of returning silently.
+   - Keep idempotency for ticket/booking creation, so duplicate backend calls do not create duplicate tickets.
 
-## Fix
+3. **Improve email delivery diagnostics**
+   - Make the Swish verifier log/send-email failures clearly instead of swallowing them silently.
+   - Keep the purchase successful even if email sending fails, but return enough backend logs to debug immediately.
 
-Update `supabase/functions/verify-swish-payment/index.ts` so that **every** branch (event / course / ticket) sends an email that includes:
+4. **Ensure QR renders in common email clients**
+   - Keep the inline QR image in the custom DanceVida confirmation email.
+   - Use the existing QR payload from the created/existing booking or ticket.
+   - Keep the “Visa mina biljetter” / account link in the same email so it replaces the missing third email behavior.
 
-1. **Embedded QR code image(s)** in the HTML body, rendered via a public QR image service (`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=<qr_payload>`) — same approach used elsewhere for inline emails. This works in all major email clients without needing CID attachments.
-2. **PDF receipt attachment** by passing a `receipt` object to `send-email` (it already generates and attaches `kvitto-dancevida.pdf` when this field is present).
-
-### Per branch
-
-**Event**
-- After creating bookings, loop over `createdBookings` and render one QR block per booking (one per person per date), labeled with the attendee name and the date. For multi-day events this matches the existing "separate QR per person per date" memory.
-- Receipt line item: `Event: <title> – <ticketCount> person(er) × <dates> dag(ar)`, `unitPrice = amount_cents / (ticketCount * dates)`.
-
-**Course**
-- One QR block for the single created `ticket.qr_payload` with label "Klippkort för <course title>".
-- Receipt line item: `Kurs: <title>`, qty 1.
-
-**Standalone ticket**
-- One QR block for the created `ticket.qr_payload`, label "Klippkort (<n> klipp)".
-- Receipt line item: `Klippkort: <ticketCount> st`, qty 1.
-
-### Receipt payload shape (already supported by `send-email`)
-
-```ts
-receipt: {
-  customerName, customerEmail,
-  date: new Date().toLocaleDateString('sv-SE'),
-  items: [{ description, quantity, unitPrice: amount_cents / qty, currency: 'SEK' }],
-  totalAmount: amount_cents,
-  currency: 'SEK',
-  orderId: wp_order_id ? `swish:${wp_order_id}` : `swish:${createdBookings[0].id}`,
-  companyInfo: { name: 'DanceVida', address: '...', phone: '...' },
-}
-```
-
-Use the same `companyInfo` constants the Stripe verify functions already use (will copy them verbatim from `verify-event-payment`).
-
-### Shared HTML helper
-
-Add a small inline helper inside the function file:
-
-```ts
-function qrBlock(payload: string, label: string) {
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(payload)}`;
-  return `<div style="text-align:center;margin:14px 0;padding:14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;">
-    <div style="font-size:13px;color:#374151;margin-bottom:8px;font-weight:600;">${label}</div>
-    <img src="${url}" alt="QR" width="240" height="240" style="display:inline-block;border-radius:8px;background:#fff;padding:8px;" />
-  </div>`;
-}
-```
-
-Insert the joined QR blocks into the email HTML right above the "Visa mina biljetter" button in all three branches.
-
-### No changes needed to
-
-- `send-email` (already supports `receipt` + PDF attachment).
-- WordPress / Swish payment flow.
-- DB schema, Stripe flows, admin views.
-
-## Deploy
-
-Redeploy `verify-swish-payment` after the change.
-
-## Verification
-
-After deploy, trigger a small Swish test for each of the three item types and confirm the email contains:
-- QR code image(s) rendered inline.
-- A `kvitto-dancevida.pdf` attachment with the correct amount.
+5. **Deploy and verify**
+   - Deploy the updated backend functions.
+   - Check function logs after deployment and confirm the latest Swish booking has a QR payload and can trigger the DanceVida confirmation email path.

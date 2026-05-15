@@ -26,14 +26,28 @@ async function sendEmailWithReceipt(payload: {
   html: string;
   receipt?: unknown;
 }) {
+  if (!payload.to) {
+    console.error("[verify-swish-payment] Cannot send email: missing 'to' address");
+    return;
+  }
   try {
-    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+    const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // send-email has verify_jwt=false, but pass anon key for safety on managed gateways
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY") ?? ""}`,
+      },
       body: JSON.stringify(payload),
     });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`[verify-swish-payment] send-email failed (${res.status}) to=${payload.to}: ${text}`);
+    } else {
+      console.log(`[verify-swish-payment] send-email ok to=${payload.to} subject="${payload.subject}"`);
+    }
   } catch (err) {
-    console.error("Failed to send confirmation email:", err);
+    console.error("[verify-swish-payment] send-email exception:", err);
   }
 }
 
@@ -60,6 +74,8 @@ serve(async (req) => {
       attendee_names,
     } = await req.json();
 
+    console.log(`[verify-swish-payment] called type=${item_type} user=${user_id} item=${item_id ?? '-'} email=${customer_email ?? '-'} amount=${amount_cents} qty=${quantity ?? 1}`);
+
     if (!item_type || !user_id || !amount_cents) {
       throw new Error("Missing required fields: item_type, user_id, amount_cents");
     }
@@ -81,25 +97,7 @@ serve(async (req) => {
     if (item_type === "event") {
       if (!item_id) throw new Error("Missing item_id for event");
 
-      // Idempotency: check existing booking
-      const { data: existing } = await supabaseClient
-        .from("event_bookings")
-        .select("id")
-        .eq("member_id", user_id)
-        .eq("event_id", item_id);
-
-      if (existing && existing.length > 0) {
-        return new Response(
-          JSON.stringify({ success: true, already_exists: true }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-        );
-      }
-
-      const { data: eventDates } = await supabaseClient
-        .from("event_dates")
-        .select("id, start_at, end_at")
-        .eq("event_id", item_id)
-        .order("start_at", { ascending: true });
+      console.log(`[verify-swish-payment] event branch user=${user_id} event=${item_id} qty=${quantity} wp_order=${wp_order_id ?? 'n/a'}`);
 
       const { data: currentEvent } = await supabaseClient
         .from("events")
@@ -107,59 +105,88 @@ serve(async (req) => {
         .eq("id", item_id)
         .single();
 
+      const { data: eventDates } = await supabaseClient
+        .from("event_dates")
+        .select("id, start_at, end_at")
+        .eq("event_id", item_id)
+        .order("start_at", { ascending: true });
+
       const datesToBook = eventDates && eventDates.length > 0
         ? eventDates
         : [{ id: null, start_at: currentEvent?.start_at, end_at: null }];
 
       const ticketCount = quantity || 1;
-      const createdBookings = [];
+      let createdBookings: any[] = [];
+      let alreadyExisted = false;
 
-      for (const eventDate of datesToBook) {
-        for (let i = 0; i < ticketCount; i++) {
-          const { data: booking, error } = await supabaseClient
-            .from("event_bookings")
-            .insert({
-              member_id: user_id,
-              event_id: item_id,
-              event_date_id: eventDate.id,
-              status: "confirmed",
-              payment_status: "paid",
-              ticket_count: 1,
-              checkins_allowed: 1,
-              checkins_used: 0,
-              attendee_names: [
-                (attendeeNamesArr[i] && attendeeNamesArr[i].trim()) ||
-                  customer_name ||
-                  `Person ${i + 1}`,
-              ],
-              qr_payload: crypto.randomUUID(),
-            })
-            .select()
-            .single();
+      // Idempotency: check existing bookings
+      const { data: existing } = await supabaseClient
+        .from("event_bookings")
+        .select("id, qr_payload, event_date_id, attendee_names")
+        .eq("member_id", user_id)
+        .eq("event_id", item_id)
+        .order("created_at", { ascending: true });
 
-          if (error) throw error;
-          createdBookings.push(booking);
+      if (existing && existing.length > 0) {
+        // Re-use existing bookings; still send confirmation email below.
+        alreadyExisted = true;
+        // Order existing to match datesToBook order so QR labels align with dates.
+        const dateOrder = new Map(datesToBook.map((d, i) => [d.id, i]));
+        createdBookings = [...existing].sort((a, b) => {
+          const ai = dateOrder.get(a.event_date_id) ?? 999;
+          const bi = dateOrder.get(b.event_date_id) ?? 999;
+          return ai - bi;
+        });
+        console.log(`[verify-swish-payment] event already booked (${createdBookings.length} existing); resending confirmation email`);
+      } else {
+        for (const eventDate of datesToBook) {
+          for (let i = 0; i < ticketCount; i++) {
+            const { data: booking, error } = await supabaseClient
+              .from("event_bookings")
+              .insert({
+                member_id: user_id,
+                event_id: item_id,
+                event_date_id: eventDate.id,
+                status: "confirmed",
+                payment_status: "paid",
+                ticket_count: 1,
+                checkins_allowed: 1,
+                checkins_used: 0,
+                attendee_names: [
+                  (attendeeNamesArr[i] && attendeeNamesArr[i].trim()) ||
+                    customer_name ||
+                    `Person ${i + 1}`,
+                ],
+                qr_payload: crypto.randomUUID(),
+              })
+              .select()
+              .single();
+
+            if (error) throw error;
+            createdBookings.push(booking);
+          }
         }
-      }
 
-      if (currentEvent) {
-        await supabaseClient
-          .from("events")
-          .update({ sold_count: currentEvent.sold_count + (ticketCount * datesToBook.length) })
-          .eq("id", item_id);
-      }
+        if (currentEvent) {
+          await supabaseClient
+            .from("events")
+            .update({ sold_count: currentEvent.sold_count + (ticketCount * datesToBook.length) })
+            .eq("id", item_id);
+        }
 
-      // Record payment for admin/finance visibility
-      await supabaseClient.from("payments").insert({
-        member_id: user_id,
-        amount_cents,
-        currency: "SEK",
-        status: "paid",
-        description: `Event: ${currentEvent?.title || "okänt"}`,
-        payment_method: "swish",
-        payment_type: "event",
-        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
-      });
+        // Record payment for admin/finance visibility (status must match payments_status_check)
+        const { error: payErr } = await supabaseClient.from("payments").insert({
+          member_id: user_id,
+          amount_cents,
+          currency: "SEK",
+          status: "succeeded",
+          description: `Event: ${currentEvent?.title || "okänt"}`,
+          payment_method: "swish",
+          payment_type: "event",
+          order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+        });
+        if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+      }
 
       // Build a richer confirmation email
       const datesList = datesToBook
@@ -250,7 +277,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, bookings: createdBookings.length }),
+        JSON.stringify({ success: true, bookings: createdBookings.length, already_exists: alreadyExisted }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
@@ -259,20 +286,7 @@ serve(async (req) => {
     if (item_type === "course") {
       if (!item_id) throw new Error("Missing item_id for course");
 
-      // Idempotency: check existing ticket for this course
-      const { data: existing } = await supabaseClient
-        .from("tickets")
-        .select("id")
-        .eq("member_id", user_id)
-        .eq("course_id", item_id)
-        .maybeSingle();
-
-      if (existing) {
-        return new Response(
-          JSON.stringify({ success: true, already_exists: true }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-        );
-      }
+      console.log(`[verify-swish-payment] course branch user=${user_id} course=${item_id} wp_order=${wp_order_id ?? 'n/a'}`);
 
       const { data: course } = await supabaseClient
         .from("courses")
@@ -282,43 +296,60 @@ serve(async (req) => {
 
       if (!course) throw new Error("Course not found");
 
-      const { count: lessonsCount } = await supabaseClient
-        .from("course_lessons")
-        .select("*", { count: "exact", head: true })
-        .eq("course_id", item_id);
-
-      const total_tickets = lessonsCount || 10;
-      const expires_at = course.ends_at
-        ? new Date(course.ends_at).toISOString()
-        : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
-
-      const { data: ticket, error } = await supabaseClient
+      // Idempotency: re-use existing ticket; still send confirmation email
+      const { data: existing } = await supabaseClient
         .from("tickets")
-        .insert({
+        .select("id, qr_payload")
+        .eq("member_id", user_id)
+        .eq("course_id", item_id)
+        .maybeSingle();
+
+      let ticket: any = existing || null;
+      const alreadyExisted = !!existing;
+
+      if (!ticket) {
+        const { count: lessonsCount } = await supabaseClient
+          .from("course_lessons")
+          .select("*", { count: "exact", head: true })
+          .eq("course_id", item_id);
+
+        const total_tickets = lessonsCount || 10;
+        const expires_at = course.ends_at
+          ? new Date(course.ends_at).toISOString()
+          : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+
+        const { data: newTicket, error } = await supabaseClient
+          .from("tickets")
+          .insert({
+            member_id: user_id,
+            course_id: item_id,
+            source_course_id: item_id,
+            status: "valid",
+            qr_payload: crypto.randomUUID(),
+            total_tickets,
+            tickets_used: 0,
+            expires_at,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        ticket = newTicket;
+
+        const { error: payErr } = await supabaseClient.from("payments").insert({
           member_id: user_id,
-          course_id: item_id,
-          source_course_id: item_id,
-          status: "valid",
-          qr_payload: crypto.randomUUID(),
-          total_tickets,
-          tickets_used: 0,
-          expires_at,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await supabaseClient.from("payments").insert({
-        member_id: user_id,
-        amount_cents,
-        currency: "SEK",
-        status: "paid",
-        description: `Kurs: ${course.title}`,
-        payment_method: "swish",
-        payment_type: "course",
-        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
-      });
+          amount_cents,
+          currency: "SEK",
+          status: "succeeded",
+          description: `Kurs: ${course.title}`,
+          payment_method: "swish",
+          payment_type: "course",
+          order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+        });
+        if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+      } else {
+        console.log(`[verify-swish-payment] course already purchased; resending confirmation email`);
+      }
 
       const courseHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Kursköp bekräftat (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Ditt kursköp för <strong>${course.title}</strong> är bekräftat. Använd QR-koden nedan vid incheckning. Kvitto bifogas som PDF.</p>${qrBlock(ticket.qr_payload, `Klippkort – ${course.title}`)}<p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`;
 
@@ -344,7 +375,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, ticket_id: ticket.id }),
+        JSON.stringify({ success: true, ticket_id: ticket.id, already_exists: alreadyExisted }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
@@ -354,53 +385,61 @@ serve(async (req) => {
       const ticketCount = quantity || 1;
       const orderTag = wp_order_id ? `swish:${wp_order_id}` : null;
 
-      // Idempotency: check by order_id if we have a wp_order_id
+      console.log(`[verify-swish-payment] ticket branch user=${user_id} qty=${ticketCount} wp_order=${wp_order_id ?? 'n/a'}`);
+
+      // Idempotency: check by order_id if we have a wp_order_id; re-use ticket and still send email
+      let ticket: any = null;
+      let alreadyExisted = false;
+
       if (orderTag) {
         const { data: existing } = await supabaseClient
           .from("tickets")
-          .select("id")
+          .select("id, qr_payload, total_tickets")
           .eq("order_id", orderTag)
           .maybeSingle();
 
         if (existing) {
-          return new Response(
-            JSON.stringify({ success: true, already_exists: true }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-          );
+          ticket = existing;
+          alreadyExisted = true;
+          console.log(`[verify-swish-payment] standalone ticket already issued; resending confirmation email`);
         }
       }
 
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 3);
+      if (!ticket) {
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + 3);
 
-      const { data: ticket, error } = await supabaseClient
-        .from("tickets")
-        .insert({
+        const { data: newTicket, error } = await supabaseClient
+          .from("tickets")
+          .insert({
+            member_id: user_id,
+            course_id: null,
+            source_course_id: null,
+            status: "valid",
+            qr_payload: crypto.randomUUID(),
+            total_tickets: ticketCount,
+            tickets_used: 0,
+            order_id: orderTag,
+            expires_at: expiresAt.toISOString(),
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        ticket = newTicket;
+
+        const { error: payErr } = await supabaseClient.from("payments").insert({
           member_id: user_id,
-          course_id: null,
-          source_course_id: null,
-          status: "valid",
-          qr_payload: crypto.randomUUID(),
-          total_tickets: ticketCount,
-          tickets_used: 0,
+          amount_cents,
+          currency: "SEK",
+          status: "succeeded",
+          description: `Klippkort: ${ticketCount} st`,
+          payment_method: "swish",
+          payment_type: "tickets",
           order_id: orderTag,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await supabaseClient.from("payments").insert({
-        member_id: user_id,
-        amount_cents,
-        currency: "SEK",
-        status: "paid",
-        description: `Klippkort: ${ticketCount} st`,
-        payment_method: "swish",
-        payment_type: "tickets",
-        order_id: orderTag,
-      });
+        });
+        if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+      }
 
       const ticketHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Biljetter bekräftade (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Dina <strong>${ticketCount} klipp</strong> är bekräftade och giltiga i 3 månader. Använd QR-koden nedan vid incheckning. Kvitto bifogas som PDF.</p>${qrBlock(ticket.qr_payload, `Klippkort (${ticketCount} klipp)`)}<p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`;
 
@@ -426,7 +465,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, ticket_id: ticket.id }),
+        JSON.stringify({ success: true, ticket_id: ticket.id, already_exists: alreadyExisted }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
