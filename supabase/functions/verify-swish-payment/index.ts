@@ -6,6 +6,37 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const COMPANY_INFO = {
+  name: 'DanceVida',
+  address: 'Gamlestadsv. 14, 415 02 Goteborg',
+  phone: '073-702 11 34',
+};
+
+function qrBlock(payload: string, label: string): string {
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(payload)}`;
+  return `<div style="text-align:center;margin:14px 0;padding:14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;">
+    <div style="font-size:13px;color:#374151;margin-bottom:8px;font-weight:600;">${label}</div>
+    <img src="${url}" alt="QR" width="240" height="240" style="display:inline-block;border-radius:8px;background:#fff;padding:8px;" />
+  </div>`;
+}
+
+async function sendEmailWithReceipt(payload: {
+  to: string;
+  subject: string;
+  html: string;
+  receipt?: unknown;
+}) {
+  try {
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("Failed to send confirmation email:", err);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
