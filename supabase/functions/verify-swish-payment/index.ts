@@ -6,6 +6,37 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const COMPANY_INFO = {
+  name: 'DanceVida',
+  address: 'Gamlestadsv. 14, 415 02 Goteborg',
+  phone: '073-702 11 34',
+};
+
+function qrBlock(payload: string, label: string): string {
+  const url = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(payload)}`;
+  return `<div style="text-align:center;margin:14px 0;padding:14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;">
+    <div style="font-size:13px;color:#374151;margin-bottom:8px;font-weight:600;">${label}</div>
+    <img src="${url}" alt="QR" width="240" height="240" style="display:inline-block;border-radius:8px;background:#fff;padding:8px;" />
+  </div>`;
+}
+
+async function sendEmailWithReceipt(payload: {
+  to: string;
+  subject: string;
+  html: string;
+  receipt?: unknown;
+}) {
+  try {
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("Failed to send confirmation email:", err);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -154,6 +185,19 @@ serve(async (req) => {
         ? `<p style="background:#fef3c7;padding:10px 12px;border-radius:8px;font-size:13px;color:#374151;">⚠️ Du har fått ${totalQRs} separata QR-koder – en per person per dag. Visa rätt QR-kod vid entrén varje dag.</p>`
         : '';
 
+      // QR blocks (createdBookings order: per-date, per-person)
+      const qrBlocksHtml = createdBookings.map((b, idx) => {
+        const dateIdx = Math.floor(idx / ticketCount);
+        const personIdx = idx % ticketCount;
+        const dateLabel = datesToBook[dateIdx]?.start_at
+          ? new Date(datesToBook[dateIdx].start_at).toLocaleDateString('sv-SE', {
+              weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+            })
+          : 'Event';
+        const name = (attendeeNamesArr[personIdx] && attendeeNamesArr[personIdx].trim()) || customer_name || `Person ${personIdx + 1}`;
+        return qrBlock(b.qr_payload, `${name} – ${dateLabel}`);
+      }).join('');
+
       const emailHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;">
         <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
           <div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;">
@@ -173,7 +217,9 @@ serve(async (req) => {
               <ul style="margin:6px 0 0;padding-left:18px;color:#374151;font-size:13px;">${attendeesList}</ul>
             </div>
             ${multiDayNote}
-            <p style="color:#374151;font-size:13px;">QR-koderna finns i din portal. Logga in och gå till <strong>Mina biljetter</strong>.</p>
+            <h2 style="margin:18px 0 6px;font-size:16px;color:#111827;">Dina QR-koder</h2>
+            <p style="color:#374151;font-size:13px;margin:0 0 8px;">Visa rätt QR-kod vid entrén. Kvitto bifogas som PDF.</p>
+            ${qrBlocksHtml}
             <p style="margin-top:18px;">
               <a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14px;">Visa mina biljetter</a>
             </p>
@@ -181,19 +227,27 @@ serve(async (req) => {
         </div>
       </body></html>`;
 
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: customer_email,
-            subject: `Eventbokning bekräftad: ${currentEvent?.title}`,
-            html: emailHtml,
-          }),
-        });
-      } catch (emailErr) {
-        console.error("Failed to send confirmation email:", emailErr);
-      }
+      const totalUnits = ticketCount * datesToBook.length;
+      await sendEmailWithReceipt({
+        to: customer_email,
+        subject: `Eventbokning bekräftad: ${currentEvent?.title}`,
+        html: emailHtml,
+        receipt: {
+          customerName: customer_name || '',
+          customerEmail: customer_email,
+          date: new Date().toLocaleDateString('sv-SE'),
+          items: [{
+            description: `Event: ${currentEvent?.title || 'okänt'} (${ticketCount} pers × ${datesToBook.length} dag)`,
+            quantity: totalUnits,
+            unitPrice: Math.round(amount_cents / Math.max(totalUnits, 1)),
+            currency: 'SEK',
+          }],
+          totalAmount: amount_cents,
+          currency: 'SEK',
+          orderId: wp_order_id ? `swish:${wp_order_id}` : `swish:${createdBookings[0]?.id || ''}`,
+          companyInfo: COMPANY_INFO,
+        },
+      });
 
       return new Response(
         JSON.stringify({ success: true, bookings: createdBookings.length }),
@@ -266,19 +320,28 @@ serve(async (req) => {
         order_id: wp_order_id ? `swish:${wp_order_id}` : null,
       });
 
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: customer_email,
-            subject: `Kursköp bekräftat: ${course.title}`,
-            html: `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Kursköp bekräftat (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Ditt kursköp för <strong>${course.title}</strong> är bekräftat. Din QR-kod (klippkort) finns i portalen.</p><p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`,
-          }),
-        });
-      } catch (emailErr) {
-        console.error("Failed to send confirmation email:", emailErr);
-      }
+      const courseHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Kursköp bekräftat (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Ditt kursköp för <strong>${course.title}</strong> är bekräftat. Använd QR-koden nedan vid incheckning. Kvitto bifogas som PDF.</p>${qrBlock(ticket.qr_payload, `Klippkort – ${course.title}`)}<p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`;
+
+      await sendEmailWithReceipt({
+        to: customer_email,
+        subject: `Kursköp bekräftat: ${course.title}`,
+        html: courseHtml,
+        receipt: {
+          customerName: customer_name || '',
+          customerEmail: customer_email,
+          date: new Date().toLocaleDateString('sv-SE'),
+          items: [{
+            description: `Kurs: ${course.title}`,
+            quantity: 1,
+            unitPrice: amount_cents,
+            currency: 'SEK',
+          }],
+          totalAmount: amount_cents,
+          currency: 'SEK',
+          orderId: wp_order_id ? `swish:${wp_order_id}` : `swish:${ticket.id}`,
+          companyInfo: COMPANY_INFO,
+        },
+      });
 
       return new Response(
         JSON.stringify({ success: true, ticket_id: ticket.id }),
@@ -339,19 +402,28 @@ serve(async (req) => {
         order_id: orderTag,
       });
 
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: customer_email,
-            subject: `Biljetter bekräftade / Tickets confirmed`,
-            html: `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Biljetter bekräftade (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Dina <strong>${ticketCount} klipp</strong> är bekräftade och giltiga i 3 månader. Din QR-kod finns i portalen.</p><p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`,
-          }),
-        });
-      } catch (emailErr) {
-        console.error("Failed to send confirmation email:", emailErr);
-      }
+      const ticketHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Biljetter bekräftade (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Dina <strong>${ticketCount} klipp</strong> är bekräftade och giltiga i 3 månader. Använd QR-koden nedan vid incheckning. Kvitto bifogas som PDF.</p>${qrBlock(ticket.qr_payload, `Klippkort (${ticketCount} klipp)`)}<p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`;
+
+      await sendEmailWithReceipt({
+        to: customer_email,
+        subject: `Biljetter bekräftade / Tickets confirmed`,
+        html: ticketHtml,
+        receipt: {
+          customerName: customer_name || '',
+          customerEmail: customer_email,
+          date: new Date().toLocaleDateString('sv-SE'),
+          items: [{
+            description: `Klippkort: ${ticketCount} st`,
+            quantity: ticketCount,
+            unitPrice: Math.round(amount_cents / Math.max(ticketCount, 1)),
+            currency: 'SEK',
+          }],
+          totalAmount: amount_cents,
+          currency: 'SEK',
+          orderId: orderTag || `swish:${ticket.id}`,
+          companyInfo: COMPANY_INFO,
+        },
+      });
 
       return new Response(
         JSON.stringify({ success: true, ticket_id: ticket.id }),
