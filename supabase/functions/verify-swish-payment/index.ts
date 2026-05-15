@@ -383,53 +383,61 @@ serve(async (req) => {
       const ticketCount = quantity || 1;
       const orderTag = wp_order_id ? `swish:${wp_order_id}` : null;
 
-      // Idempotency: check by order_id if we have a wp_order_id
+      console.log(`[verify-swish-payment] ticket branch user=${user_id} qty=${ticketCount} wp_order=${wp_order_id ?? 'n/a'}`);
+
+      // Idempotency: check by order_id if we have a wp_order_id; re-use ticket and still send email
+      let ticket: any = null;
+      let alreadyExisted = false;
+
       if (orderTag) {
         const { data: existing } = await supabaseClient
           .from("tickets")
-          .select("id")
+          .select("id, qr_payload, total_tickets")
           .eq("order_id", orderTag)
           .maybeSingle();
 
         if (existing) {
-          return new Response(
-            JSON.stringify({ success: true, already_exists: true }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-          );
+          ticket = existing;
+          alreadyExisted = true;
+          console.log(`[verify-swish-payment] standalone ticket already issued; resending confirmation email`);
         }
       }
 
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 3);
+      if (!ticket) {
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + 3);
 
-      const { data: ticket, error } = await supabaseClient
-        .from("tickets")
-        .insert({
+        const { data: newTicket, error } = await supabaseClient
+          .from("tickets")
+          .insert({
+            member_id: user_id,
+            course_id: null,
+            source_course_id: null,
+            status: "valid",
+            qr_payload: crypto.randomUUID(),
+            total_tickets: ticketCount,
+            tickets_used: 0,
+            order_id: orderTag,
+            expires_at: expiresAt.toISOString(),
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        ticket = newTicket;
+
+        const { error: payErr } = await supabaseClient.from("payments").insert({
           member_id: user_id,
-          course_id: null,
-          source_course_id: null,
-          status: "valid",
-          qr_payload: crypto.randomUUID(),
-          total_tickets: ticketCount,
-          tickets_used: 0,
+          amount_cents,
+          currency: "SEK",
+          status: "succeeded",
+          description: `Klippkort: ${ticketCount} st`,
+          payment_method: "swish",
+          payment_type: "tickets",
           order_id: orderTag,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await supabaseClient.from("payments").insert({
-        member_id: user_id,
-        amount_cents,
-        currency: "SEK",
-        status: "paid",
-        description: `Klippkort: ${ticketCount} st`,
-        payment_method: "swish",
-        payment_type: "tickets",
-        order_id: orderTag,
-      });
+        });
+        if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+      }
 
       const ticketHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Biljetter bekräftade (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Dina <strong>${ticketCount} klipp</strong> är bekräftade och giltiga i 3 månader. Använd QR-koden nedan vid incheckning. Kvitto bifogas som PDF.</p>${qrBlock(ticket.qr_payload, `Klippkort (${ticketCount} klipp)`)}<p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`;
 
