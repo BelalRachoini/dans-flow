@@ -220,7 +220,7 @@ serve(async (req) => {
         userEmail: prof?.email || "",
         amountSEK: r.amount_cents / 100,
         type: r.payment_type || "other",
-        status: r.status === "paid" ? "paid" : (r.status === "failed" ? "failed" : "pending"),
+        status: (r.status === "paid" || r.status === "succeeded") ? "paid" : (r.status === "failed" ? "failed" : "pending"),
         description: r.description || "Swish-betalning",
         createdAt: r.created_at,
         paidAt: r.created_at,
