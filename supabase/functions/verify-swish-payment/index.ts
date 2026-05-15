@@ -320,19 +320,28 @@ serve(async (req) => {
         order_id: wp_order_id ? `swish:${wp_order_id}` : null,
       });
 
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: customer_email,
-            subject: `Kursköp bekräftat: ${course.title}`,
-            html: `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Kursköp bekräftat (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Ditt kursköp för <strong>${course.title}</strong> är bekräftat. Din QR-kod (klippkort) finns i portalen.</p><p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`,
-          }),
-        });
-      } catch (emailErr) {
-        console.error("Failed to send confirmation email:", emailErr);
-      }
+      const courseHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Kursköp bekräftat (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Ditt kursköp för <strong>${course.title}</strong> är bekräftat. Använd QR-koden nedan vid incheckning. Kvitto bifogas som PDF.</p>${qrBlock(ticket.qr_payload, `Klippkort – ${course.title}`)}<p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`;
+
+      await sendEmailWithReceipt({
+        to: customer_email,
+        subject: `Kursköp bekräftat: ${course.title}`,
+        html: courseHtml,
+        receipt: {
+          customerName: customer_name || '',
+          customerEmail: customer_email,
+          date: new Date().toLocaleDateString('sv-SE'),
+          items: [{
+            description: `Kurs: ${course.title}`,
+            quantity: 1,
+            unitPrice: amount_cents,
+            currency: 'SEK',
+          }],
+          totalAmount: amount_cents,
+          currency: 'SEK',
+          orderId: wp_order_id ? `swish:${wp_order_id}` : `swish:${ticket.id}`,
+          companyInfo: COMPANY_INFO,
+        },
+      });
 
       return new Response(
         JSON.stringify({ success: true, ticket_id: ticket.id }),
