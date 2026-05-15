@@ -26,14 +26,28 @@ async function sendEmailWithReceipt(payload: {
   html: string;
   receipt?: unknown;
 }) {
+  if (!payload.to) {
+    console.error("[verify-swish-payment] Cannot send email: missing 'to' address");
+    return;
+  }
   try {
-    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+    const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // send-email has verify_jwt=false, but pass anon key for safety on managed gateways
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY") ?? ""}`,
+      },
       body: JSON.stringify(payload),
     });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`[verify-swish-payment] send-email failed (${res.status}) to=${payload.to}: ${text}`);
+    } else {
+      console.log(`[verify-swish-payment] send-email ok to=${payload.to} subject="${payload.subject}"`);
+    }
   } catch (err) {
-    console.error("Failed to send confirmation email:", err);
+    console.error("[verify-swish-payment] send-email exception:", err);
   }
 }
 
