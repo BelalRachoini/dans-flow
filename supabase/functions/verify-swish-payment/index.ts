@@ -284,20 +284,7 @@ serve(async (req) => {
     if (item_type === "course") {
       if (!item_id) throw new Error("Missing item_id for course");
 
-      // Idempotency: check existing ticket for this course
-      const { data: existing } = await supabaseClient
-        .from("tickets")
-        .select("id")
-        .eq("member_id", user_id)
-        .eq("course_id", item_id)
-        .maybeSingle();
-
-      if (existing) {
-        return new Response(
-          JSON.stringify({ success: true, already_exists: true }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-        );
-      }
+      console.log(`[verify-swish-payment] course branch user=${user_id} course=${item_id} wp_order=${wp_order_id ?? 'n/a'}`);
 
       const { data: course } = await supabaseClient
         .from("courses")
@@ -307,43 +294,60 @@ serve(async (req) => {
 
       if (!course) throw new Error("Course not found");
 
-      const { count: lessonsCount } = await supabaseClient
-        .from("course_lessons")
-        .select("*", { count: "exact", head: true })
-        .eq("course_id", item_id);
-
-      const total_tickets = lessonsCount || 10;
-      const expires_at = course.ends_at
-        ? new Date(course.ends_at).toISOString()
-        : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
-
-      const { data: ticket, error } = await supabaseClient
+      // Idempotency: re-use existing ticket; still send confirmation email
+      const { data: existing } = await supabaseClient
         .from("tickets")
-        .insert({
+        .select("id, qr_payload")
+        .eq("member_id", user_id)
+        .eq("course_id", item_id)
+        .maybeSingle();
+
+      let ticket: any = existing || null;
+      const alreadyExisted = !!existing;
+
+      if (!ticket) {
+        const { count: lessonsCount } = await supabaseClient
+          .from("course_lessons")
+          .select("*", { count: "exact", head: true })
+          .eq("course_id", item_id);
+
+        const total_tickets = lessonsCount || 10;
+        const expires_at = course.ends_at
+          ? new Date(course.ends_at).toISOString()
+          : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+
+        const { data: newTicket, error } = await supabaseClient
+          .from("tickets")
+          .insert({
+            member_id: user_id,
+            course_id: item_id,
+            source_course_id: item_id,
+            status: "valid",
+            qr_payload: crypto.randomUUID(),
+            total_tickets,
+            tickets_used: 0,
+            expires_at,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        ticket = newTicket;
+
+        const { error: payErr } = await supabaseClient.from("payments").insert({
           member_id: user_id,
-          course_id: item_id,
-          source_course_id: item_id,
-          status: "valid",
-          qr_payload: crypto.randomUUID(),
-          total_tickets,
-          tickets_used: 0,
-          expires_at,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await supabaseClient.from("payments").insert({
-        member_id: user_id,
-        amount_cents,
-        currency: "SEK",
-        status: "paid",
-        description: `Kurs: ${course.title}`,
-        payment_method: "swish",
-        payment_type: "course",
-        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
-      });
+          amount_cents,
+          currency: "SEK",
+          status: "succeeded",
+          description: `Kurs: ${course.title}`,
+          payment_method: "swish",
+          payment_type: "course",
+          order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+        });
+        if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+      } else {
+        console.log(`[verify-swish-payment] course already purchased; resending confirmation email`);
+      }
 
       const courseHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;"><div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);"><div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;"><div style="font-size:18px;font-weight:700;">DanceVida</div><div style="font-size:13px;opacity:0.85;margin-top:4px;">Kursköp bekräftat (Swish)</div></div><div style="padding:24px;color:#374151;font-size:14px;"><h1 style="margin:0 0 8px;font-size:22px;color:#111827;">Tack ${customer_name}! 🎉</h1><p>Ditt kursköp för <strong>${course.title}</strong> är bekräftat. Använd QR-koden nedan vid incheckning. Kvitto bifogas som PDF.</p>${qrBlock(ticket.qr_payload, `Klippkort – ${course.title}`)}<p style="margin-top:18px;"><a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Visa mina biljetter</a></p></div></div></body></html>`;
 
