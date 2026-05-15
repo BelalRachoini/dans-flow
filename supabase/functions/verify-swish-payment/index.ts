@@ -185,6 +185,19 @@ serve(async (req) => {
         ? `<p style="background:#fef3c7;padding:10px 12px;border-radius:8px;font-size:13px;color:#374151;">⚠️ Du har fått ${totalQRs} separata QR-koder – en per person per dag. Visa rätt QR-kod vid entrén varje dag.</p>`
         : '';
 
+      // QR blocks (createdBookings order: per-date, per-person)
+      const qrBlocksHtml = createdBookings.map((b, idx) => {
+        const dateIdx = Math.floor(idx / ticketCount);
+        const personIdx = idx % ticketCount;
+        const dateLabel = datesToBook[dateIdx]?.start_at
+          ? new Date(datesToBook[dateIdx].start_at).toLocaleDateString('sv-SE', {
+              weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+            })
+          : 'Event';
+        const name = (attendeeNamesArr[personIdx] && attendeeNamesArr[personIdx].trim()) || customer_name || `Person ${personIdx + 1}`;
+        return qrBlock(b.qr_payload, `${name} – ${dateLabel}`);
+      }).join('');
+
       const emailHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f5f7fb;margin:0;padding:24px;">
         <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
           <div style="padding:22px 24px;background:linear-gradient(135deg,#0f172a,#c59333);color:#fff;">
@@ -204,7 +217,9 @@ serve(async (req) => {
               <ul style="margin:6px 0 0;padding-left:18px;color:#374151;font-size:13px;">${attendeesList}</ul>
             </div>
             ${multiDayNote}
-            <p style="color:#374151;font-size:13px;">QR-koderna finns i din portal. Logga in och gå till <strong>Mina biljetter</strong>.</p>
+            <h2 style="margin:18px 0 6px;font-size:16px;color:#111827;">Dina QR-koder</h2>
+            <p style="color:#374151;font-size:13px;margin:0 0 8px;">Visa rätt QR-kod vid entrén. Kvitto bifogas som PDF.</p>
+            ${qrBlocksHtml}
             <p style="margin-top:18px;">
               <a href="https://cms.dancevida.se/biljetter" style="display:inline-block;background:#c59333;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:14px;">Visa mina biljetter</a>
             </p>
@@ -212,19 +227,27 @@ serve(async (req) => {
         </div>
       </body></html>`;
 
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: customer_email,
-            subject: `Eventbokning bekräftad: ${currentEvent?.title}`,
-            html: emailHtml,
-          }),
-        });
-      } catch (emailErr) {
-        console.error("Failed to send confirmation email:", emailErr);
-      }
+      const totalUnits = ticketCount * datesToBook.length;
+      await sendEmailWithReceipt({
+        to: customer_email,
+        subject: `Eventbokning bekräftad: ${currentEvent?.title}`,
+        html: emailHtml,
+        receipt: {
+          customerName: customer_name || '',
+          customerEmail: customer_email,
+          date: new Date().toLocaleDateString('sv-SE'),
+          items: [{
+            description: `Event: ${currentEvent?.title || 'okänt'} (${ticketCount} pers × ${datesToBook.length} dag)`,
+            quantity: totalUnits,
+            unitPrice: Math.round(amount_cents / Math.max(totalUnits, 1)),
+            currency: 'SEK',
+          }],
+          totalAmount: amount_cents,
+          currency: 'SEK',
+          orderId: wp_order_id ? `swish:${wp_order_id}` : `swish:${createdBookings[0]?.id || ''}`,
+          companyInfo: COMPANY_INFO,
+        },
+      });
 
       return new Response(
         JSON.stringify({ success: true, bookings: createdBookings.length }),
