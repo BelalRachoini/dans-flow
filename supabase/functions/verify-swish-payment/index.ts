@@ -95,25 +95,7 @@ serve(async (req) => {
     if (item_type === "event") {
       if (!item_id) throw new Error("Missing item_id for event");
 
-      // Idempotency: check existing booking
-      const { data: existing } = await supabaseClient
-        .from("event_bookings")
-        .select("id")
-        .eq("member_id", user_id)
-        .eq("event_id", item_id);
-
-      if (existing && existing.length > 0) {
-        return new Response(
-          JSON.stringify({ success: true, already_exists: true }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-        );
-      }
-
-      const { data: eventDates } = await supabaseClient
-        .from("event_dates")
-        .select("id, start_at, end_at")
-        .eq("event_id", item_id)
-        .order("start_at", { ascending: true });
+      console.log(`[verify-swish-payment] event branch user=${user_id} event=${item_id} qty=${quantity} wp_order=${wp_order_id ?? 'n/a'}`);
 
       const { data: currentEvent } = await supabaseClient
         .from("events")
@@ -121,59 +103,88 @@ serve(async (req) => {
         .eq("id", item_id)
         .single();
 
+      const { data: eventDates } = await supabaseClient
+        .from("event_dates")
+        .select("id, start_at, end_at")
+        .eq("event_id", item_id)
+        .order("start_at", { ascending: true });
+
       const datesToBook = eventDates && eventDates.length > 0
         ? eventDates
         : [{ id: null, start_at: currentEvent?.start_at, end_at: null }];
 
       const ticketCount = quantity || 1;
-      const createdBookings = [];
+      let createdBookings: any[] = [];
+      let alreadyExisted = false;
 
-      for (const eventDate of datesToBook) {
-        for (let i = 0; i < ticketCount; i++) {
-          const { data: booking, error } = await supabaseClient
-            .from("event_bookings")
-            .insert({
-              member_id: user_id,
-              event_id: item_id,
-              event_date_id: eventDate.id,
-              status: "confirmed",
-              payment_status: "paid",
-              ticket_count: 1,
-              checkins_allowed: 1,
-              checkins_used: 0,
-              attendee_names: [
-                (attendeeNamesArr[i] && attendeeNamesArr[i].trim()) ||
-                  customer_name ||
-                  `Person ${i + 1}`,
-              ],
-              qr_payload: crypto.randomUUID(),
-            })
-            .select()
-            .single();
+      // Idempotency: check existing bookings
+      const { data: existing } = await supabaseClient
+        .from("event_bookings")
+        .select("id, qr_payload, event_date_id, attendee_names")
+        .eq("member_id", user_id)
+        .eq("event_id", item_id)
+        .order("created_at", { ascending: true });
 
-          if (error) throw error;
-          createdBookings.push(booking);
+      if (existing && existing.length > 0) {
+        // Re-use existing bookings; still send confirmation email below.
+        alreadyExisted = true;
+        // Order existing to match datesToBook order so QR labels align with dates.
+        const dateOrder = new Map(datesToBook.map((d, i) => [d.id, i]));
+        createdBookings = [...existing].sort((a, b) => {
+          const ai = dateOrder.get(a.event_date_id) ?? 999;
+          const bi = dateOrder.get(b.event_date_id) ?? 999;
+          return ai - bi;
+        });
+        console.log(`[verify-swish-payment] event already booked (${createdBookings.length} existing); resending confirmation email`);
+      } else {
+        for (const eventDate of datesToBook) {
+          for (let i = 0; i < ticketCount; i++) {
+            const { data: booking, error } = await supabaseClient
+              .from("event_bookings")
+              .insert({
+                member_id: user_id,
+                event_id: item_id,
+                event_date_id: eventDate.id,
+                status: "confirmed",
+                payment_status: "paid",
+                ticket_count: 1,
+                checkins_allowed: 1,
+                checkins_used: 0,
+                attendee_names: [
+                  (attendeeNamesArr[i] && attendeeNamesArr[i].trim()) ||
+                    customer_name ||
+                    `Person ${i + 1}`,
+                ],
+                qr_payload: crypto.randomUUID(),
+              })
+              .select()
+              .single();
+
+            if (error) throw error;
+            createdBookings.push(booking);
+          }
         }
-      }
 
-      if (currentEvent) {
-        await supabaseClient
-          .from("events")
-          .update({ sold_count: currentEvent.sold_count + (ticketCount * datesToBook.length) })
-          .eq("id", item_id);
-      }
+        if (currentEvent) {
+          await supabaseClient
+            .from("events")
+            .update({ sold_count: currentEvent.sold_count + (ticketCount * datesToBook.length) })
+            .eq("id", item_id);
+        }
 
-      // Record payment for admin/finance visibility
-      await supabaseClient.from("payments").insert({
-        member_id: user_id,
-        amount_cents,
-        currency: "SEK",
-        status: "paid",
-        description: `Event: ${currentEvent?.title || "okänt"}`,
-        payment_method: "swish",
-        payment_type: "event",
-        order_id: wp_order_id ? `swish:${wp_order_id}` : null,
-      });
+        // Record payment for admin/finance visibility (status must match payments_status_check)
+        const { error: payErr } = await supabaseClient.from("payments").insert({
+          member_id: user_id,
+          amount_cents,
+          currency: "SEK",
+          status: "succeeded",
+          description: `Event: ${currentEvent?.title || "okänt"}`,
+          payment_method: "swish",
+          payment_type: "event",
+          order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+        });
+        if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+      }
 
       // Build a richer confirmation email
       const datesList = datesToBook
