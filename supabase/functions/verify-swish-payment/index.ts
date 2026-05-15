@@ -74,6 +74,8 @@ serve(async (req) => {
       attendee_names,
     } = await req.json();
 
+    console.log(`[verify-swish-payment] called type=${item_type} user=${user_id} item=${item_id ?? '-'} email=${customer_email ?? '-'} amount=${amount_cents} qty=${quantity ?? 1}`);
+
     if (!item_type || !user_id || !amount_cents) {
       throw new Error("Missing required fields: item_type, user_id, amount_cents");
     }
