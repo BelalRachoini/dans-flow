@@ -275,7 +275,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, bookings: createdBookings.length }),
+        JSON.stringify({ success: true, bookings: createdBookings.length, already_exists: alreadyExisted }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
