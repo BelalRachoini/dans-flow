@@ -373,7 +373,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, ticket_id: ticket.id }),
+        JSON.stringify({ success: true, ticket_id: ticket.id, already_exists: alreadyExisted }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
