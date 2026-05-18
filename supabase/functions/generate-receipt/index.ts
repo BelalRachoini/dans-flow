@@ -20,7 +20,24 @@ interface ReceiptData {
   totalAmount: number;
   currency: string;
   orderId: string;
-  companyInfo: { name: string; address: string; phone: string };
+  companyInfo: {
+    name: string;
+    address: string;
+    phone: string;
+    company?: string;
+    orgNumber?: string;
+    vatNumber?: string;
+    email?: string;
+  };
+}
+
+// ASCII-safe transliteration for Helvetica Type1 (no UTF-8 glyphs)
+function ascii(s: string): string {
+  return s
+    .replace(/[åä]/g, 'a').replace(/[ÅÄ]/g, 'A')
+    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+    .replace(/é/g, 'e').replace(/É/g, 'E')
+    .replace(/[^\x20-\x7E]/g, '');
 }
 
 function pdfStr(s: string): string {
