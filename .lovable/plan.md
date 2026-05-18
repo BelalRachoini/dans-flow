@@ -1,27 +1,41 @@
-## Findings
-- The Swish booking itself was created successfully and a QR payload exists.
-- The custom DanceVida email was sent once by the backend, but the screenshot shows WooCommerce also sends its own order email, which does not include the DanceVida QR.
-- Swish payments are not being recorded in the unified payments table because the code inserts `status: "paid"`, while the database only allows `succeeded`, `refunded`, `failed`, and `pending`. This can also break admin/payment-history visibility.
-- If Swish verification is called again for the same event, the current idempotency branch returns early and skips sending the DanceVida account/QR email again.
+## What I found
+
+- The latest Swish payments are now being recorded in the unified payments table, so admin visibility is partly fixed.
+- The tickets/bookings are also being created with valid QR payloads.
+- The screenshot email is WooCommerce’s own order email. That email will never contain the DanceVida QR/account link unless the WordPress side is changed too.
+- The app’s Swish flow currently relies on the browser return page to call `verify-swish-payment`. If the user does not return cleanly, closes the page, or the return URL is missing parameters, the DanceVida QR/account email can be skipped even though WooCommerce still sends its emails.
+- There is also a bug for standalone Swish tickets: existing ticket lookup can fail because more than one ticket row may exist for the same Swish order, which can break the resend path.
 
 ## Plan
-1. **Make Swish payment recording valid and visible**
-   - Update `verify-swish-payment` to store Swish rows with a database-valid status (`succeeded`).
-   - Update `get-stripe-payments` mapping so both `succeeded` and any older `paid` rows display as paid in the admin payment view.
 
-2. **Make the QR/account email reliable**
-   - In `verify-swish-payment`, change the “already exists” event/course/ticket logic so it still sends the DanceVida confirmation email with QR/account link using the existing booking/ticket instead of returning silently.
-   - Keep idempotency for ticket/booking creation, so duplicate backend calls do not create duplicate tickets.
+1. **Make the Swish confirmation email server-side reliable**
+   - Update `verify-swish-payment` so the confirmation email is always generated from the database-created ticket/booking records.
+   - Use profile email/name as a fallback if Woo/return URL does not pass `customer_email` or `customer_name`.
+   - Keep the purchase successful even if email sending fails, but log the exact failure.
 
-3. **Improve email delivery diagnostics**
-   - Make the Swish verifier log/send-email failures clearly instead of swallowing them silently.
-   - Keep the purchase successful even if email sending fails, but return enough backend logs to debug immediately.
+2. **Fix duplicate/idempotent Swish ticket handling**
+   - For standalone ticket purchases, replace `.maybeSingle()` with a deterministic query that can handle duplicate rows safely.
+   - Prefer the newest matching ticket and reuse its QR payload for the email.
+   - Prevent the resend path from crashing when multiple rows share the same Swish order id.
 
-4. **Ensure QR renders in common email clients**
-   - Keep the inline QR image in the custom DanceVida confirmation email.
-   - Use the existing QR payload from the created/existing booking or ticket.
-   - Keep the “Visa mina biljetter” / account link in the same email so it replaces the missing third email behavior.
+3. **Make the email show QR + account link clearly**
+   - Keep the QR code directly inside the DanceVida email.
+   - Keep the `Visa mina biljetter` / account link in the same email.
+   - Use the actual existing ticket/booking QR payloads so the QR always matches what staff/admin sees.
+
+4. **Add a resend safety net for the latest payment**
+   - After the function is fixed, call the Swish verifier for the latest affected order using the existing database record so the customer receives the missing DanceVida QR/account email without creating a duplicate ticket.
 
 5. **Deploy and verify**
-   - Deploy the updated backend functions.
-   - Check function logs after deployment and confirm the latest Swish booking has a QR payload and can trigger the DanceVida confirmation email path.
+   - Deploy `verify-swish-payment`.
+   - Check recent database records and function responses to confirm the latest Swish purchase has a payment row, a ticket/booking QR payload, and a successful email-send path.
+
+## Technical details
+
+- Main file: `supabase/functions/verify-swish-payment/index.ts`
+- Likely fix areas:
+  - Add profile fallback lookup for `customer_email` / `customer_name`.
+  - Change standalone ticket idempotency from `.maybeSingle()` to `.limit(1)` with ordering.
+  - Make QR email generation depend on resolved customer values and existing DB records.
+  - Improve logging around send-email response status/body.
+- No schema migration is expected.
