@@ -160,14 +160,18 @@ serve(async (req) => {
           .order("created_at", { ascending: true });
         existing = orderExisting ?? [];
       } else {
-        const { data: memberExisting } = await supabaseClient
+        // No order ID — only block if there's a very recent booking (within 10 min)
+        // Prevents double-tap duplicates but allows legitimate new purchases later.
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const { data: recentExisting } = await supabaseClient
           .from("event_bookings")
           .select("id, qr_payload, event_date_id, attendee_names, created_at")
           .eq("member_id", user_id)
           .eq("event_id", item_id)
           .is("payment_reference", null)
+          .gte("created_at", tenMinutesAgo)
           .order("created_at", { ascending: true });
-        existing = memberExisting ?? [];
+        existing = recentExisting ?? [];
       }
 
       const dateOrder = new Map(datesToBook.map((d, i) => [d.id, i]));
