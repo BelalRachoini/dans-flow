@@ -219,6 +219,7 @@ serve(async (req) => {
                     `Person ${i + 1}`,
                 ],
                 qr_payload: crypto.randomUUID(),
+                payment_reference: orderRef,
               })
               .select()
               .single();
