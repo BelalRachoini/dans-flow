@@ -190,7 +190,15 @@ Deno.serve(async (req) => {
     const { data: roleData } = await adminClient.from('user_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle();
     const isAdmin = !!roleData;
 
-    const companyInfo = { name: 'DanceVida', address: 'Stockholm, Sweden', phone: '+46 70 123 4567' };
+    const companyInfo = {
+      name: 'DANCE VIDA - Fabian Vallejos',
+      company: 'Tropical Studios AB',
+      orgNumber: '559326-1778',
+      vatNumber: 'SE559326177801',
+      address: 'Gamlestadsvägen 14, 415 02 Göteborg',
+      phone: '073-702 11 34',
+      email: 'info@tropicalstudios.se',
+    };
 
     if (payment_source === 'swish') {
       const { data: payment, error } = await adminClient
