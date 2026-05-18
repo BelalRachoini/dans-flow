@@ -975,20 +975,36 @@ export default function Biljetter() {
   const validPackages = ticketPackages.filter(p => p.status === 'valid' && p.tickets_used < p.total_tickets);
   const totalAvailableTickets = validPackages.reduce((sum, p) => sum + (p.total_tickets - p.tickets_used), 0);
   
-  // Separate valid and used/expired lesson bookings
-  // Package auto-enrolled bookings are shown differently (already "checked in")
-  const validLessonBookings = lessonBookings.filter(b => 
-    b.ticket_type !== 'package_auto' && b.status === 'valid' && b.checkins_used < b.checkins_allowed
-  );
-  const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto');
-  const historyLessonBookings = lessonBookings.filter(b => 
-    b.ticket_type !== 'package_auto' && (b.status === 'used' || b.checkins_used >= b.checkins_allowed)
-  );
-  
-  // Event tickets (with type discriminator)
-  const eventTicketsTyped = tickets.filter(t => t.type === 'event') as (EventTicket & { type: 'event' })[];
+  // Time helpers
   const _nowMs = Date.now();
   const _ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const _isLessonInFuture = (b: LessonBooking) => {
+    const endStr = b.course_lessons?.ends_at;
+    const startStr = b.course_lessons?.starts_at;
+    if (endStr) return new Date(endStr).getTime() + _ONE_DAY_MS > _nowMs;
+    if (startStr) return new Date(startStr).getTime() + _ONE_DAY_MS > _nowMs;
+    return true;
+  };
+
+  // Separate valid and used/expired lesson bookings
+  // Package auto-enrolled bookings are shown differently (already "checked in")
+  const validLessonBookings = lessonBookings.filter(b =>
+    b.ticket_type !== 'package_auto' &&
+    b.status === 'valid' &&
+    b.checkins_used < b.checkins_allowed &&
+    _isLessonInFuture(b)
+  );
+  const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto');
+  const historyLessonBookings = lessonBookings.filter(b =>
+    b.ticket_type !== 'package_auto' && (
+      b.status === 'used' ||
+      b.checkins_used >= b.checkins_allowed ||
+      !_isLessonInFuture(b)
+    )
+  );
+
+  // Event tickets (with type discriminator)
+  const eventTicketsTyped = tickets.filter(t => t.type === 'event') as (EventTicket & { type: 'event' })[];
   const _isEventInFuture = (e: EventTicket & { type: 'event' }) => {
     // Prefer end_at — keep ticket visible until 1 day after event ends.
     const endStr = e.event_dates?.end_at || e.events?.end_at;

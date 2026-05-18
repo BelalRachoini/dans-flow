@@ -1,51 +1,34 @@
-## Two small changes
+## Problem
 
-### 1. `supabase/functions/verify-swish-payment/index.ts` (lines 162‑171)
+Past lesson tickets (e.g. Bachata 17 mars 2026, Salsa 18 februari 2026) are still displayed in the active "Mina biljetter" section with usable QR codes, even though the lesson date has long passed. Today is 18 maj 2026, so any lesson from March or February should be in history.
 
-Tighten the no‑order‑ref fallback so legacy `payment_reference IS NULL` bookings stop blocking new purchases. Only treat NULL-reference bookings as a duplicate when they were created in the last 10 minutes (double‑tap protection).
+Root cause in `src/pages/Biljetter.tsx` (lines 980–986): `validLessonBookings` filters only on `status === 'valid'` and `checkins_used < checkins_allowed`. There is no date check. If a member never checked in (or only partially), the booking stays "valid" forever and keeps rendering a live QR.
 
-```ts
-} else {
-  // No order ID — only block if there's a very recent booking (within 10 min)
-  // Prevents double-tap duplicates but allows legitimate new purchases later.
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const { data: recentExisting } = await supabaseClient
-    .from("event_bookings")
-    .select("id, qr_payload, event_date_id, attendee_names, created_at")
-    .eq("member_id", user_id)
-    .eq("event_id", item_id)
-    .is("payment_reference", null)
-    .gte("created_at", tenMinutesAgo)
-    .order("created_at", { ascending: true });
-  existing = recentExisting ?? [];
-}
-```
+The event-tickets path was already fixed with `_isEventInFuture`. The lesson-bookings path needs the same treatment.
 
-Then deploy `verify-swish-payment`.
+## Fix
 
-### 2. `src/pages/Biljetter.tsx` (past-events QR block, ~lines 1957‑1963)
+In `src/pages/Biljetter.tsx`, add a small `_isLessonInFuture` helper next to `_isEventInFuture` and use it to split lesson bookings into active vs. history.
 
-In the "Tidigare evenemang" map, replace the greyed QR with a ✅ Incheckad pill when `ticket.status === 'checked_in'`. The active section is untouched.
+A lesson is considered active when:
+- `course_lessons.ends_at` is set and `ends_at + 1 day > now`, OR
+- only `starts_at` is set and `starts_at + 1 day > now`.
 
-```tsx
-{ticket.status === 'checked_in' ? (
-  <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
-    <Check className="h-4 w-4" />
-    Incheckad
-  </div>
-) : (
-  <div className="bg-white p-1 rounded border opacity-40">
-    {qrCanvasRef.current[ticket.qr_payload] ? (
-      <img src={qrCanvasRef.current[ticket.qr_payload]} alt="QR" className="w-10 h-10" />
-    ) : (
-      <div className="w-10 h-10 bg-muted rounded" />
-    )}
-  </div>
-)}
-```
+Otherwise the booking is treated as past and moved into `historyLessonBookings` (regardless of `status`), so the active card with QR disappears and it shows up under "Biljetthistorik" instead.
 
-`Check` is already imported in this file (used elsewhere).
+### Changes (single file, frontend only)
 
-### Out of scope
+`src/pages/Biljetter.tsx` around lines 980–986:
 
-- No DB migration, no other edge functions, no changes to the active event tickets section.
+- Add `_isLessonInFuture(b)` using `_nowMs` / `_ONE_DAY_MS` (already defined just below).
+- Update `validLessonBookings` to also require `_isLessonInFuture(b)`.
+- Update `historyLessonBookings` to include bookings where `_isLessonInFuture(b)` is false, in addition to the existing used / fully-checked-in condition.
+
+No backend, RLS, edge function, or schema changes. No change to packageAuto or event logic. No styling changes.
+
+## Verification
+
+- Bachata 17 mars 2026 ticket: no longer in active list, appears in Biljetthistorik.
+- A lesson dated later than today: still active with QR.
+- Already-used lesson bookings: still in history as before.
+- Event tickets section: unchanged.
