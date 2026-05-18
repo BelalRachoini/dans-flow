@@ -136,31 +136,51 @@ serve(async (req) => {
         : [{ id: null, start_at: currentEvent?.start_at, end_at: null }];
 
       const ticketCount = quantity || 1;
+      const expectedTotal = ticketCount * datesToBook.length;
       let createdBookings: any[] = [];
       let alreadyExisted = false;
+      let newlyCreatedCount = 0;
 
       // Idempotency: check existing bookings
       const { data: existing } = await supabaseClient
         .from("event_bookings")
-        .select("id, qr_payload, event_date_id, attendee_names")
+        .select("id, qr_payload, event_date_id, attendee_names, created_at")
         .eq("member_id", user_id)
         .eq("event_id", item_id)
         .order("created_at", { ascending: true });
 
-      if (existing && existing.length > 0) {
-        // Re-use existing bookings; still send confirmation email below.
+      const dateOrder = new Map(datesToBook.map((d, i) => [d.id, i]));
+
+      if (existing && existing.length >= expectedTotal) {
+        // Full set already created — re-use existing
         alreadyExisted = true;
-        // Order existing to match datesToBook order so QR labels align with dates.
-        const dateOrder = new Map(datesToBook.map((d, i) => [d.id, i]));
         createdBookings = [...existing].sort((a, b) => {
           const ai = dateOrder.get(a.event_date_id) ?? 999;
           const bi = dateOrder.get(b.event_date_id) ?? 999;
           return ai - bi;
         });
-        console.log(`[verify-swish-payment] event already booked (${createdBookings.length} existing); resending confirmation email`);
+        console.log(`[verify-swish-payment] event already booked (${createdBookings.length}/${expectedTotal} existing); resending confirmation email`);
       } else {
+        // Partial or none — count existing per date so we only fill the missing slots
+        const existingByDate = new Map<string | null, any[]>();
+        for (const b of existing ?? []) {
+          const key = b.event_date_id ?? null;
+          const arr = existingByDate.get(key) ?? [];
+          arr.push(b);
+          existingByDate.set(key, arr);
+        }
+
+        if (existing && existing.length > 0) {
+          console.log(`[verify-swish-payment] partial bookings found (${existing.length}/${expectedTotal}); filling missing slots`);
+        }
+
         for (const eventDate of datesToBook) {
-          for (let i = 0; i < ticketCount; i++) {
+          const dateKey = eventDate.id ?? null;
+          const already = existingByDate.get(dateKey) ?? [];
+          // Add existing for this date first (in creation order)
+          for (const b of already) createdBookings.push(b);
+
+          for (let i = already.length; i < ticketCount; i++) {
             const { data: booking, error } = await supabaseClient
               .from("event_bookings")
               .insert({
@@ -184,28 +204,31 @@ serve(async (req) => {
 
             if (error) throw error;
             createdBookings.push(booking);
+            newlyCreatedCount++;
           }
         }
 
-        if (currentEvent) {
+        if (newlyCreatedCount > 0 && currentEvent) {
           await supabaseClient
             .from("events")
-            .update({ sold_count: currentEvent.sold_count + (ticketCount * datesToBook.length) })
+            .update({ sold_count: currentEvent.sold_count + newlyCreatedCount })
             .eq("id", item_id);
         }
 
-        // Record payment for admin/finance visibility (status must match payments_status_check)
-        const { error: payErr } = await supabaseClient.from("payments").insert({
-          member_id: user_id,
-          amount_cents,
-          currency: "SEK",
-          status: "succeeded",
-          description: `Event: ${currentEvent?.title || "okänt"}`,
-          payment_method: "swish",
-          payment_type: "event",
-          order_id: wp_order_id ? `swish:${wp_order_id}` : null,
-        });
-        if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+        if (newlyCreatedCount > 0) {
+          // Record payment for admin/finance visibility (status must match payments_status_check)
+          const { error: payErr } = await supabaseClient.from("payments").insert({
+            member_id: user_id,
+            amount_cents,
+            currency: "SEK",
+            status: "succeeded",
+            description: `Event: ${currentEvent?.title || "okänt"}`,
+            payment_method: "swish",
+            payment_type: "event",
+            order_id: wp_order_id ? `swish:${wp_order_id}` : null,
+          });
+          if (payErr) console.error("[verify-swish-payment] payments insert failed:", payErr);
+        }
       }
 
       // Build a richer confirmation email
