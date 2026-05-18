@@ -1,48 +1,44 @@
-## Fix Swish idempotency check
+## Update company info on Swish receipts & emails
 
-**File:** `supabase/functions/verify-swish-payment/index.ts`
+### 1. `supabase/functions/verify-swish-payment/index.ts`
 
-**Change:** In the event branch, replace the idempotency guard so it only short-circuits when the full expected set of bookings already exists. If WordPress created fewer than expected (race condition), the function creates the remaining bookings with the correct attendee names from its own params.
-
-### Edit
-
-Before the existing-bookings check, compute:
+Replace `COMPANY_INFO` constant with the full legal info:
 ```ts
-const expectedTotal = ticketCount * datesToBook.length;
+const COMPANY_INFO = {
+  name: 'DANCE VIDA - Fabian Vallejos',
+  company: 'Tropical Studios AB',
+  orgNumber: '559326-1778',
+  vatNumber: 'SE559326177801',
+  address: 'Gamlestadsvägen 14, 415 02 Göteborg',
+  phone: '073-702 11 34',
+  email: 'info@tropicalstudios.se',
+};
 ```
 
-Change:
-```ts
-if (existing && existing.length > 0) {
-  alreadyExisted = true;
-  ...
-}
+Update all 3 email header blocks (event, course, ticket) — change the `<div style="font-size:18px;font-weight:700;">DanceVida</div>` to render two lines:
 ```
-to:
-```ts
-if (existing && existing.length >= expectedTotal) {
-  alreadyExisted = true;
-  ...
-} else if (existing && existing.length > 0) {
-  // Partial set exists — fill in missing bookings below, skipping already-created (date, person) slots
-}
+DANCE VIDA
+Tropical Studios AB
 ```
 
-In the creation loop, skip slots already covered by `existing` (matched by `event_date_id` + person index within that date) so we don't double-book. Each newly created booking continues to use:
-```ts
-attendee_names: [
-  (attendeeNamesArr[i] && attendeeNamesArr[i].trim()) ||
-    customer_name ||
-    `Person ${i + 1}`,
-],
-```
-(unchanged — confirmed present).
+The 3 `companyInfo: COMPANY_INFO` payloads passed to `sendEmailWithReceipt` already forward the whole object — no further change needed there.
 
-After creation, merge `existing` + newly created into `createdBookings`, sorted by `(date order, person index)` so QR labels align.
+### 2. `supabase/functions/generate-receipt/index.ts`
 
-### Deploy
-Deploy `verify-swish-payment` via the deploy tool after the edit.
+- Extend `ReceiptData.companyInfo` type to include optional `company`, `orgNumber`, `vatNumber`, `email`.
+- Replace the local fallback `companyInfo` (line 159 — currently `{ name: 'DanceVida', address: 'Stockholm, Sweden', phone: '+46 70 123 4567' }`) with the same full legal info as above so direct downloads from the dashboard also show correct details.
+- In `generateReceiptPdf`, after the address/phone lines, render the new fields when present:
+  ```
+  Org.nr: 559326-1778
+  VAT: SE559326177801
+  E-post: info@tropicalstudios.se
+  ```
+  Also render `company` (Tropical Studios AB) under the brand name in the header.
+- PDF uses Helvetica (Type1) which doesn't render Swedish diacritics — keep an ASCII variant for the PDF address ("Gamlestadsvagen 14, 415 02 Goteborg") while keeping full UTF-8 in the HTML emails. Apply the same ASCII-safe fallback to the footer line.
 
-### Verify
-- Call the function for an order where bookings already match expected count → returns `already_exists: true`, no new rows.
-- Call for an order with only 1 of 2 expected bookings → creates the missing one with the correct attendee name, sends email with both QRs.
+### 3. Deploy
+
+Deploy both functions: `verify-swish-payment` and `generate-receipt`.
+
+### Out of scope
+Other verify-*/email functions (Stripe course/event/lesson, standalone-ticket) also pass their own `COMPANY_INFO`. This task only touches the Swish path + shared receipt renderer. If you want all flows updated, say so and I'll extend the change.

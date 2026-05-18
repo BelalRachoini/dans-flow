@@ -20,7 +20,24 @@ interface ReceiptData {
   totalAmount: number;
   currency: string;
   orderId: string;
-  companyInfo: { name: string; address: string; phone: string };
+  companyInfo: {
+    name: string;
+    address: string;
+    phone: string;
+    company?: string;
+    orgNumber?: string;
+    vatNumber?: string;
+    email?: string;
+  };
+}
+
+// ASCII-safe transliteration for Helvetica Type1 (no UTF-8 glyphs)
+function ascii(s: string): string {
+  return s
+    .replace(/[åä]/g, 'a').replace(/[ÅÄ]/g, 'A')
+    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+    .replace(/é/g, 'e').replace(/É/g, 'E')
+    .replace(/[^\x20-\x7E]/g, '');
 }
 
 function pdfStr(s: string): string {
@@ -41,12 +58,29 @@ function generateReceiptPdf(receipt: ReceiptData): Uint8Array {
   const lines: { x: number; y: number; text: string; fontSize?: number; bold?: boolean }[] = [];
   let y = pageHeight - 60;
 
-  lines.push({ x: marginLeft, y, text: receipt.companyInfo.name, fontSize: 20, bold: true });
-  y -= 20;
-  lines.push({ x: marginLeft, y, text: receipt.companyInfo.address, fontSize: 9 });
-  y -= 14;
-  lines.push({ x: marginLeft, y, text: `Tel: ${receipt.companyInfo.phone}`, fontSize: 9 });
-  y -= 30;
+  lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.name), fontSize: 18, bold: true });
+  y -= 18;
+  if (receipt.companyInfo.company) {
+    lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.company), fontSize: 11, bold: true });
+    y -= 14;
+  }
+  lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.address), fontSize: 9 });
+  y -= 12;
+  lines.push({ x: marginLeft, y, text: `Tel: ${ascii(receipt.companyInfo.phone)}`, fontSize: 9 });
+  y -= 12;
+  if (receipt.companyInfo.email) {
+    lines.push({ x: marginLeft, y, text: `E-post: ${ascii(receipt.companyInfo.email)}`, fontSize: 9 });
+    y -= 12;
+  }
+  if (receipt.companyInfo.orgNumber) {
+    lines.push({ x: marginLeft, y, text: `Org.nr: ${ascii(receipt.companyInfo.orgNumber)}`, fontSize: 9 });
+    y -= 12;
+  }
+  if (receipt.companyInfo.vatNumber) {
+    lines.push({ x: marginLeft, y, text: `VAT: ${ascii(receipt.companyInfo.vatNumber)}`, fontSize: 9 });
+    y -= 12;
+  }
+  y -= 18;
   lines.push({ x: marginLeft, y, text: 'KVITTO / RECEIPT', fontSize: 16, bold: true });
   y -= 28;
   lines.push({ x: marginLeft, y, text: `Kund / Customer: ${receipt.customerName}`, fontSize: 10 });
@@ -79,7 +113,7 @@ function generateReceiptPdf(receipt: ReceiptData): Uint8Array {
   y -= 30;
   lines.push({ x: marginLeft, y, text: 'Tack for ditt kop! / Thank you for your purchase!', fontSize: 10 });
   y -= lineHeight;
-  lines.push({ x: marginLeft, y, text: `${receipt.companyInfo.name} - ${receipt.companyInfo.address}`, fontSize: 8 });
+  lines.push({ x: marginLeft, y, text: ascii(`${receipt.companyInfo.company || receipt.companyInfo.name} - ${receipt.companyInfo.address}`), fontSize: 8 });
 
   let stream = '';
   const separatorY = lines.find(l => l.text === 'Beskrivning / Description')?.y;
@@ -156,7 +190,15 @@ Deno.serve(async (req) => {
     const { data: roleData } = await adminClient.from('user_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle();
     const isAdmin = !!roleData;
 
-    const companyInfo = { name: 'DanceVida', address: 'Stockholm, Sweden', phone: '+46 70 123 4567' };
+    const companyInfo = {
+      name: 'DANCE VIDA - Fabian Vallejos',
+      company: 'Tropical Studios AB',
+      orgNumber: '559326-1778',
+      vatNumber: 'SE559326177801',
+      address: 'Gamlestadsvägen 14, 415 02 Göteborg',
+      phone: '073-702 11 34',
+      email: 'info@tropicalstudios.se',
+    };
 
     if (payment_source === 'swish') {
       const { data: payment, error } = await adminClient
