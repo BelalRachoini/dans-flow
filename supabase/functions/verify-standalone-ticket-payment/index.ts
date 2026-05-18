@@ -212,6 +212,27 @@ serve(async (req) => {
 
     if (!userId) throw new Error('User ID not found in session metadata');
 
+    const orderId = `standalone:${session.id}`;
+
+    // Idempotency: if this Stripe session already created a ticket, return it.
+    const { data: existingTicket } = await supabaseClient
+      .from('tickets')
+      .select('id, total_tickets')
+      .eq('order_id', orderId)
+      .maybeSingle();
+
+    if (existingTicket) {
+      return new Response(JSON.stringify({
+        success: true,
+        ticket_id: existingTicket.id,
+        tickets: existingTicket.total_tickets,
+        already_exists: true,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     // Calculate expiry date (3 months from now)
     const expiresAt = new Date();
     expiresAt.setMonth(expiresAt.getMonth() + 3);
@@ -227,7 +248,7 @@ serve(async (req) => {
         qr_payload: crypto.randomUUID(),
         total_tickets: ticketCount,
         tickets_used: 0,
-        order_id: `standalone:${session.id}`,
+        order_id: orderId,
         expires_at: expiresAt.toISOString()
       })
       .select()
