@@ -988,11 +988,14 @@ export default function Biljetter() {
   // Event tickets (with type discriminator)
   const eventTicketsTyped = tickets.filter(t => t.type === 'event') as (EventTicket & { type: 'event' })[];
   const _nowMs = Date.now();
-  const _eventGraceMs = 6 * 60 * 60 * 1000; // 6h grace so same-day events stay visible
+  const _ONE_DAY_MS = 24 * 60 * 60 * 1000;
   const _isEventInFuture = (e: EventTicket & { type: 'event' }) => {
-    const dateStr = e.event_dates?.start_at || e.events?.start_at;
-    if (!dateStr) return true;
-    return new Date(dateStr).getTime() + _eventGraceMs > _nowMs;
+    // Prefer end_at — keep ticket visible until 1 day after event ends.
+    const endStr = e.event_dates?.end_at || e.events?.end_at;
+    const startStr = e.event_dates?.start_at || e.events?.start_at;
+    if (endStr) return new Date(endStr).getTime() + _ONE_DAY_MS > _nowMs;
+    if (startStr) return new Date(startStr).getTime() + _ONE_DAY_MS > _nowMs;
+    return true;
   };
   const validEventTickets = eventTicketsTyped.filter(
     e => (e.status === 'confirmed' || e.status === 'checked_in') && _isEventInFuture(e)
