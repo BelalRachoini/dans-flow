@@ -412,16 +412,17 @@ serve(async (req) => {
       let alreadyExisted = false;
 
       if (orderTag) {
-        const { data: existing } = await supabaseClient
+        const { data: existingRows } = await supabaseClient
           .from("tickets")
-          .select("id, qr_payload, total_tickets")
+          .select("id, qr_payload, total_tickets, purchased_at")
           .eq("order_id", orderTag)
-          .maybeSingle();
+          .order("purchased_at", { ascending: false })
+          .limit(1);
 
-        if (existing) {
-          ticket = existing;
+        if (existingRows && existingRows.length > 0) {
+          ticket = existingRows[0];
           alreadyExisted = true;
-          console.log(`[verify-swish-payment] standalone ticket already issued; resending confirmation email`);
+          console.log(`[verify-swish-payment] standalone ticket already issued (id=${ticket.id}); resending confirmation email`);
         }
       }
 
