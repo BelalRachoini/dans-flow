@@ -1,44 +1,56 @@
-## Update company info on Swish receipts & emails
+## Root cause
 
-### 1. `supabase/functions/verify-swish-payment/index.ts`
+`/biljetter` (`src/pages/Biljetter.tsx`) joins related rows via Supabase nested selects:
 
-Replace `COMPANY_INFO` constant with the full legal info:
-```ts
-const COMPANY_INFO = {
-  name: 'DANCE VIDA - Fabian Vallejos',
-  company: 'Tropical Studios AB',
-  orgNumber: '559326-1778',
-  vatNumber: 'SE559326177801',
-  address: 'Gamlestadsvägen 14, 415 02 Göteborg',
-  phone: '073-702 11 34',
-  email: 'info@tropicalstudios.se',
-};
-```
+- `tickets → courses` (via `tickets_source_course_id_fkey`)
+- `event_bookings → events`
+- `lesson_bookings → course_lessons` (and `course_lessons` RLS itself requires the parent `courses` row to be visible)
 
-Update all 3 email header blocks (event, course, ticket) — change the `<div style="font-size:18px;font-weight:700;">DanceVida</div>` to render two lines:
-```
-DANCE VIDA
-Tropical Studios AB
-```
+When an admin flips a course or event from `published` to `draft`, RLS hides that parent row for the member. The nested join then returns `null` for `courses` / `course_lessons` / `events`, but the row in `tickets` / `lesson_bookings` / `event_bookings` still belongs to the member and is still returned.
 
-The 3 `companyInfo: COMPANY_INFO` payloads passed to `sendEmailWithReceipt` already forward the whole object — no further change needed there.
+Several render paths dereference those nested objects without a null guard, so React throws and the whole page becomes blank:
 
-### 2. `supabase/functions/generate-receipt/index.ts`
+- `packageAutoBookings.sort((a, b) => new Date(a.course_lessons.starts_at)...)` (line 1601) and the row render at lines 1603‑1631 (`lesson.starts_at`, `lesson.title`, `lesson.venue`).
+- `validLessonBookings.map(... lesson.starts_at ...)` at lines 1688‑1726.
+- Event grouping/render at 1789, 1802, 1806, 1923, 1931, 1934 (`event.title`, `event.venue`, `event.start_at`) when `ticket.events` is null because the event was unpublished.
+- QR modal at line 2058: `selectedTicket.events.title` (no `?.`).
 
-- Extend `ReceiptData.companyInfo` type to include optional `company`, `orgNumber`, `vatNumber`, `email`.
-- Replace the local fallback `companyInfo` (line 159 — currently `{ name: 'DanceVida', address: 'Stockholm, Sweden', phone: '+46 70 123 4567' }`) with the same full legal info as above so direct downloads from the dashboard also show correct details.
-- In `generateReceiptPdf`, after the address/phone lines, render the new fields when present:
-  ```
-  Org.nr: 559326-1778
-  VAT: SE559326177801
-  E-post: info@tropicalstudios.se
-  ```
-  Also render `company` (Tropical Studios AB) under the brand name in the header.
-- PDF uses Helvetica (Type1) which doesn't render Swedish diacritics — keep an ASCII variant for the PDF address ("Gamlestadsvagen 14, 415 02 Goteborg") while keeping full UTF-8 in the HTML emails. Apply the same ASCII-safe fallback to the footer line.
+The `tickets → courses` accesses (947, 2024, 2059) are already guarded with `?.`, so they were never the crash point — the crash is in the lesson/event sections.
 
-### 3. Deploy
+## Fix
 
-Deploy both functions: `verify-swish-payment` and `generate-receipt`.
+Filter out orphaned rows right after the fetch in `loadTickets()` so the UI only ever renders rows whose joined parent is still visible, plus add small defensive guards where parents are dereferenced.
+
+### `src/pages/Biljetter.tsx`
+
+1. After `lessonBookingsData` is loaded, set state with only rows that still have a joined lesson:
+   ```ts
+   setLessonBookings((lessonBookingsData || []).filter(b => b.course_lessons));
+   ```
+   This makes `packageAutoBookings` / `validLessonBookings` safe — bookings for hidden courses simply disappear from the list (they'll come back automatically when the admin republishes).
+
+2. When building `allTickets`, drop event bookings whose event is no longer visible:
+   ```ts
+   ...(eventTickets || []).filter(t => t.events).map(t => ({ ...t, type: 'event' as const }))
+   ```
+   Course tickets (`tickets` row with hidden `courses`) are already safe via `?.` and the "Free Ticket (Admin Gift)" fallback, so they can stay.
+
+3. Defensive guard in the QR modal (line 2058):
+   ```ts
+   ? selectedTicket.events?.title || 'Biljett'
+   ```
+   so a race where state updates between filter and render can't crash.
+
+4. Wrap the two `groupedByEvent`/`groupedPast` blocks (1785, 1921) with an extra `if (!ticket.events) return acc;` inside the `reduce` as belt‑and‑braces.
 
 ### Out of scope
-Other verify-*/email functions (Stripe course/event/lesson, standalone-ticket) also pass their own `COMPANY_INFO`. This task only touches the Swish path + shared receipt renderer. If you want all flows updated, say so and I'll extend the change.
+
+- No DB / RLS changes — current RLS behaviour is correct (members shouldn't see drafted content).
+- No edge-function changes.
+- No change to admin behaviour or to the course/event detail pages.
+
+### Verification
+
+- Repro: as admin, set a course that the test member has a `lesson_booking` for to `draft`; reload `/biljetter` as that member. Page should render with the booking quietly omitted instead of crashing.
+- Repeat with an event the member has an `event_booking` for. Page should render; that event card disappears.
+- Republish → bookings reappear.
