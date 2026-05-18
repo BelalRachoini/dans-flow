@@ -360,6 +360,7 @@ serve(async (req) => {
             checkins_used: 0,
             attendee_names: [attendeeName],
             qr_payload: crypto.randomUUID(), // Unique QR per booking
+            payment_reference: session.id, // Scopes idempotency to this Stripe session
           })
           .select()
           .single();
