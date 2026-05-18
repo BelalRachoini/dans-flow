@@ -7,9 +7,13 @@ const corsHeaders = {
 };
 
 const COMPANY_INFO = {
-  name: 'DanceVida',
-  address: 'Gamlestadsv. 14, 415 02 Goteborg',
+  name: 'DANCE VIDA - Fabian Vallejos',
+  company: 'Tropical Studios AB',
+  orgNumber: '559326-1778',
+  vatNumber: 'SE559326177801',
+  address: 'Gamlestadsvägen 14, 415 02 Göteborg',
   phone: '073-702 11 34',
+  email: 'info@tropicalstudios.se',
 };
 
 function qrBlock(payload: string, label: string): string {
