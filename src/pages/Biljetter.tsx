@@ -346,7 +346,8 @@ export default function Biljetter() {
         .order('purchased_at', { ascending: false });
 
       if (lessonError) throw lessonError;
-      setLessonBookings(lessonBookingsData || []);
+      // Filter out bookings whose joined lesson is null (parent course unpublished / deleted)
+      setLessonBookings((lessonBookingsData || []).filter((b: any) => b.course_lessons));
 
       // Load class selections for package courses
       const { data: classSelectionsData, error: classSelectionsError } = await supabase
@@ -412,7 +413,8 @@ export default function Biljetter() {
       // Combine and type tickets
       const allTickets: AllTickets[] = [
         ...(courseTickets || []).map(t => ({ ...t, type: 'course' as const })),
-        ...(eventTickets || []).map(t => ({ ...t, type: 'event' as const }))
+        // Drop event bookings whose event is no longer visible (unpublished/deleted) to avoid render crash
+        ...(eventTickets || []).filter((t: any) => t.events).map(t => ({ ...t, type: 'event' as const }))
       ];
 
       setTickets(allTickets);
@@ -2055,7 +2057,7 @@ export default function Biljetter() {
               <QrCode className="h-5 w-5" />
               {selectedTicket 
                 ? (selectedTicket.type === 'event' 
-                    ? selectedTicket.events.title
+                    ? (selectedTicket.events?.title || 'Biljett')
                     : selectedTicket.courses?.title || 'Biljett')
                 : 'QR-kod'}
             </DialogTitle>
