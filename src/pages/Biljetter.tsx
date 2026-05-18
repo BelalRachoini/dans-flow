@@ -1902,6 +1902,84 @@ export default function Biljetter() {
             </div>
           )}
 
+          {/* 3b. PAST EVENTS - COLLAPSIBLE */}
+          {pastEventTickets.length > 0 && (
+            <Collapsible className="space-y-2">
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-4 h-auto">
+                    <span className="text-lg font-semibold flex items-center gap-2">
+                      <PartyPopper className="h-5 w-5" />
+                      Tidigare evenemang ({pastEventTickets.length})
+                    </span>
+                    <ChevronDown className="h-5 w-5 transition-transform duration-200 data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0 pb-4 space-y-3">
+                    {(() => {
+                      const groupedPast = pastEventTickets.reduce((acc, ticket) => {
+                        const eventId = ticket.event_id;
+                        if (!acc[eventId]) acc[eventId] = { event: ticket.events, tickets: [] };
+                        acc[eventId].tickets.push(ticket);
+                        return acc;
+                      }, {} as Record<string, { event: typeof pastEventTickets[0]['events'], tickets: typeof pastEventTickets }>);
+
+                      return Object.entries(groupedPast).map(([eventId, { event, tickets: eventTickets }]) => (
+                        <div key={eventId} className="border rounded-lg p-3 opacity-60 space-y-2">
+                          <div>
+                            <p className="font-semibold">{event.title}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              <span>{event.venue}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {eventTickets
+                              .sort((a, b) => {
+                                const dateA = a.event_dates?.start_at || event.start_at;
+                                const dateB = b.event_dates?.start_at || event.start_at;
+                                return new Date(dateA).getTime() - new Date(dateB).getTime();
+                              })
+                              .map((ticket) => {
+                                const ticketDate = ticket.event_dates?.start_at || event.start_at;
+                                const attendeeName = Array.isArray(ticket.attendee_names) && ticket.attendee_names[0]
+                                  ? String(ticket.attendee_names[0])
+                                  : 'Person';
+                                const statusBadge = getStatusBadge(ticket.status);
+                                return (
+                                  <div key={ticket.id} className="flex items-center gap-3 p-2 bg-muted/40 rounded text-sm">
+                                    <div className="bg-white/70 p-1 rounded border grayscale">
+                                      {qrCanvasRef.current[ticket.qr_payload] ? (
+                                        <img src={qrCanvasRef.current[ticket.qr_payload]} alt="QR" className="w-10 h-10" />
+                                      ) : (
+                                        <div className="w-10 h-10 bg-muted rounded" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-medium truncate">{attendeeName}</span>
+                                        <Badge variant={statusBadge.variant} className="text-xs">
+                                          {statusBadge.label}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        {formatDate(ticketDate)} • {formatTime(ticketDate)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          )}
+
           {/* 4. BILJETTHISTORIK - BOTTOM COLLAPSIBLE */}
           {(historyLessonBookings.length > 0 || historyPackages.length > 0) && (
             <Collapsible className="space-y-2">
