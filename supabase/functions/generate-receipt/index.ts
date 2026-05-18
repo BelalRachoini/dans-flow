@@ -58,12 +58,29 @@ function generateReceiptPdf(receipt: ReceiptData): Uint8Array {
   const lines: { x: number; y: number; text: string; fontSize?: number; bold?: boolean }[] = [];
   let y = pageHeight - 60;
 
-  lines.push({ x: marginLeft, y, text: receipt.companyInfo.name, fontSize: 20, bold: true });
-  y -= 20;
-  lines.push({ x: marginLeft, y, text: receipt.companyInfo.address, fontSize: 9 });
-  y -= 14;
-  lines.push({ x: marginLeft, y, text: `Tel: ${receipt.companyInfo.phone}`, fontSize: 9 });
-  y -= 30;
+  lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.name), fontSize: 18, bold: true });
+  y -= 18;
+  if (receipt.companyInfo.company) {
+    lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.company), fontSize: 11, bold: true });
+    y -= 14;
+  }
+  lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.address), fontSize: 9 });
+  y -= 12;
+  lines.push({ x: marginLeft, y, text: `Tel: ${ascii(receipt.companyInfo.phone)}`, fontSize: 9 });
+  y -= 12;
+  if (receipt.companyInfo.email) {
+    lines.push({ x: marginLeft, y, text: `E-post: ${ascii(receipt.companyInfo.email)}`, fontSize: 9 });
+    y -= 12;
+  }
+  if (receipt.companyInfo.orgNumber) {
+    lines.push({ x: marginLeft, y, text: `Org.nr: ${ascii(receipt.companyInfo.orgNumber)}`, fontSize: 9 });
+    y -= 12;
+  }
+  if (receipt.companyInfo.vatNumber) {
+    lines.push({ x: marginLeft, y, text: `VAT: ${ascii(receipt.companyInfo.vatNumber)}`, fontSize: 9 });
+    y -= 12;
+  }
+  y -= 18;
   lines.push({ x: marginLeft, y, text: 'KVITTO / RECEIPT', fontSize: 16, bold: true });
   y -= 28;
   lines.push({ x: marginLeft, y, text: `Kund / Customer: ${receipt.customerName}`, fontSize: 10 });
