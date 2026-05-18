@@ -1,56 +1,35 @@
-## Root cause
+## Change
 
-`/biljetter` (`src/pages/Biljetter.tsx`) joins related rows via Supabase nested selects:
+Replace the past-event detection in `src/pages/Biljetter.tsx` (~lines 988‑994) so it uses `end_at` first and falls back to `start_at + 1 day` instead of the current `start_at + 6h` rule. This keeps multi-day events and late-night parties visible until they've actually ended, and reliably hides yesterday's events.
 
-- `tickets → courses` (via `tickets_source_course_id_fkey`)
-- `event_bookings → events`
-- `lesson_bookings → course_lessons` (and `course_lessons` RLS itself requires the parent `courses` row to be visible)
+### Edit
 
-When an admin flips a course or event from `published` to `draft`, RLS hides that parent row for the member. The nested join then returns `null` for `courses` / `course_lessons` / `events`, but the row in `tickets` / `lesson_bookings` / `event_bookings` still belongs to the member and is still returned.
+`src/pages/Biljetter.tsx` — replace the `_eventGraceMs` constant and `_isEventInFuture` function with:
 
-Several render paths dereference those nested objects without a null guard, so React throws and the whole page becomes blank:
+```ts
+const _ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const _isEventInFuture = (e: EventTicket & { type: 'event' }) => {
+  const endStr = e.event_dates?.end_at || e.events?.end_at;
+  const startStr = e.event_dates?.start_at || e.events?.start_at;
+  if (endStr) return new Date(endStr).getTime() + _ONE_DAY_MS > _nowMs;
+  if (startStr) return new Date(startStr).getTime() + _ONE_DAY_MS > _nowMs;
+  return true;
+};
+```
 
-- `packageAutoBookings.sort((a, b) => new Date(a.course_lessons.starts_at)...)` (line 1601) and the row render at lines 1603‑1631 (`lesson.starts_at`, `lesson.title`, `lesson.venue`).
-- `validLessonBookings.map(... lesson.starts_at ...)` at lines 1688‑1726.
-- Event grouping/render at 1789, 1802, 1806, 1923, 1931, 1934 (`event.title`, `event.venue`, `event.start_at`) when `ticket.events` is null because the event was unpublished.
-- QR modal at line 2058: `selectedTicket.events.title` (no `?.`).
+### Already in place (verified)
 
-The `tickets → courses` accesses (947, 2024, 2059) are already guarded with `?.`, so they were never the crash point — the crash is in the lesson/event sections.
+- `EventTicket` interface has `end_at: string | null` on both `events` (line 65) and `event_dates` (line 72).
+- The `event_bookings` Supabase query (lines 309‑328) already selects `end_at` from both `events` and `event_dates`.
 
-## Fix
-
-Filter out orphaned rows right after the fetch in `loadTickets()` so the UI only ever renders rows whose joined parent is still visible, plus add small defensive guards where parents are dereferenced.
-
-### `src/pages/Biljetter.tsx`
-
-1. After `lessonBookingsData` is loaded, set state with only rows that still have a joined lesson:
-   ```ts
-   setLessonBookings((lessonBookingsData || []).filter(b => b.course_lessons));
-   ```
-   This makes `packageAutoBookings` / `validLessonBookings` safe — bookings for hidden courses simply disappear from the list (they'll come back automatically when the admin republishes).
-
-2. When building `allTickets`, drop event bookings whose event is no longer visible:
-   ```ts
-   ...(eventTickets || []).filter(t => t.events).map(t => ({ ...t, type: 'event' as const }))
-   ```
-   Course tickets (`tickets` row with hidden `courses`) are already safe via `?.` and the "Free Ticket (Admin Gift)" fallback, so they can stay.
-
-3. Defensive guard in the QR modal (line 2058):
-   ```ts
-   ? selectedTicket.events?.title || 'Biljett'
-   ```
-   so a race where state updates between filter and render can't crash.
-
-4. Wrap the two `groupedByEvent`/`groupedPast` blocks (1785, 1921) with an extra `if (!ticket.events) return acc;` inside the `reduce` as belt‑and‑braces.
+So no interface, query, or type changes are needed — only the helper function.
 
 ### Out of scope
 
-- No DB / RLS changes — current RLS behaviour is correct (members shouldn't see drafted content).
-- No edge-function changes.
-- No change to admin behaviour or to the course/event detail pages.
+No other files, no DB changes.
 
 ### Verification
 
-- Repro: as admin, set a course that the test member has a `lesson_booking` for to `draft`; reload `/biljetter` as that member. Page should render with the booking quietly omitted instead of crashing.
-- Repeat with an event the member has an `event_booking` for. Page should render; that event card disappears.
-- Republish → bookings reappear.
+- Ticket for an event with `end_at` in the past → moves to "Tidigare evenemang" the next day.
+- Ticket for a party `start_at` 20:00, `end_at` 03:00 next day → stays in active section through 03:00 and for 24h after.
+- Multi-day event with future `end_at` → stays active.
