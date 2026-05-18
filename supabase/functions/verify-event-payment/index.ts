@@ -298,15 +298,17 @@ serve(async (req) => {
 
     console.log("Payment verified for event:", event_id, "tickets:", ticket_count);
 
-    // Check if bookings already exist for this user and event
+    // Idempotency: only block if THIS Stripe session already produced bookings.
+    // Scoping on member_id+event_id alone would block every future purchase of the same event.
     const { data: existingBookings } = await supabaseClient
       .from("event_bookings")
       .select("id")
       .eq("member_id", user.id)
-      .eq("event_id", event_id);
+      .eq("event_id", event_id)
+      .eq("payment_reference", session.id);
 
     if (existingBookings && existingBookings.length > 0) {
-      console.log("Bookings already exist:", existingBookings.length);
+      console.log("Bookings already exist for this session:", existingBookings.length);
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -358,6 +360,7 @@ serve(async (req) => {
             checkins_used: 0,
             attendee_names: [attendeeName],
             qr_payload: crypto.randomUUID(), // Unique QR per booking
+            payment_reference: session.id, // Scopes idempotency to this Stripe session
           })
           .select()
           .single();
