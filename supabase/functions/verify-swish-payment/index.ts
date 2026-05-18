@@ -145,13 +145,30 @@ serve(async (req) => {
       let alreadyExisted = false;
       let newlyCreatedCount = 0;
 
-      // Idempotency: check existing bookings
-      const { data: existing } = await supabaseClient
-        .from("event_bookings")
-        .select("id, qr_payload, event_date_id, attendee_names, created_at")
-        .eq("member_id", user_id)
-        .eq("event_id", item_id)
-        .order("created_at", { ascending: true });
+      // Idempotency: check by wp_order_id first (most precise — same payment)
+      // Only fall back to event+member check when no order ID is present (legacy)
+      const orderRef = wp_order_id ? `swish:${wp_order_id}` : null;
+      let existing: any[] | null = null;
+
+      if (orderRef) {
+        const { data: orderExisting } = await supabaseClient
+          .from("event_bookings")
+          .select("id, qr_payload, event_date_id, attendee_names, created_at")
+          .eq("member_id", user_id)
+          .eq("event_id", item_id)
+          .eq("payment_reference", orderRef)
+          .order("created_at", { ascending: true });
+        existing = orderExisting ?? [];
+      } else {
+        const { data: memberExisting } = await supabaseClient
+          .from("event_bookings")
+          .select("id, qr_payload, event_date_id, attendee_names, created_at")
+          .eq("member_id", user_id)
+          .eq("event_id", item_id)
+          .is("payment_reference", null)
+          .order("created_at", { ascending: true });
+        existing = memberExisting ?? [];
+      }
 
       const dateOrder = new Map(datesToBook.map((d, i) => [d.id, i]));
 
