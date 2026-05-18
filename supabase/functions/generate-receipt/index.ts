@@ -113,7 +113,7 @@ function generateReceiptPdf(receipt: ReceiptData): Uint8Array {
   y -= 30;
   lines.push({ x: marginLeft, y, text: 'Tack for ditt kop! / Thank you for your purchase!', fontSize: 10 });
   y -= lineHeight;
-  lines.push({ x: marginLeft, y, text: `${receipt.companyInfo.name} - ${receipt.companyInfo.address}`, fontSize: 8 });
+  lines.push({ x: marginLeft, y, text: ascii(`${receipt.companyInfo.company || receipt.companyInfo.name} - ${receipt.companyInfo.address}`), fontSize: 8 });
 
   let stream = '';
   const separatorY = lines.find(l => l.text === 'Beskrivning / Description')?.y;
