@@ -516,6 +516,7 @@ export type Database = {
           event_id: string
           id: string
           member_id: string
+          payment_reference: string | null
           payment_status: string
           qr_payload: string | null
           status: string
@@ -531,6 +532,7 @@ export type Database = {
           event_id: string
           id?: string
           member_id: string
+          payment_reference?: string | null
           payment_status?: string
           qr_payload?: string | null
           status?: string
@@ -546,6 +548,7 @@ export type Database = {
           event_id?: string
           id?: string
           member_id?: string
+          payment_reference?: string | null
           payment_status?: string
           qr_payload?: string | null
           status?: string
