@@ -1954,13 +1954,20 @@ export default function Biljetter() {
                                 const statusBadge = getStatusBadge(ticket.status);
                                 return (
                                   <div key={ticket.id} className="flex items-center gap-3 p-2 bg-muted/40 rounded text-sm">
-                                    <div className="bg-white/70 p-1 rounded border grayscale">
-                                      {qrCanvasRef.current[ticket.qr_payload] ? (
-                                        <img src={qrCanvasRef.current[ticket.qr_payload]} alt="QR" className="w-10 h-10" />
-                                      ) : (
-                                        <div className="w-10 h-10 bg-muted rounded" />
-                                      )}
-                                    </div>
+                                    {ticket.status === 'checked_in' ? (
+                                      <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
+                                        <Check className="h-4 w-4" />
+                                        Incheckad
+                                      </div>
+                                    ) : (
+                                      <div className="bg-white p-1 rounded border opacity-40">
+                                        {qrCanvasRef.current[ticket.qr_payload] ? (
+                                          <img src={qrCanvasRef.current[ticket.qr_payload]} alt="QR" className="w-10 h-10" />
+                                        ) : (
+                                          <div className="w-10 h-10 bg-muted rounded" />
+                                        )}
+                                      </div>
+                                    )}
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-medium truncate">{attendeeName}</span>

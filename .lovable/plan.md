@@ -1,35 +1,51 @@
-## Change
+## Two small changes
 
-Replace the past-event detection in `src/pages/Biljetter.tsx` (~lines 988‑994) so it uses `end_at` first and falls back to `start_at + 1 day` instead of the current `start_at + 6h` rule. This keeps multi-day events and late-night parties visible until they've actually ended, and reliably hides yesterday's events.
+### 1. `supabase/functions/verify-swish-payment/index.ts` (lines 162‑171)
 
-### Edit
-
-`src/pages/Biljetter.tsx` — replace the `_eventGraceMs` constant and `_isEventInFuture` function with:
+Tighten the no‑order‑ref fallback so legacy `payment_reference IS NULL` bookings stop blocking new purchases. Only treat NULL-reference bookings as a duplicate when they were created in the last 10 minutes (double‑tap protection).
 
 ```ts
-const _ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const _isEventInFuture = (e: EventTicket & { type: 'event' }) => {
-  const endStr = e.event_dates?.end_at || e.events?.end_at;
-  const startStr = e.event_dates?.start_at || e.events?.start_at;
-  if (endStr) return new Date(endStr).getTime() + _ONE_DAY_MS > _nowMs;
-  if (startStr) return new Date(startStr).getTime() + _ONE_DAY_MS > _nowMs;
-  return true;
-};
+} else {
+  // No order ID — only block if there's a very recent booking (within 10 min)
+  // Prevents double-tap duplicates but allows legitimate new purchases later.
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: recentExisting } = await supabaseClient
+    .from("event_bookings")
+    .select("id, qr_payload, event_date_id, attendee_names, created_at")
+    .eq("member_id", user_id)
+    .eq("event_id", item_id)
+    .is("payment_reference", null)
+    .gte("created_at", tenMinutesAgo)
+    .order("created_at", { ascending: true });
+  existing = recentExisting ?? [];
+}
 ```
 
-### Already in place (verified)
+Then deploy `verify-swish-payment`.
 
-- `EventTicket` interface has `end_at: string | null` on both `events` (line 65) and `event_dates` (line 72).
-- The `event_bookings` Supabase query (lines 309‑328) already selects `end_at` from both `events` and `event_dates`.
+### 2. `src/pages/Biljetter.tsx` (past-events QR block, ~lines 1957‑1963)
 
-So no interface, query, or type changes are needed — only the helper function.
+In the "Tidigare evenemang" map, replace the greyed QR with a ✅ Incheckad pill when `ticket.status === 'checked_in'`. The active section is untouched.
+
+```tsx
+{ticket.status === 'checked_in' ? (
+  <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
+    <Check className="h-4 w-4" />
+    Incheckad
+  </div>
+) : (
+  <div className="bg-white p-1 rounded border opacity-40">
+    {qrCanvasRef.current[ticket.qr_payload] ? (
+      <img src={qrCanvasRef.current[ticket.qr_payload]} alt="QR" className="w-10 h-10" />
+    ) : (
+      <div className="w-10 h-10 bg-muted rounded" />
+    )}
+  </div>
+)}
+```
+
+`Check` is already imported in this file (used elsewhere).
 
 ### Out of scope
 
-No other files, no DB changes.
-
-### Verification
-
-- Ticket for an event with `end_at` in the past → moves to "Tidigare evenemang" the next day.
-- Ticket for a party `start_at` 20:00, `end_at` 03:00 next day → stays in active section through 03:00 and for 24h after.
-- Multi-day event with future `end_at` → stays active.
+- No DB migration, no other edge functions, no changes to the active event tickets section.
