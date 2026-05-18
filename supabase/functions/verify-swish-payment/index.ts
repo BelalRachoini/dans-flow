@@ -66,18 +66,38 @@ serve(async (req) => {
       item_type,
       item_id,
       user_id,
-      customer_email,
-      customer_name,
+      customer_email: rawEmail,
+      customer_name: rawName,
       amount_cents,
       quantity,
       wp_order_id,
       attendee_names,
     } = await req.json();
 
-    console.log(`[verify-swish-payment] called type=${item_type} user=${user_id} item=${item_id ?? '-'} email=${customer_email ?? '-'} amount=${amount_cents} qty=${quantity ?? 1}`);
+    console.log(`[verify-swish-payment] called type=${item_type} user=${user_id} item=${item_id ?? '-'} email=${rawEmail ?? '-'} amount=${amount_cents} qty=${quantity ?? 1}`);
 
     if (!item_type || !user_id || !amount_cents) {
       throw new Error("Missing required fields: item_type, user_id, amount_cents");
+    }
+
+    // Fallback: pull email/name from profile if not passed via return URL
+    let customer_email: string = (rawEmail ?? "").trim();
+    let customer_name: string = (rawName ?? "").trim();
+    if (!customer_email || !customer_name) {
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", user_id)
+        .maybeSingle();
+      if (profile) {
+        if (!customer_email && profile.email) customer_email = profile.email;
+        if (!customer_name && profile.full_name) customer_name = profile.full_name;
+      }
+      if (!customer_email) {
+        const { data: userData } = await supabaseClient.auth.admin.getUserById(user_id);
+        if (userData?.user?.email) customer_email = userData.user.email;
+      }
+      console.log(`[verify-swish-payment] resolved customer email=${customer_email || '(none)'} name=${customer_name || '(none)'}`);
     }
 
     // Parse attendee_names safely (accept array or JSON-encoded string)
@@ -392,16 +412,17 @@ serve(async (req) => {
       let alreadyExisted = false;
 
       if (orderTag) {
-        const { data: existing } = await supabaseClient
+        const { data: existingRows } = await supabaseClient
           .from("tickets")
-          .select("id, qr_payload, total_tickets")
+          .select("id, qr_payload, total_tickets, purchased_at")
           .eq("order_id", orderTag)
-          .maybeSingle();
+          .order("purchased_at", { ascending: false })
+          .limit(1);
 
-        if (existing) {
-          ticket = existing;
+        if (existingRows && existingRows.length > 0) {
+          ticket = existingRows[0];
           alreadyExisted = true;
-          console.log(`[verify-swish-payment] standalone ticket already issued; resending confirmation email`);
+          console.log(`[verify-swish-payment] standalone ticket already issued (id=${ticket.id}); resending confirmation email`);
         }
       }
 
