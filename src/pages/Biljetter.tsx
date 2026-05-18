@@ -985,7 +985,19 @@ export default function Biljetter() {
   
   // Event tickets (with type discriminator)
   const eventTicketsTyped = tickets.filter(t => t.type === 'event') as (EventTicket & { type: 'event' })[];
-  const validEventTickets = eventTicketsTyped.filter(e => e.status === 'confirmed' || e.status === 'checked_in');
+  const _nowMs = Date.now();
+  const _eventGraceMs = 6 * 60 * 60 * 1000; // 6h grace so same-day events stay visible
+  const _isEventInFuture = (e: EventTicket & { type: 'event' }) => {
+    const dateStr = e.event_dates?.start_at || e.events?.start_at;
+    if (!dateStr) return true;
+    return new Date(dateStr).getTime() + _eventGraceMs > _nowMs;
+  };
+  const validEventTickets = eventTicketsTyped.filter(
+    e => (e.status === 'confirmed' || e.status === 'checked_in') && _isEventInFuture(e)
+  );
+  const pastEventTickets = eventTicketsTyped.filter(
+    e => (e.status === 'confirmed' || e.status === 'checked_in') && !_isEventInFuture(e)
+  );
   
   // History items (used/expired packages)
   const historyPackages = ticketPackages.filter(p => p.status !== 'valid' || p.tickets_used >= p.total_tickets);
