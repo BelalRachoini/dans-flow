@@ -1026,7 +1026,11 @@ export default function Biljetter() {
   );
   
   // History items (used/expired packages)
-  const historyPackages = ticketPackages.filter(p => p.status !== 'valid' || p.tickets_used >= p.total_tickets);
+  const historyPackages = ticketPackages.filter(p =>
+    p.status !== 'valid' ||
+    p.tickets_used >= p.total_tickets ||
+    new Date(p.expires_at).getTime() <= Date.now()
+  );
   
   // Empty state when user has no tickets (only for non-admins)
   if (tickets.length === 0 && lessonBookings.length === 0 && !isAdmin) {
