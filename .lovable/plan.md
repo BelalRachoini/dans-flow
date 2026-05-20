@@ -1,35 +1,58 @@
-## What's wrong on the Overview
+## What's already there (probably hidden by stale preview)
 
-Looking at the screenshot of `/` (Overview / MemberDashboard):
+The Member drawer's *Quick actions* already has more than your screenshot shows. In the current code:
 
-1. **"Salsa - 1"** in *Upcoming*: lesson titles like `"Salsa - 1"` come straight from `course_lessons.title`, which is auto-generated as `"<class name> - <lesson number>"` for package courses. Looks like a typo to the user.
-2. **My Bookings** is filled with 5 cards that all say *Lektion / Invalid Date Invalid Date*: `fetchMyBookings()` only filters by `status='valid'`, never by date. Old `lesson_bookings` whose `course_lessons` were deleted (or whose `starts_at` is in the past) keep showing forever; the deleted lesson means `course_lessons` is `null`, so the date renders as `Invalid Date`. The user wants these gone from Overview (a "Biljetthistorik" already exists on `/biljetter`, so they'll still be accessible there).
+- **Give Tickets** has a "Tie to course" dropdown listing every course (semester, new beginner, etc.) plus a "Generic / drop-in" option, and an expiry-date picker. Picking a course writes to `tickets.source_course_id`, so the gifted clip is tied to that specific class.
+- **Give Event Ticket** is a separate block right next to it: pick an event → pick a date (if multi-date) → number of attendees → "Create free booking". Uses `admin_create_free_event_booking`.
 
-## Fix (UI-only, no schema change)
+So *giving* tickets for semester classes, new beginner classes, and events is supported today — the panel just looks cramped and the screenshot you sent is the older simpler layout. The real gaps are on the **Remove / take away** side and **UX clarity**.
 
-### `src/pages/MemberDashboard.tsx`
+## What I want to add / fix
 
-**A. Upcoming section — friendlier titles**
-In `fetchUpcomingItems`, when building the lesson item title, strip the auto-generated `" - N"` suffix and prefer the course title:
-- If `lesson.title` matches `^<course.title>\s*[-–]\s*\d+$` → show `course.title` only.
-- Otherwise show `lesson.title || course.title`.
-- Show a small subtitle like `Lektion N` when a number suffix was stripped (optional, keeps useful info without looking like a typo).
+### 1. Unified "Target" selector for Give + Remove
 
-**B. My Bookings — hide stale/past bookings**
-Tighten `fetchMyBookings()`:
-- Fetch with the same join, but
-  - Skip rows where `course_lessons` is `null` (lesson deleted).
-  - Skip rows where `course_lessons.starts_at` is in the past (a small grace window of 2h so a class in progress still shows its QR).
-  - Keep the existing `status = 'valid'` filter.
-- Sort by `course_lessons.starts_at` ascending (next-up first) instead of `purchased_at` desc.
-- Add a small footer link "Visa historik →" that routes to `/biljetter` so users can find old bookings.
+Rebuild the ticket area inside Quick actions as one tidy panel with a single picker on top:
 
-**C. Empty-state copy**
-When all bookings are filtered out, the existing `t.dashboard.noBookings` translation already handles it — no change needed.
+```text
+Target: ( ) Drop-in / generic   ( ) Course   ( ) Event
+        └── if Course: dropdown of courses
+        └── if Event:  dropdown of events  + date picker (if multi-date)
+Tickets: [ 1 ]   Expiry (course/drop-in only): [date]
+[ Give ]   [ Remove ]
+```
+
+Both the Give and Remove actions use the same target context, so admins can't mismatch.
+
+### 2. Course-scoped removal
+
+Today `admin_remove_tickets` deducts FIFO from any of the member's valid ticket packages, regardless of which course they belong to. I'll extend the RPC with an optional `p_source_course_id`:
+- when set, FIFO only across `tickets` rows where `source_course_id = p_source_course_id`.
+- when null, current behaviour.
+
+### 3. Event booking removal
+
+There is no admin RPC to cancel an event booking today. I'll add `admin_cancel_event_booking(p_booking_id)`:
+- requires `is_admin()`
+- sets `event_bookings.status = 'cancelled'`, `payment_status = 'refunded'` (label only — no Stripe refund triggered)
+- decrements `events.sold_count` by `ticket_count`
+- returns `{ success, event_title, ticket_count }`
+
+When the Target is Event, the Remove side shows the member's bookings for that event (with date + attendee names) so the admin clicks the specific one to cancel, instead of a blind FIFO count.
+
+### 4. Show what they already have
+
+Above the panel, surface a small summary so the admin doesn't fly blind:
+- Valid clips per source: e.g. *Drop-in: 4*, *Salsa Beginner Semester: 3*, *Bachata Open Level: 2*.
+- Upcoming event bookings: *Konpa Night – 23 May (2 attendees)*.
+
+These already come from existing queries; just need to group `member-tickets` by `source_course_id` and reuse `member-event-bookings`.
 
 ## Out of scope
-- No database changes. No new history page (the `/biljetter` Biljetthistorik panel already covers it).
-- No changes to event bookings, ticket packages, or payments sections — those already look correct in the screenshot.
+- No Stripe refund call when cancelling an event booking — admin handles money separately.
+- No new permissions or RLS changes (everything stays inside SECURITY DEFINER RPCs gated by `is_admin()`).
+- No changes to drop-in / standalone ticket purchase flows for members.
 
-## Files touched
-- `src/pages/MemberDashboard.tsx` (only)
+## Files & migration
+- **Migration**: extend `public.admin_remove_tickets(...)` with `p_source_course_id uuid default null`; create `public.admin_cancel_event_booking(p_booking_id uuid)`.
+- **`src/components/MemberDetailDrawer.tsx`**: rebuild Quick actions ticket section (target selector, grouped summary, unified Give/Remove for course / drop-in / event).
+- **`src/locales/{sv,en,es}.ts`**: add new labels (target, dropIn, course, event, cancelBooking, ticketsByCourse, etc.).
