@@ -972,7 +972,11 @@ export default function Biljetter() {
 
   // Calculate ticket balance from course tickets
   const ticketPackages = tickets.filter(t => t.type === 'course') as TicketWithCourse[];
-  const validPackages = ticketPackages.filter(p => p.status === 'valid' && p.tickets_used < p.total_tickets);
+  const validPackages = ticketPackages.filter(p =>
+    p.status === 'valid' &&
+    p.tickets_used < p.total_tickets &&
+    new Date(p.expires_at).getTime() > Date.now()
+  );
   const totalAvailableTickets = validPackages.reduce((sum, p) => sum + (p.total_tickets - p.tickets_used), 0);
   
   // Time helpers
