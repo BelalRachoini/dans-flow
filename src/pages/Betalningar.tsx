@@ -41,6 +41,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PaymentDetailDialog } from '@/components/PaymentDetailDialog';
+import { Info } from 'lucide-react';
 
 type PaymentStatus = 'paid' | 'pending' | 'failed';
 type PaymentType = 'course' | 'event' | 'membership' | 'tickets' | 'lesson' | 'other';
