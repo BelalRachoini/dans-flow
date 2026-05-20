@@ -1511,10 +1511,15 @@ export default function Biljetter() {
                               const isExpiringSoon = daysUntilExpiry <= 30;
                               
                               return (
-                                <div key={pkg.id} className="flex items-center gap-2 text-sm">
-                                  {isExpiringSoon && <AlertCircle className="h-4 w-4 text-orange-500 shrink-0" />}
-                                  <span className={isExpiringSoon ? 'text-orange-600 font-medium' : ''}>
-                                    {remaining} klipp utgår {expiryDate.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                <div key={pkg.id} className="flex flex-col gap-0.5 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    {isExpiringSoon && <AlertCircle className="h-4 w-4 text-orange-500 shrink-0" />}
+                                    <span className={isExpiringSoon ? 'text-orange-600 font-medium' : ''}>
+                                      {remaining} klipp utgår {expiryDate.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground ml-6">
+                                    {t.tickets.purchasedOn}: {new Date(pkg.purchased_at).toLocaleDateString('sv-SE')}
                                   </span>
                                 </div>
                               );
