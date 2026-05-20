@@ -1112,58 +1112,13 @@ export default function EventsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Attendees Dialog */}
-      <Dialog open={attendeesDialogOpen} onOpenChange={setAttendeesDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {t.events.attendeesList}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedEventAttendees.length} {t.events.attendees.toLowerCase()}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {loadingAttendees ? (
-            <div className="text-center py-8">{t.common.loading}</div>
-          ) : selectedEventAttendees.length > 0 ? (
-            <div className="space-y-3">
-              {selectedEventAttendees.map((booking) => (
-                <Card key={booking.id} className="shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-semibold text-primary">
-                            {booking.profiles?.full_name?.charAt(0) || '?'}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{booking.profiles?.full_name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {t.events.bookedAt}: {formatDateTime(booking.booked_at)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={booking.payment_status === 'paid' ? 'default' : 'secondary'}>
-                          {booking.payment_status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">{t.events.noAttendees}</p>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Attendees / Event Report Dialog */}
+      <EventAttendeesDialog
+        event={selectedEventForReport}
+        open={attendeesDialogOpen}
+        onOpenChange={setAttendeesDialogOpen}
+      />
+
 
       {/* Ticket Purchase Dialog */}
       {selectedEventForPurchase && (
