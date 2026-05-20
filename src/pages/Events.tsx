@@ -68,8 +68,7 @@ export default function EventsPage() {
   const [eventToDelete, setEventToDelete] = useState<EventData | null>(null);
   const [discountEnabled, setDiscountEnabled] = useState(false);
   const [attendeesDialogOpen, setAttendeesDialogOpen] = useState(false);
-  const [selectedEventAttendees, setSelectedEventAttendees] = useState<EventBooking[]>([]);
-  const [loadingAttendees, setLoadingAttendees] = useState(false);
+  const [selectedEventForReport, setSelectedEventForReport] = useState<EventData | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [eventDates, setEventDates] = useState<EventDate[]>([{ date: '', time: '', endTime: '' }]);
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
