@@ -128,6 +128,7 @@ export const sv = {
     myBookings: 'Mina Bokningar',
     myBookingsDescription: 'Dina bokade lektioner',
     noBookings: 'Inga bokade lektioner',
+    viewHistory: 'Visa historik →',
     bookNow: 'Boka nu',
     myEvents: 'Mina Event',
     myEventsDescription: 'Event du har biljetter till',

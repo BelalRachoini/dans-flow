@@ -128,6 +128,7 @@ export const es = {
     myBookings: 'Mis Reservas',
     myBookingsDescription: 'Tus lecciones reservadas',
     noBookings: 'No hay lecciones reservadas',
+    viewHistory: 'Ver historial →',
     bookNow: 'Reservar Ahora',
     myEvents: 'Mis Eventos',
     myEventsDescription: 'Eventos para los que tienes entradas',
