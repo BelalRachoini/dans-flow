@@ -1515,6 +1515,15 @@ export default function Biljetter() {
                                       >
                                         Visa deltagare
                                       </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Exportera CSV"
+                                        onClick={() => exportCourseAttendeesCsv({ id: cls.id, name: cls.name })}
+                                        disabled={cls.enrolledCount === 0}
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </Button>
                                     </div>
                                   </div>
                                 </CardContent>
