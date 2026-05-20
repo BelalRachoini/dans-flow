@@ -751,7 +751,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                           <label className="text-sm font-medium">{(t.crm.actions as any).giveEventTicket}</label>
                           <Select value={eventTicketEventId} onValueChange={(v) => { setEventTicketEventId(v); setEventTicketDateId('__all__'); }}>
                             <SelectTrigger>
-                              <SelectValue placeholder={t.crm.selectEvent} />
+                              <SelectValue placeholder={(t.crm.actions as any).giveEventTicket} />
                             </SelectTrigger>
                             <SelectContent>
                               {events.map((e: any) => (
