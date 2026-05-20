@@ -930,6 +930,134 @@ export default function Biljetter() {
     }
   };
 
+  // ---------- CSV export for admins ----------
+  const downloadCsv = (filename: string, headers: string[], rows: (string | number | null | undefined)[][]) => {
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const slugify = (s: string) => (s || 'export').replace(/[^a-z0-9]+/gi, '-').toLowerCase().replace(/^-|-$/g, '');
+
+  const fetchPaymentsForMembers = async (memberIds: string[], itemTitle: string) => {
+    const map = new Map<string, { amount: number; method: string; date: string }>();
+    if (memberIds.length === 0) return map;
+    const { data } = await supabase
+      .from('payments')
+      .select('member_id, amount_cents, payment_method, created_at, description, status')
+      .in('member_id', memberIds)
+      .eq('status', 'succeeded')
+      .order('created_at', { ascending: false });
+    const needle = (itemTitle || '').toLowerCase();
+    (data || []).forEach((p: any) => {
+      if (map.has(p.member_id)) return;
+      if (needle && !(p.description || '').toLowerCase().includes(needle)) return;
+      map.set(p.member_id, {
+        amount: (p.amount_cents || 0) / 100,
+        method: p.payment_method || '',
+        date: p.created_at,
+      });
+    });
+    return map;
+  };
+
+  const exportCourseAttendeesCsv = async (classFilter?: { id: string; name: string }) => {
+    if (!selectedCourse) return;
+    const course = courses.find(c => c.id === selectedCourse);
+    if (!course) return;
+
+    let list: any[] = [];
+    if (selectedCourseIsPackage && classFilter) {
+      const cls = packageClasses.find(c => c.id === classFilter.id);
+      list = (cls?.selections || []).map((s: any) => ({ ...s, classes: cls?.name || '' }));
+    } else if (selectedCourseIsPackage) {
+      const seen = new Set<string>();
+      packageClasses.forEach(cls => {
+        cls.selections.forEach((s: any) => {
+          if (seen.has(s.memberId)) return;
+          seen.add(s.memberId);
+          const classes = packageClasses
+            .filter(c2 => c2.selections.some((m: any) => m.memberId === s.memberId))
+            .map(c2 => c2.name).join(', ');
+          list.push({ ...s, classes });
+        });
+      });
+    } else {
+      list = attendees.map(a => ({ memberId: a.id, classes: '', ...a }));
+    }
+
+    if (list.length === 0) {
+      sonnerToast.info('Inga deltagare att exportera');
+      return;
+    }
+
+    const memberIds = [...new Set(list.map(a => a.memberId).filter(Boolean))];
+    const payMap = await fetchPaymentsForMembers(memberIds, course.title);
+
+    const headers = ['Namn', 'E-post', 'Telefon', 'Roll', 'Klass(er)', 'Klipp kvar', 'Incheckad', 'Betalat (SEK)', 'Metod', 'Betald datum'];
+    const rows = list.map(a => {
+      const pay = payMap.get(a.memberId);
+      return [
+        a.name || '',
+        a.email || '',
+        a.phone || '',
+        a.danceRole === 'leader' ? 'Leader' : a.danceRole === 'follower' ? 'Follower' : '',
+        a.classes || '',
+        a.ticketsRemaining ?? '',
+        a.hasCheckedIn ? 'Ja' : 'Nej',
+        pay ? pay.amount.toFixed(2) : '',
+        pay?.method || '',
+        pay ? format(new Date(pay.date), 'yyyy-MM-dd HH:mm') : '',
+      ];
+    });
+
+    const today = format(new Date(), 'yyyyMMdd');
+    const fname = classFilter
+      ? `attendees-${slugify(course.title)}-${slugify(classFilter.name)}-${today}.csv`
+      : `attendees-${slugify(course.title)}-${today}.csv`;
+    downloadCsv(fname, headers, rows);
+    sonnerToast.success(`Exporterade ${rows.length} deltagare`);
+  };
+
+  const exportEventAttendeesCsv = async () => {
+    if (!selectedEvent) return;
+    const event = events.find(e => e.id === selectedEvent);
+    if (!event) return;
+    if (attendees.length === 0) {
+      sonnerToast.info('Inga deltagare att exportera');
+      return;
+    }
+    const memberIds = [...new Set(attendees.map(a => a.id).filter(Boolean))];
+    const payMap = await fetchPaymentsForMembers(memberIds, event.title);
+
+    const headers = ['Namn', 'E-post', 'Telefon', 'Roll', 'Bokad', 'Incheckad', 'Betalat (SEK)', 'Metod', 'Betald datum'];
+    const rows = attendees.map(a => {
+      const pay = payMap.get(a.id);
+      return [
+        a.name || '',
+        a.email || '',
+        a.phone || '',
+        a.danceRole === 'leader' ? 'Leader' : a.danceRole === 'follower' ? 'Follower' : '',
+        a.bookedAt ? format(new Date(a.bookedAt), 'yyyy-MM-dd HH:mm') : '',
+        a.hasCheckedIn ? 'Ja' : 'Nej',
+        pay ? pay.amount.toFixed(2) : '',
+        pay?.method || '',
+        pay ? format(new Date(pay.date), 'yyyy-MM-dd HH:mm') : '',
+      ];
+    });
+
+    downloadCsv(`attendees-${slugify(event.title)}-${format(new Date(), 'yyyyMMdd')}.csv`, headers, rows);
+    sonnerToast.success(`Exporterade ${rows.length} deltagare`);
+  };
+
   const filteredTickets = tickets.filter((ticket) => {
     const title = ticket.type === 'course' 
       ? (ticket.courses?.title || 'Free Ticket (Admin Gift)')
