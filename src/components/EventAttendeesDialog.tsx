@@ -44,6 +44,8 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [unreconciled, setUnreconciled] = useState<any[]>([]);
+  const [reconciling, setReconciling] = useState<string | null>(null);
 
   const isPast = event?.end_at ? new Date(event.end_at) < new Date() : event?.start_at ? new Date(event.start_at) < new Date() : false;
 
