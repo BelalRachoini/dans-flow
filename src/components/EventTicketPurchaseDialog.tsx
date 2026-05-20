@@ -67,19 +67,28 @@ export function EventTicketPurchaseDialog({
     }
   }, [open]);
 
-  const baseSinglePrice = event.price_cents / 100;
-  const hasDiscount = event.discount_type && event.discount_type !== 'none' && event.discount_value && event.discount_value > 0;
-  
-  const singlePrice = hasDiscount
-    ? event.discount_type === 'percent' || event.discount_type === 'percentage'
-      ? baseSinglePrice * (1 - (event.discount_value || 0) / 100)
-      : baseSinglePrice - ((event.discount_value || 0) / 100)
-    : baseSinglePrice;
+  const hasDiscount = !!(event.discount_type && event.discount_type !== 'none' && event.discount_value && event.discount_value > 0);
 
-  const couplePrice = event.couple_price_cents ? event.couple_price_cents / 100 : singlePrice * 2;
-  const trioPrice = event.trio_price_cents ? event.trio_price_cents / 100 : singlePrice * 3;
-  const coupleSavings = (singlePrice * 2) - couplePrice;
-  const trioSavings = (singlePrice * 3) - trioPrice;
+  const applyDiscount = (priceKr: number) => {
+    if (!hasDiscount) return priceKr;
+    const val = event.discount_value || 0;
+    if (event.discount_type === 'percent' || event.discount_type === 'percentage') {
+      return Math.max(0, priceKr * (1 - val / 100));
+    }
+    // 'amount' discount: discount_value stored in cents
+    return Math.max(0, priceKr - val / 100);
+  };
+
+  const baseSinglePrice = event.price_cents / 100;
+  const baseCouplePrice = event.couple_price_cents ? event.couple_price_cents / 100 : baseSinglePrice * 2;
+  const baseTrioPrice = event.trio_price_cents ? event.trio_price_cents / 100 : baseSinglePrice * 3;
+
+  const singlePrice = applyDiscount(baseSinglePrice);
+  const couplePrice = applyDiscount(baseCouplePrice);
+  const trioPrice = applyDiscount(baseTrioPrice);
+
+  const coupleSavings = (baseSinglePrice * 2) - couplePrice;
+  const trioSavings = (baseSinglePrice * 3) - trioPrice;
 
   const formatPrice = (amount: number) => {
     return new Intl.NumberFormat(language, {
@@ -145,8 +154,8 @@ export function EventTicketPurchaseDialog({
 
   const ticketOptions = [
     { count: 1 as TicketOption, label: t.eventTickets?.singleTicket || '1 Ticket', price: singlePrice, originalPrice: hasDiscount ? baseSinglePrice : null, savings: 0, icon: User },
-    { count: 2 as TicketOption, label: t.eventTickets?.coupleTickets || '2 Tickets (Couple)', price: couplePrice, originalPrice: null, savings: coupleSavings, icon: Users },
-    { count: 3 as TicketOption, label: t.eventTickets?.trioTickets || '3 Tickets', price: trioPrice, originalPrice: null, savings: trioSavings, icon: Users },
+    { count: 2 as TicketOption, label: t.eventTickets?.coupleTickets || '2 Tickets (Couple)', price: couplePrice, originalPrice: hasDiscount ? baseCouplePrice : null, savings: coupleSavings, icon: Users },
+    { count: 3 as TicketOption, label: t.eventTickets?.trioTickets || '3 Tickets', price: trioPrice, originalPrice: hasDiscount ? baseTrioPrice : null, savings: trioSavings, icon: Users },
   ];
 
   return (

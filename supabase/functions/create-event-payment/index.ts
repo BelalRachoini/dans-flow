@@ -61,33 +61,34 @@ serve(async (req) => {
       throw new Error(`Not enough spots available. Only ${availableSpots} spots left.`);
     }
 
-    // Calculate price based on ticket count with discount applied to single tickets
-    let totalPriceCents: number;
+    // Calculate tier base price, then apply event discount to it
+    let tierPriceCents: number;
     if (validatedTicketCount === 1) {
-      // Apply discount to single ticket
-      let singlePrice = event.price_cents;
-      if (event.discount_type && event.discount_type !== 'none' && event.discount_value && event.discount_value > 0) {
-        if (event.discount_type === 'percent' || event.discount_type === 'percentage') {
-          singlePrice = Math.round(event.price_cents * (1 - event.discount_value / 100));
-        } else {
-          // 'amount' discount - discount_value is already in cents
-          singlePrice = Math.round(event.price_cents - event.discount_value);
-        }
-      }
-      totalPriceCents = Math.max(0, singlePrice); // Ensure price doesn't go negative
-      console.log("[create-event-payment] Single ticket discount applied:", {
-        original: event.price_cents,
-        discountType: event.discount_type,
-        discountValue: event.discount_value,
-        final: totalPriceCents
-      });
+      tierPriceCents = event.price_cents;
     } else if (validatedTicketCount === 2) {
-      // Use couple price if set, otherwise double the single price
-      totalPriceCents = event.couple_price_cents ?? (event.price_cents * 2);
+      tierPriceCents = event.couple_price_cents ?? (event.price_cents * 2);
     } else {
-      // Use trio price if set, otherwise triple the single price
-      totalPriceCents = event.trio_price_cents ?? (event.price_cents * 3);
+      tierPriceCents = event.trio_price_cents ?? (event.price_cents * 3);
     }
+
+    let totalPriceCents = tierPriceCents;
+    if (event.discount_type && event.discount_type !== 'none' && event.discount_value && event.discount_value > 0) {
+      if (event.discount_type === 'percent' || event.discount_type === 'percentage') {
+        totalPriceCents = Math.round(tierPriceCents * (1 - event.discount_value / 100));
+      } else {
+        // 'amount' discount - discount_value is already in cents
+        totalPriceCents = Math.round(tierPriceCents - event.discount_value);
+      }
+    }
+    totalPriceCents = Math.max(0, totalPriceCents);
+
+    console.log("[create-event-payment] Price calc:", {
+      ticketCount: validatedTicketCount,
+      tierPriceCents,
+      discountType: event.discount_type,
+      discountValue: event.discount_value,
+      totalPriceCents,
+    });
 
     console.log("[create-event-payment] Total price cents:", totalPriceCents);
 
