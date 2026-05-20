@@ -118,17 +118,6 @@ export default function MemberDashboard() {
   };
 
 
-  const fetchMyBookings = async () => {
-    if (!userId) return;
-    const { data } = await supabase
-      .from('lesson_bookings')
-      .select(`*, course_lessons (id, title, starts_at, ends_at, venue)`)
-      .eq('member_id', userId)
-      .eq('status', 'valid')
-      .order('purchased_at', { ascending: false })
-      .limit(5);
-    setMyBookings(data || []);
-  };
 
   const fetchMyEventBookings = async () => {
     if (!userId) return;
