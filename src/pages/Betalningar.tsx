@@ -85,6 +85,7 @@ export default function Betalningar() {
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PaymentType | 'all'>('all');
   const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
