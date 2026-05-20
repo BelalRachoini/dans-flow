@@ -1371,6 +1371,23 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!cancelBookingId} onOpenChange={(o) => !o && setCancelBookingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{(t.crm.actions as any).cancelBooking}</AlertDialogTitle>
+            <AlertDialogDescription>{(t.crm.actions as any).confirmCancelBooking}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelBookingId && cancelEventBookingMutation.mutate(cancelBookingId)}
+            >
+              {(t.crm.actions as any).cancelBooking}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
