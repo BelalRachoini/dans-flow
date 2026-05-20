@@ -972,7 +972,11 @@ export default function Biljetter() {
 
   // Calculate ticket balance from course tickets
   const ticketPackages = tickets.filter(t => t.type === 'course') as TicketWithCourse[];
-  const validPackages = ticketPackages.filter(p => p.status === 'valid' && p.tickets_used < p.total_tickets);
+  const validPackages = ticketPackages.filter(p =>
+    p.status === 'valid' &&
+    p.tickets_used < p.total_tickets &&
+    new Date(p.expires_at).getTime() > Date.now()
+  );
   const totalAvailableTickets = validPackages.reduce((sum, p) => sum + (p.total_tickets - p.tickets_used), 0);
   
   // Time helpers
@@ -994,13 +998,15 @@ export default function Biljetter() {
     b.checkins_used < b.checkins_allowed &&
     _isLessonInFuture(b)
   );
-  const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto');
+  const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto' && _isLessonInFuture(b));
+  const pastPackageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto' && !_isLessonInFuture(b));
   const historyLessonBookings = lessonBookings.filter(b =>
-    b.ticket_type !== 'package_auto' && (
+    (b.ticket_type !== 'package_auto' && (
       b.status === 'used' ||
       b.checkins_used >= b.checkins_allowed ||
       !_isLessonInFuture(b)
-    )
+    )) ||
+    (b.ticket_type === 'package_auto' && !_isLessonInFuture(b))
   );
 
   // Event tickets (with type discriminator)
@@ -1021,7 +1027,11 @@ export default function Biljetter() {
   );
   
   // History items (used/expired packages)
-  const historyPackages = ticketPackages.filter(p => p.status !== 'valid' || p.tickets_used >= p.total_tickets);
+  const historyPackages = ticketPackages.filter(p =>
+    p.status !== 'valid' ||
+    p.tickets_used >= p.total_tickets ||
+    new Date(p.expires_at).getTime() <= Date.now()
+  );
   
   // Empty state when user has no tickets (only for non-admins)
   if (tickets.length === 0 && lessonBookings.length === 0 && !isAdmin) {
