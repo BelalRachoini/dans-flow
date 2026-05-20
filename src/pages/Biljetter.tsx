@@ -749,68 +749,54 @@ export default function Biljetter() {
         `)
         .in('lesson_id', lessonIds);
       
-      // Separate package_auto bookings from regular check-ins
+      // Auto-enrolled (flag only); include ALL bookings as enrollment evidence
       const packageAutoBookings = lessonBookingsData?.filter(b => b.ticket_type === 'package_auto') || [];
-      const regularCheckins = lessonBookingsData?.filter(b => b.ticket_type !== 'package_auto' && b.checkins_used > 0) || [];
-      
+      const allBookings = lessonBookingsData || [];
+
       // Build class attendance data
       const classAttendance = classesData?.map(cls => {
         const classSelections = selectionsData?.filter(s => s.class_id === cls.id) || [];
-        
+
         // Get all lessons for this class
         const classLessonIds = lessonsData?.filter(l => l.class_id === cls.id).map(l => l.id) || [];
-        
-        // Get auto-enrolled members for this class (from package_auto bookings)
+
+        // Auto-enrolled members for this class (for the flag)
         const classAutoEnrolled = packageAutoBookings.filter(b => classLessonIds.includes(b.lesson_id));
         const autoEnrolledMemberIds = new Set(classAutoEnrolled.map(b => b.member_id));
-        
-        // Get regular check-ins for this class
-        const classRegularCheckins = regularCheckins.filter(c => classLessonIds.includes(c.lesson_id));
-        const regularCheckedInMembers = new Set(classRegularCheckins.map(c => c.member_id));
-        
-        // Combine selections and auto-enrolled members (avoid duplicates)
-        const allMemberIds = new Set([
-          ...classSelections.map(s => s.member_id),
-          ...autoEnrolledMemberIds
-        ]);
-        
-        // Build member list with auto-enrolled flag
+
+        // ALL lesson bookings for this class (any ticket_type) count as enrolled
+        const classAllBookings = allBookings.filter(b => classLessonIds.includes(b.lesson_id));
+        const checkedInMemberIds = new Set(
+          classAllBookings.filter(b => (b.checkins_used || 0) > 0).map(b => b.member_id)
+        );
+
+        const seen = new Set<string>();
         const membersList: any[] = [];
-        
-        // Add from selections
-        classSelections.forEach(s => {
+
+        const pushMember = (memberId: string, profile: any) => {
+          if (!memberId || seen.has(memberId)) return;
+          seen.add(memberId);
           membersList.push({
-            memberId: s.member_id,
-            name: (s.profiles as any).full_name || 'Unknown',
-            email: (s.profiles as any).email,
-            phone: (s.profiles as any).phone,
-            danceRole: (s.profiles as any).dance_role,
-            hasCheckedIn: autoEnrolledMemberIds.has(s.member_id) || regularCheckedInMembers.has(s.member_id),
-            isAutoEnrolled: autoEnrolledMemberIds.has(s.member_id),
+            memberId,
+            name: profile?.full_name || 'Unknown',
+            email: profile?.email,
+            phone: profile?.phone,
+            danceRole: profile?.dance_role,
+            hasCheckedIn: checkedInMemberIds.has(memberId) || autoEnrolledMemberIds.has(memberId),
+            isAutoEnrolled: autoEnrolledMemberIds.has(memberId),
           });
-        });
-        
-        // Add auto-enrolled members that aren't in selections
-        classAutoEnrolled.forEach(b => {
-          if (!classSelections.some(s => s.member_id === b.member_id)) {
-            const profile = b.profiles as any;
-            membersList.push({
-              memberId: b.member_id,
-              name: profile?.full_name || 'Unknown',
-              email: profile?.email,
-              phone: profile?.phone,
-              danceRole: profile?.dance_role,
-              hasCheckedIn: true,
-              isAutoEnrolled: true,
-            });
-          }
-        });
-        
+        };
+
+        // From class selections
+        classSelections.forEach(s => pushMember(s.member_id, s.profiles as any));
+        // From any lesson booking in this class (covers 'existing', 'package_auto', drop-ins)
+        classAllBookings.forEach(b => pushMember(b.member_id, (b as any).profiles));
+
         const leaders = membersList.filter(m => m.danceRole === 'leader').length;
         const followers = membersList.filter(m => m.danceRole === 'follower').length;
         const notSet = membersList.filter(m => !m.danceRole).length;
         const checkedIn = membersList.filter(m => m.hasCheckedIn).length;
-        
+
         return {
           id: cls.id,
           name: cls.name,
