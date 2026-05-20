@@ -1,63 +1,53 @@
-## What actually happened with Sofia's 350 kr
+## Goal
+Customers can view all their payments (Stripe + Swish) on **Mina betalningar** and download a clean, professional-looking PDF receipt/kvitto.
 
-I traced her payment in the database. There is nothing wrong:
+## Current state
+- `/mina-betalningar` page already exists (`src/pages/MyPayments.tsx`) and is linked in the sidebar for the MEDLEM role.
+- It currently only reads from `payments` (Stripe) — **Swish payments are missing**.
+- The `generate-receipt` edge function supports both `stripe` and `swish`, but produces a very plain ASCII-only PDF (Swedish characters like å/ä/ö stripped, no styling, no logo, no table layout) — does not look good.
+- `supabase.functions.invoke` returns the binary as `Blob`/`ArrayBuffer`; the current `new Blob([data])` works inconsistently for PDFs.
 
-- **Payment**: `swish:4257`, 350 kr, status `succeeded`, type `tickets`, description `Klippkort: 3 st`, paid 18 May 14:12.
-- **What she got**: 1 row in `tickets` — a **standalone flexible klippkort** with `total_tickets=3`, `tickets_used=0`, `source_course_id = NULL`, `course_id = NULL`, expires 18 Aug 2026.
-- **Event bookings**: none. Lesson bookings: none. Check-ins: none.
+## Changes
 
-So she did **not** buy a class, a workshop, or a party. She bought a **3-use flexible klippkort package** that she can spend on any drop-in class within 3 months. That's why you can't find her name in any event or class — she hasn't used the tickets yet.
+### 1. `src/pages/MyPayments.tsx` — show all payments
+- Query both `payments` (Stripe) and `swish_payments` for the logged-in member.
+- Normalize into a unified list with `source: 'stripe' | 'swish'`, description (use `metadata.description` / `payment_type` / event/course title fallback for Swish), amount, date, status.
+- Sort combined list by `created_at` desc.
+- Show a small badge per row indicating the payment method (Kort / Swish) instead of the hardcoded "· Kort".
+- Pass the correct `payment_source` when calling `generate-receipt`.
+- Fix the download: request the PDF via `fetch` against the function URL (with the user's access token) so we get a real binary `Blob`. Trigger download via object URL. Keep loading spinner.
 
-The data is correct. The problem is the admin UX: the Payments page just says "Klippkort: 3 st" with no way to drill in, and there is no obvious place to answer "what did this person actually get for their money, and have they used it?".
+### 2. `supabase/functions/generate-receipt/index.ts` — make the PDF look good
+Rewrite the PDF generator using a small in-edge library that supports proper Unicode + layout. Use **pdf-lib** (`npm:pdf-lib`) with the bundled **StandardFonts.Helvetica** plus an embedded TTF for Swedish characters (e.g. Inter or Noto Sans via a fetched font file cached per cold start). This removes the ascii() transliteration.
 
-## Fix — make payments self-explanatory and drillable
+Layout (A4 portrait, 595×842):
+- Header band in brand gold (`#c59333`) with company name "Tropical Studios" left-aligned and the word **KVITTO / RECEIPT** right-aligned, both in white.
+- Below header, two columns:
+  - Left: **Från** — company name, address, org.nr, VAT, e-mail, phone.
+  - Right: **Kvitto till** — customer full name, e-mail.
+- Metadata row: Kvittonummer (short id), Datum, Betalningsmetod (Kort/Swish), Status.
+- Items table with header row (light gold tint background, gray border):
+  - Columns: Beskrivning · Antal · À-pris · Summa.
+  - Right-aligned numeric columns, padding and zebra-striping.
+- Totals block right-aligned: Subtotal, (no VAT line — no VAT registration assumed; show "Moms ingår: 0%" only if a flag is set), **Totalt** in bold gold.
+- Footer: thank-you line in Swedish + small print "Detta kvitto är genererat automatiskt av Tropical Studios."
+- Page margins 50px, consistent line-height, generous whitespace.
 
-All changes are in `src/pages/Betalningar.tsx` (plus one small helper). No DB changes, no edge functions, no schema.
+Other function changes:
+- Resolve a richer description for Swish receipts using related `event_bookings` / `tickets` (heuristic match by member + ±30 min window) so the line item reads e.g. *"Eventbiljett: Golden Knight Party — 2 biljetter"* instead of generic "Betalning".
+- Keep CORS, auth and ownership checks unchanged.
 
-### 1. Enrich the row description automatically
+### 3. Translations
+Add the new strings (method labels, "Kort", "Swish", empty-state copy, etc.) to `src/locales/sv.ts`, `en.ts`, `es.ts` under the existing `myPayments` key.
 
-When loading payments, also fetch (in parallel, per visible page):
-- For `payment_type = 'tickets'` → look up `tickets` row by `order_id`. Show:
-  - **Standalone klippkort** (no `source_course_id`) → label `Klippkort 3 st — flexibel (ej kopplad till kurs)`, plus `Använt 0/3 · Utgår 2026-08-18`.
-  - **Course-derived klippkort** → label `Klippkort 3 st — {course.title}`, plus usage + expiry.
-- For `payment_type = 'event'` → look up `event_bookings` by `payment_reference` matching `order_id`. Show `{event.title} — {ticket_count} biljett(er) · {start_at}` + check-in count.
-- For `payment_type = 'lesson'` → look up `lesson_bookings` similarly, show `{lesson.title} · {starts_at}`.
-- Fallbacks: if nothing found, keep the raw `description` but add a small `Inte kopplad` muted tag so the admin knows it's an orphan and can investigate.
-
-This means the table immediately answers "what did they buy?" without clicking — Sofia's row would read:
-> **Klippkort 3 st — flexibel (ej kopplad till kurs)** · Använt 0/3 · Utgår 18 aug 2026
-
-### 2. Make every row clickable → "Betalningsdetaljer" dialog
-
-Clicking a row opens a side dialog showing:
-- Payment metadata (id, order_id, method, amount, status, created_at).
-- **Vad köptes** (resolved entity name + link to the course/event/lesson page where applicable).
-- **Status nu**: for tickets — remaining/used/expiry; for events — checked-in count + which date; for lessons — check-in status.
-- **Köparen**: name, email, phone, link to the member CRM row.
-- A "Gå till medlem" button → `/admin/members/{id}` (or whatever the existing member detail route is) so you can see all their tickets and history.
-
-### 3. New filter: "Visa endast okopplade betalningar"
-
-A toggle that filters to payments where no matching `tickets` / `event_bookings` / `lesson_bookings` record exists. This is the "is something broken?" view. For Sofia today this filter would be empty — confirming her purchase is fine.
-
-### 4. Tooltip on the "Klippkort" type badge
-
-Hover the `Klippkort` badge → explains: "Flexibelt klippkort som kan användas på valfri drop-in-klass inom giltighetstiden." This removes the conceptual confusion that made you go looking in Events.
-
-### Technical notes
-
-- Resolution queries run once per page render (one query per type, batched by collecting all `order_id`s and using `.in('order_id', [...])`). Cached in component state.
-- All new strings go through `useLanguageStore()` for sv/en/es.
-- `Payment` type extends with optional `resolved: { kind: 'standalone_klippkort' | 'course_klippkort' | 'event' | 'lesson' | 'orphan', label: string, secondary?: string, link?: { to: string; label: string } }`.
+## Out of scope
+- No DB migrations.
+- No changes to the admin Betalningar page.
+- No changes to checkout / payment creation flows.
 
 ## Verification
-
-1. Open `/betalningar`. Sofia's row reads `Klippkort 3 st — flexibel (ej kopplad till kurs) · Använt 0/3 · Utgår 18 aug 2026`. ✓
-2. Click the row → dialog shows full details + "Gå till medlem" button. ✓
-3. Toggle "Visa endast okopplade" → Sofia is gone (she has a ticket row). ✓
-4. Click `/admin/members/{Sofia}` from the dialog → her 3 unused tickets visible. ✓
-5. Hover the `Klippkort` badge → tooltip explains what it means. ✓
-
-## Question
-
-Should I **also surface this enrichment on the member detail page** (showing "Bought 3 tickets via Swish on 18 May, 0/3 used, expires 18 Aug" right under her name), or is fixing the Payments page enough for now?
+1. Log in as a member who has both a Stripe payment and a Swish payment → both appear on `/mina-betalningar`, correctly labelled.
+2. Click **Ladda ner kvitto** on a Stripe row → A4 PDF opens with the new branded layout, Swedish characters intact.
+3. Same for a Swish row → line item shows the resolved event/ticket description.
+4. Empty-state still renders when no payments exist.
+5. Non-owner cannot download (403 still enforced by edge function).
