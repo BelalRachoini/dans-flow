@@ -368,10 +368,11 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
 
   // Remove tickets mutation
   const removeTicketsMutation = useMutation({
-    mutationFn: async (data: { ticketCount: number }) => {
+    mutationFn: async (data: { ticketCount: number; sourceCourseId?: string | null }) => {
       const { data: result, error } = await supabase.rpc("admin_remove_tickets" as any, {
         p_member_id: memberId,
         p_ticket_count: data.ticketCount,
+        p_source_course_id: data.sourceCourseId ?? null,
       });
 
       if (error) throw error;
@@ -391,6 +392,32 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
       }
     },
   });
+
+  // Cancel event booking mutation
+  const cancelEventBookingMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { data: result, error } = await supabase.rpc("admin_cancel_event_booking" as any, {
+        p_booking_id: bookingId,
+      });
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (result: any) => {
+      toast.success(
+        ((t.crm.actions as any).bookingCancelled || "Booking cancelled").replace(
+          "{event}",
+          result.event_title || ""
+        )
+      );
+      setCancelBookingId(null);
+      queryClient.invalidateQueries({ queryKey: ["member-event-bookings", memberId] });
+    },
+    onError: (error: any) => {
+      console.error("Cancel booking error:", error);
+      toast.error(error.message || t.crm.error);
+    },
+  });
+
 
   // Update member mutation (for level, status)
   const updateMemberMutation = useMutation({
