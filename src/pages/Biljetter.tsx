@@ -2071,6 +2071,9 @@ export default function Biljetter() {
                               <p className="text-muted-foreground text-xs">
                                 {pkg.total_tickets} klipp - {isExpired ? 'Utgått' : 'Använt'}
                               </p>
+                              <p className="text-muted-foreground text-xs">
+                                {t.tickets.purchasedOn}: {new Date(pkg.purchased_at).toLocaleDateString('sv-SE')}
+                              </p>
                             </div>
                             <Badge variant="outline" className="shrink-0">
                               {isExpired ? 'Utgått' : 'Använt'}
