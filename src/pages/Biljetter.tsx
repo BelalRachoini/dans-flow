@@ -2005,6 +2005,9 @@ export default function Biljetter() {
                                       <p className="text-xs text-muted-foreground">
                                         {formatDate(ticketDate)} • {formatTime(ticketDate)}
                                       </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {t.tickets.purchasedOn}: {new Date(ticket.booked_at).toLocaleDateString('sv-SE')}
+                                      </p>
                                     </div>
                                   </div>
                                 );
