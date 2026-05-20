@@ -998,7 +998,8 @@ export default function Biljetter() {
     b.checkins_used < b.checkins_allowed &&
     _isLessonInFuture(b)
   );
-  const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto');
+  const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto' && _isLessonInFuture(b));
+  const pastPackageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto' && !_isLessonInFuture(b));
   const historyLessonBookings = lessonBookings.filter(b =>
     b.ticket_type !== 'package_auto' && (
       b.status === 'used' ||
