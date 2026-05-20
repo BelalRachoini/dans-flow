@@ -32,12 +32,31 @@ const Confirmation = () => {
     }
 
     let cancelled = false;
-    // Hard cap so the spinner never hangs forever.
-    const fallback = setTimeout(() => {
-      if (!cancelled) setIsVerifying(false);
-    }, 8000);
-
     const minDelay = new Promise((r) => setTimeout(r, 1500));
+
+    const callVerify = async () => {
+      let attendeeNames: string[] = [];
+      if (attendeeNamesRaw) {
+        try {
+          const parsed = JSON.parse(attendeeNamesRaw);
+          if (Array.isArray(parsed)) attendeeNames = parsed;
+        } catch { /* ignore */ }
+      }
+      const amountCents = amount ? Math.round(Number(amount) * 100) : 0;
+      return supabase.functions.invoke('verify-swish-payment', {
+        body: {
+          item_type: itemType,
+          item_id: itemId || undefined,
+          user_id: userId,
+          customer_email: customerEmail,
+          customer_name: customerName,
+          amount_cents: amountCents,
+          quantity: quantity ? Number(quantity) : 1,
+          wp_order_id: orderId || undefined,
+          attendee_names: attendeeNames,
+        },
+      });
+    };
 
     const register = async () => {
       // If we don't have what we need, just show success (WP-side may have handled it).
@@ -47,31 +66,18 @@ const Confirmation = () => {
         return;
       }
       try {
-        let attendeeNames: string[] = [];
-        if (attendeeNamesRaw) {
-          try {
-            const parsed = JSON.parse(attendeeNamesRaw);
-            if (Array.isArray(parsed)) attendeeNames = parsed;
-          } catch { /* ignore */ }
+        // First attempt — wait for it (no premature success).
+        let { error } = await callVerify();
+        // Retry once on failure (transient network / cold start).
+        if (error) {
+          console.warn('verify-swish-payment first attempt failed, retrying in 1s:', error);
+          await new Promise((r) => setTimeout(r, 1000));
+          const retry = await callVerify();
+          error = retry.error;
         }
 
-        const amountCents = amount ? Math.round(Number(amount) * 100) : 0;
-        const { error } = await supabase.functions.invoke('verify-swish-payment', {
-          body: {
-            item_type: itemType,
-            item_id: itemId || undefined,
-            user_id: userId,
-            customer_email: customerEmail,
-            customer_name: customerName,
-            amount_cents: amountCents,
-            quantity: quantity ? Number(quantity) : 1,
-            wp_order_id: orderId || undefined,
-            attendee_names: attendeeNames,
-          },
-        });
-
         if (error) {
-          console.error('verify-swish-payment failed:', error);
+          console.error('verify-swish-payment failed after retry:', error);
           if (!cancelled) setVerifyError(error.message || 'Verification failed');
         }
       } catch (e) {
@@ -87,7 +93,6 @@ const Confirmation = () => {
 
     return () => {
       cancelled = true;
-      clearTimeout(fallback);
     };
   }, [isSuccess, itemType, itemId, userId, customerEmail, customerName, amount, quantity, attendeeNamesRaw, orderId]);
 
