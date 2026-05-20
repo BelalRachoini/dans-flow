@@ -1320,6 +1320,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_cancel_event_booking: {
+        Args: { p_booking_id: string }
+        Returns: Json
+      }
       admin_create_free_event_booking: {
         Args: {
           p_attendee_names?: Json
@@ -1397,10 +1401,24 @@ export type Database = {
         Args: { p_attendee_names?: Json; p_swish_payment_id: string }
         Returns: Json
       }
-      admin_remove_tickets: {
-        Args: { p_member_id: string; p_reason?: string; p_ticket_count: number }
-        Returns: Json
-      }
+      admin_remove_tickets:
+        | {
+            Args: {
+              p_member_id: string
+              p_reason?: string
+              p_ticket_count: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_member_id: string
+              p_reason?: string
+              p_source_course_id?: string
+              p_ticket_count: number
+            }
+            Returns: Json
+          }
       admin_update_member: {
         Args: { new_level?: string; new_status?: string; target: string }
         Returns: Json

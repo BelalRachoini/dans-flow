@@ -92,6 +92,10 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
   const [eventTicketDateId, setEventTicketDateId] = useState<string>('__all__');
   const [eventTicketCount, setEventTicketCount] = useState<string>('1');
   const [compCodePercent, setCompCodePercent] = useState<string>('100');
+  // Unified target selector for give/remove
+  const [ticketTarget, setTicketTarget] = useState<'dropin' | 'course' | 'event'>('dropin');
+  const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
+
 
   // Fetch member profile
   const { data: profile } = useQuery({
@@ -218,6 +222,24 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     },
     enabled: open,
   });
+
+  // Fetch member's active event bookings (for cancellation UI)
+  const { data: memberEventBookings = [] } = useQuery({
+    queryKey: ['member-event-bookings', memberId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_bookings')
+        .select('id, event_id, event_date_id, ticket_count, status, attendee_names, events(title, start_at), event_dates(start_at)')
+        .eq('member_id', memberId)
+        .in('status', ['confirmed', 'checked_in'])
+        .order('booked_at', { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: open,
+  });
+
+
 
   // Fetch subscriptions
   const { data: subscriptions = [] } = useQuery({
@@ -346,10 +368,11 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
 
   // Remove tickets mutation
   const removeTicketsMutation = useMutation({
-    mutationFn: async (data: { ticketCount: number }) => {
+    mutationFn: async (data: { ticketCount: number; sourceCourseId?: string | null }) => {
       const { data: result, error } = await supabase.rpc("admin_remove_tickets" as any, {
         p_member_id: memberId,
         p_ticket_count: data.ticketCount,
+        p_source_course_id: data.sourceCourseId ?? null,
       });
 
       if (error) throw error;
@@ -369,6 +392,32 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
       }
     },
   });
+
+  // Cancel event booking mutation
+  const cancelEventBookingMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { data: result, error } = await supabase.rpc("admin_cancel_event_booking" as any, {
+        p_booking_id: bookingId,
+      });
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (result: any) => {
+      toast.success(
+        ((t.crm.actions as any).bookingCancelled || "Booking cancelled").replace(
+          "{event}",
+          result.event_title || ""
+        )
+      );
+      setCancelBookingId(null);
+      queryClient.invalidateQueries({ queryKey: ["member-event-bookings", memberId] });
+    },
+    onError: (error: any) => {
+      console.error("Cancel booking error:", error);
+      toast.error(error.message || t.crm.error);
+    },
+  });
+
 
   // Update member mutation (for level, status)
   const updateMemberMutation = useMutation({
@@ -668,142 +717,262 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                       <CardTitle>{t.dashboard.quickActions}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Give Free Tickets (class) */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">{t.common.giveTickets}</label>
-                          <div className="flex flex-col sm:flex-row gap-2">
-                            <Input
-                              type="number"
-                              min="1"
-                              max="50"
-                              placeholder={t.common.ticketCount}
-                              value={ticketCount}
-                              onChange={(e) => setTicketCount(e.target.value)}
-                              className="w-full sm:w-32"
-                            />
-                            <Button
-                              className="w-full sm:w-auto"
-                              onClick={() =>
-                                giveTicketsMutation.mutate({
-                                  ticketCount: parseInt(ticketCount),
-                                  expiresAt: ticketExpiry?.toISOString(),
-                                  sourceCourseId:
-                                    ticketSourceCourseId && ticketSourceCourseId !== '__none__'
-                                      ? ticketSourceCourseId
-                                      : null,
-                                })
-                              }
-                              disabled={
-                                !ticketCount ||
-                                parseInt(ticketCount) < 1 ||
-                                giveTicketsMutation.isPending
-                              }
-                            >
-                              {giveTicketsMutation.isPending ? '...' : t.common.giveTickets}
-                            </Button>
-                          </div>
-                          <div className="space-y-1">
+                      {/* ============ Unified ticket / event management ============ */}
+                      <div className="space-y-4 rounded-lg border p-3 sm:p-4 bg-muted/20">
+                        {/* Current state summary */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
                             <Label className="text-xs text-muted-foreground">
-                              {(t.crm.actions as any).tieToCourse}
+                              {(t.crm.actions as any).currentClips}
                             </Label>
-                            <Select value={ticketSourceCourseId} onValueChange={setTicketSourceCourseId}>
+                            {(() => {
+                              const valid = (tickets as any[]).filter(
+                                (tk) => tk.status === 'valid' && tk.total_tickets > tk.tickets_used && (!tk.expires_at || new Date(tk.expires_at) > new Date())
+                              );
+                              if (valid.length === 0) {
+                                return <p className="text-xs text-muted-foreground mt-1">{(t.crm.actions as any).noClips}</p>;
+                              }
+                              const groups: Record<string, { name: string; count: number }> = {};
+                              valid.forEach((tk) => {
+                                const key = tk.source_course_id || '__dropin__';
+                                const name = tk.source_course?.title || (t.crm.actions as any).targetDropIn;
+                                const remaining = tk.total_tickets - tk.tickets_used;
+                                if (!groups[key]) groups[key] = { name, count: 0 };
+                                groups[key].count += remaining;
+                              });
+                              return (
+                                <ul className="text-xs mt-1 space-y-0.5">
+                                  {Object.values(groups).map((g, i) => (
+                                    <li key={i} className="flex justify-between gap-2">
+                                      <span className="truncate">{g.name}</span>
+                                      <span className="font-medium">{g.count}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              );
+                            })()}
+                          </div>
+
+                          <div>
+                            <Label className="text-xs text-muted-foreground">
+                              {(t.crm.actions as any).currentEventBookings}
+                            </Label>
+                            {(memberEventBookings as any[]).length === 0 ? (
+                              <p className="text-xs text-muted-foreground mt-1">{(t.crm.actions as any).noEventBookings}</p>
+                            ) : (
+                              <ul className="text-xs mt-1 space-y-1">
+                                {(memberEventBookings as any[]).map((b) => {
+                                  const dateStr = b.event_dates?.start_at || b.events?.start_at;
+                                  return (
+                                    <li key={b.id} className="flex items-center justify-between gap-2">
+                                      <span className="truncate">
+                                        {b.events?.title || '—'}
+                                        {dateStr ? ` · ${format(new Date(dateStr), 'yyyy-MM-dd')}` : ''}
+                                        {b.ticket_count > 1 ? ` (×${b.ticket_count})` : ''}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                                        onClick={() => setCancelBookingId(b.id)}
+                                        disabled={cancelEventBookingMutation.isPending}
+                                      >
+                                        {(t.crm.actions as any).cancelBooking}
+                                      </Button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Target selector */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">{(t.crm.actions as any).ticketTarget}</Label>
+                          <Select value={ticketTarget} onValueChange={(v: any) => setTicketTarget(v)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dropin">{(t.crm.actions as any).targetDropIn}</SelectItem>
+                              <SelectItem value="course">{(t.crm.actions as any).targetCourse}</SelectItem>
+                              <SelectItem value="event">{(t.crm.actions as any).targetEvent}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Course picker */}
+                        {ticketTarget === 'course' && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">{(t.crm.actions as any).selectCourse}</Label>
+                            <Select
+                              value={ticketSourceCourseId === '__none__' ? '' : ticketSourceCourseId}
+                              onValueChange={setTicketSourceCourseId}
+                            >
                               <SelectTrigger>
-                                <SelectValue />
+                                <SelectValue placeholder={(t.crm.actions as any).selectCourse} />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">{(t.crm.actions as any).genericCourse}</SelectItem>
                                 {courses.map((c: any) => (
                                   <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
+                        )}
+
+                        {/* Event picker */}
+                        {ticketTarget === 'event' && (
+                          <div className="space-y-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">{(t.crm.actions as any).selectEvent}</Label>
+                              <Select
+                                value={eventTicketEventId}
+                                onValueChange={(v) => { setEventTicketEventId(v); setEventTicketDateId('__all__'); }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder={(t.crm.actions as any).selectEvent} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {events.map((e: any) => (
+                                    <SelectItem key={e.id} value={e.id}>
+                                      {e.title}{e.start_at ? ` – ${format(new Date(e.start_at), 'yyyy-MM-dd')}` : ''}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {eventDates.length > 1 && (
+                              <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">{(t.crm.actions as any).selectEventDate}</Label>
+                                <Select value={eventTicketDateId} onValueChange={setEventTicketDateId}>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__all__">{(t.crm.actions as any).allDates}</SelectItem>
+                                    {eventDates.map((d: any) => (
+                                      <SelectItem key={d.id} value={d.id}>
+                                        {format(new Date(d.start_at), 'yyyy-MM-dd HH:mm')}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Count + (expiry for non-event) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">
-                              {t.common.ticketExpiry}
+                              {ticketTarget === 'event' ? (t.crm.actions as any).attendees : t.common.ticketCount}
                             </Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className="w-full justify-start text-left font-normal"
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {ticketExpiry ? format(ticketExpiry, "PPP") : <span>—</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={ticketExpiry}
-                                  onSelect={setTicketExpiry}
-                                  initialFocus
-                                  className="p-3 pointer-events-auto"
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        </div>
-
-                        {/* Give Event Ticket */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">{(t.crm.actions as any).giveEventTicket}</label>
-                          <Select value={eventTicketEventId} onValueChange={(v) => { setEventTicketEventId(v); setEventTicketDateId('__all__'); }}>
-                            <SelectTrigger>
-                              <SelectValue placeholder={(t.crm.actions as any).giveEventTicket} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {events.map((e: any) => (
-                                <SelectItem key={e.id} value={e.id}>
-                                  {e.title}{e.start_at ? ` – ${format(new Date(e.start_at), 'yyyy-MM-dd')}` : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {eventDates.length > 1 && (
-                            <Select value={eventTicketDateId} onValueChange={setEventTicketDateId}>
-                              <SelectTrigger>
-                                <SelectValue placeholder={(t.crm.actions as any).selectEventDate} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__all__">{(t.crm.actions as any).allDates}</SelectItem>
-                                {eventDates.map((d: any) => (
-                                  <SelectItem key={d.id} value={d.id}>
-                                    {format(new Date(d.start_at), 'yyyy-MM-dd HH:mm')}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                          <div className="flex flex-col sm:flex-row gap-2">
                             <Input
                               type="number"
                               min="1"
-                              max="20"
-                              placeholder={(t.crm.actions as any).attendees}
-                              value={eventTicketCount}
-                              onChange={(e) => setEventTicketCount(e.target.value)}
-                              className="w-full sm:w-32"
+                              max="50"
+                              value={ticketTarget === 'event' ? eventTicketCount : ticketCount}
+                              onChange={(e) =>
+                                ticketTarget === 'event'
+                                  ? setEventTicketCount(e.target.value)
+                                  : setTicketCount(e.target.value)
+                              }
                             />
-                            <Button
-                              className="flex-1"
-                              onClick={() =>
+                          </div>
+                          {ticketTarget !== 'event' && (
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">{t.common.ticketExpiry}</Label>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {ticketExpiry ? format(ticketExpiry, "PPP") : <span>—</span>}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                    mode="single"
+                                    selected={ticketExpiry}
+                                    onSelect={setTicketExpiry}
+                                    initialFocus
+                                    className="p-3 pointer-events-auto"
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Give / Remove buttons */}
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Button
+                            className="flex-1"
+                            onClick={() => {
+                              if (ticketTarget === 'event') {
                                 giveEventTicketMutation.mutate({
                                   eventId: eventTicketEventId,
                                   eventDateId: eventTicketDateId !== '__all__' ? eventTicketDateId : null,
                                   ticketCount: parseInt(eventTicketCount) || 1,
-                                })
+                                });
+                              } else {
+                                giveTicketsMutation.mutate({
+                                  ticketCount: parseInt(ticketCount),
+                                  expiresAt: ticketExpiry?.toISOString(),
+                                  sourceCourseId: ticketTarget === 'course' && ticketSourceCourseId && ticketSourceCourseId !== '__none__'
+                                    ? ticketSourceCourseId
+                                    : null,
+                                });
                               }
-                              disabled={
-                                !eventTicketEventId ||
-                                giveEventTicketMutation.isPending
-                              }
-                            >
-                              <Gift className="h-4 w-4 mr-2" />
-                              {(t.crm.actions as any).createFreeBooking}
-                            </Button>
-                          </div>
+                            }}
+                            disabled={
+                              (ticketTarget === 'event' && (!eventTicketEventId || giveEventTicketMutation.isPending)) ||
+                              (ticketTarget === 'course' && (!ticketSourceCourseId || ticketSourceCourseId === '__none__')) ||
+                              (ticketTarget !== 'event' && (!ticketCount || parseInt(ticketCount) < 1)) ||
+                              giveTicketsMutation.isPending
+                            }
+                          >
+                            <Gift className="h-4 w-4 mr-2" />
+                            {(t.crm.actions as any).give}
+                          </Button>
+                          {ticketTarget !== 'event' && (
+                            <>
+                              <Input
+                                type="number"
+                                min="1"
+                                max="50"
+                                value={removeTicketCount}
+                                onChange={(e) => setRemoveTicketCount(e.target.value)}
+                                className="w-full sm:w-24"
+                              />
+                              <Button
+                                variant="destructive"
+                                className="flex-1"
+                                onClick={() =>
+                                  removeTicketsMutation.mutate({
+                                    ticketCount: parseInt(removeTicketCount),
+                                    sourceCourseId: ticketTarget === 'course' && ticketSourceCourseId && ticketSourceCourseId !== '__none__'
+                                      ? ticketSourceCourseId
+                                      : null,
+                                  })
+                                }
+                                disabled={
+                                  !removeTicketCount ||
+                                  parseInt(removeTicketCount) < 1 ||
+                                  (ticketTarget === 'course' && (!ticketSourceCourseId || ticketSourceCourseId === '__none__')) ||
+                                  removeTicketsMutation.isPending
+                                }
+                              >
+                                {(t.crm.actions as any).remove}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Comp code (only for events) */}
+                        {ticketTarget === 'event' && (
                           <div className="flex flex-col sm:flex-row gap-2">
                             <Input
                               type="number"
@@ -828,40 +997,11 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                               {(t.crm.actions as any).generateCompCode}
                             </Button>
                           </div>
-                        </div>
+                        )}
+                      </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                        {/* Remove Tickets */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">{t.common.removeTickets}</label>
-                          <div className="flex flex-col sm:flex-row gap-2">
-                            <Input
-                              type="number"
-                              min="1"
-                              max="50"
-                              placeholder={t.common.ticketCount}
-                              value={removeTicketCount}
-                              onChange={(e) => setRemoveTicketCount(e.target.value)}
-                              className="w-full sm:w-auto"
-                            />
-                            <Button
-                              variant="destructive"
-                              className="w-full sm:w-auto"
-                              onClick={() =>
-                                removeTicketsMutation.mutate({
-                                  ticketCount: parseInt(removeTicketCount),
-                                })
-                              }
-                              disabled={
-                                !removeTicketCount ||
-                                parseInt(removeTicketCount) < 1 ||
-                                removeTicketsMutation.isPending
-                              }
-                            >
-                              {removeTicketsMutation.isPending ? '...' : t.common.removeTickets}
-                            </Button>
-                          </div>
-                        </div>
 
                         {/* Change role */}
                         <div className="space-y-2">
@@ -1227,6 +1367,23 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {t.crm.actions.delete}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!cancelBookingId} onOpenChange={(o) => !o && setCancelBookingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{(t.crm.actions as any).cancelBooking}</AlertDialogTitle>
+            <AlertDialogDescription>{(t.crm.actions as any).confirmCancelBooking}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelBookingId && cancelEventBookingMutation.mutate(cancelBookingId)}
+            >
+              {(t.crm.actions as any).cancelBooking}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
