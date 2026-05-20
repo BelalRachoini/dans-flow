@@ -41,6 +41,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PaymentDetailDialog } from '@/components/PaymentDetailDialog';
+import { Info } from 'lucide-react';
 
 type PaymentStatus = 'paid' | 'pending' | 'failed';
 type PaymentType = 'course' | 'event' | 'membership' | 'tickets' | 'lesson' | 'other';
@@ -82,6 +85,7 @@ export default function Betalningar() {
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | 'all'>('all');
   const [typeFilter, setTypeFilter] = useState<PaymentType | 'all'>('all');
   const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -606,7 +610,11 @@ export default function Betalningar() {
                   </TableRow>
                 ) : (
                   filteredPayments.map((payment) => (
-                    <TableRow key={payment.id} className="hover:bg-muted/50 transition-colors">
+                    <TableRow
+                      key={payment.id}
+                      className="hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedPayment(payment)}
+                    >
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDate(payment.createdAt)}
                       </TableCell>
@@ -618,9 +626,31 @@ export default function Betalningar() {
                       </TableCell>
                       <TableCell className="max-w-xs">
                         <p className="truncate">{payment.description}</p>
+                        {payment.type === 'tickets' && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Flexibla klipp · klicka för detaljer
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{getTypeLabel(payment.type)}</Badge>
+                        {payment.type === 'tickets' ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="cursor-help inline-flex items-center gap-1">
+                                  {getTypeLabel(payment.type)}
+                                  <Info className="h-3 w-3" />
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                Flexibelt klippkort som kan användas på valfri drop-in-klass inom giltighetstiden.
+                                Inte kopplat till någon specifik kurs eller event.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Badge variant="outline">{getTypeLabel(payment.type)}</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={payment.method === 'swish' ? 'default' : 'secondary'} className="capitalize">
@@ -641,6 +671,12 @@ export default function Betalningar() {
           </div>
         </CardContent>
       </Card>
+
+      <PaymentDetailDialog
+        payment={selectedPayment}
+        open={!!selectedPayment}
+        onOpenChange={(o) => { if (!o) setSelectedPayment(null); }}
+      />
     </div>
   );
 }

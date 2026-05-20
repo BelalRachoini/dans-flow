@@ -1,52 +1,63 @@
-## Bug
+## What actually happened with Sofia's 350 kr
 
-For events with a discount, the discount is only applied to the **1-ticket** option. The 2- and 3-ticket options ignore it entirely.
+I traced her payment in the database. There is nothing wrong:
 
-Confirmed in two places:
+- **Payment**: `swish:4257`, 350 kr, status `succeeded`, type `tickets`, description `Klippkort: 3 st`, paid 18 May 14:12.
+- **What she got**: 1 row in `tickets` — a **standalone flexible klippkort** with `total_tickets=3`, `tickets_used=0`, `source_course_id = NULL`, `course_id = NULL`, expires 18 Aug 2026.
+- **Event bookings**: none. Lesson bookings: none. Check-ins: none.
 
-1. **`src/components/EventTicketPurchaseDialog.tsx`** (lines 70–80) — `singlePrice` applies the discount. `couplePrice` and `trioPrice` are then computed from raw `event.couple_price_cents` / `event.trio_price_cents` (or fall back to `baseSinglePrice * 2/3` — the un-discounted base). The discount is never applied to them.
+So she did **not** buy a class, a workshop, or a party. She bought a **3-use flexible klippkort package** that she can spend on any drop-in class within 3 months. That's why you can't find her name in any event or class — she hasn't used the tickets yet.
 
-2. **`supabase/functions/create-event-payment/index.ts`** (lines 64–90) — same bug, server side: discount branch only runs when `validatedTicketCount === 1`. The couple/trio branches use the raw cents values.
+The data is correct. The problem is the admin UX: the Payments page just says "Klippkort: 3 st" with no way to drill in, and there is no obvious place to answer "what did this person actually get for their money, and have they used it?".
 
-So even if the UI were fixed, the server would still charge full price for 2 and 3 tickets. Both need to be patched, and the server is the source of truth for the Stripe Checkout amount.
+## Fix — make payments self-explanatory and drillable
 
-In your Golden Nights screenshot: base 150 SEK, 20% off → 1 ticket shows 120 ✓, but 2 tickets shows 300 (should be 240) and 3 tickets shows 450 (should be 360).
+All changes are in `src/pages/Betalningar.tsx` (plus one small helper). No DB changes, no edge functions, no schema.
 
-## Fix
+### 1. Enrich the row description automatically
 
-Extract a single pricing helper that takes `(basePerTicket, count, coupleCents, trioCents, discountType, discountValue)` and returns the cents to charge. Behavior:
+When loading payments, also fetch (in parallel, per visible page):
+- For `payment_type = 'tickets'` → look up `tickets` row by `order_id`. Show:
+  - **Standalone klippkort** (no `source_course_id`) → label `Klippkort 3 st — flexibel (ej kopplad till kurs)`, plus `Använt 0/3 · Utgår 2026-08-18`.
+  - **Course-derived klippkort** → label `Klippkort 3 st — {course.title}`, plus usage + expiry.
+- For `payment_type = 'event'` → look up `event_bookings` by `payment_reference` matching `order_id`. Show `{event.title} — {ticket_count} biljett(er) · {start_at}` + check-in count.
+- For `payment_type = 'lesson'` → look up `lesson_bookings` similarly, show `{lesson.title} · {starts_at}`.
+- Fallbacks: if nothing found, keep the raw `description` but add a small `Inte kopplad` muted tag so the admin knows it's an orphan and can investigate.
 
-- Pick the tier base price:
-  - `count === 1` → `price_cents`
-  - `count === 2` → `couple_price_cents` if set, else `price_cents * 2`
-  - `count === 3` → `trio_price_cents` if set, else `price_cents * 3`
-- Then apply the event discount **to that tier price**:
-  - `percent` / `percentage` → `Math.round(tier * (1 - value / 100))`
-  - `amount` → `Math.max(0, tier - value)` (discount_value is already in cents)
-- Clamp to `>= 0`.
+This means the table immediately answers "what did they buy?" without clicking — Sofia's row would read:
+> **Klippkort 3 st — flexibel (ej kopplad till kurs)** · Använt 0/3 · Utgår 18 aug 2026
 
-Apply this in:
+### 2. Make every row clickable → "Betalningsdetaljer" dialog
 
-1. **`EventTicketPurchaseDialog.tsx`** — replace the current `singlePrice` / `couplePrice` / `trioPrice` computation. Show the original tier price struck through + the discounted price for **all three tiers** when a discount is active (today this only happens for 1-ticket via `option.originalPrice`).
+Clicking a row opens a side dialog showing:
+- Payment metadata (id, order_id, method, amount, status, created_at).
+- **Vad köptes** (resolved entity name + link to the course/event/lesson page where applicable).
+- **Status nu**: for tickets — remaining/used/expiry; for events — checked-in count + which date; for lessons — check-in status.
+- **Köparen**: name, email, phone, link to the member CRM row.
+- A "Gå till medlem" button → `/admin/members/{id}` (or whatever the existing member detail route is) so you can see all their tickets and history.
 
-2. **`supabase/functions/create-event-payment/index.ts`** — replace the if/else block so the discount runs for all three counts. Update the log line accordingly.
+### 3. New filter: "Visa endast okopplade betalningar"
 
-No DB change. No schema change. No new fields.
+A toggle that filters to payments where no matching `tickets` / `event_bookings` / `lesson_bookings` record exists. This is the "is something broken?" view. For Sofia today this filter would be empty — confirming her purchase is fine.
 
-## Question
+### 4. Tooltip on the "Klippkort" type badge
 
-When an admin has already set explicit `couple_price_cents` / `trio_price_cents` (a manual "bundle" deal) AND also enters a 20% discount, should the 20% **stack on top of the bundle price**, or **be ignored** when an explicit bundle price exists?
+Hover the `Klippkort` badge → explains: "Flexibelt klippkort som kan användas på valfri drop-in-klass inom giltighetstiden." This removes the conceptual confusion that made you go looking in Events.
 
-- **A — Stack** (recommended, matches "20% off everything in this event"): Bundle SEK 250 for 2 with 20% off → SEK 200. This is the simplest, most predictable rule and matches your current screenshot where you have no bundle deal set.
-- **B — Ignore discount when bundle price exists**: bundle prices are treated as already-discounted; the percent only modifies the un-bundled tiers.
+### Technical notes
 
-If you don't answer, I'll go with A.
+- Resolution queries run once per page render (one query per type, batched by collecting all `order_id`s and using `.in('order_id', [...])`). Cached in component state.
+- All new strings go through `useLanguageStore()` for sv/en/es.
+- `Payment` type extends with optional `resolved: { kind: 'standalone_klippkort' | 'course_klippkort' | 'event' | 'lesson' | 'orphan', label: string, secondary?: string, link?: { to: string; label: string } }`.
 
 ## Verification
 
-After deploying:
-1. Open the Golden Nights dialog → 1 = 120, 2 = 240, 3 = 360 SEK (all with strike-through 150/300/450).
-2. Click "Buy Now" for 2 tickets → Stripe checkout shows SEK 240, not 300.
-3. Click "Buy Now" for 3 tickets → Stripe checkout shows SEK 360, not 450.
-4. Remove the discount on the event → 1/2/3 revert to 150/300/450, no strike-through.
-5. Set an explicit couple price (e.g., 250 SEK) with 20% off, assuming answer A → couple shows 200 SEK at checkout.
+1. Open `/betalningar`. Sofia's row reads `Klippkort 3 st — flexibel (ej kopplad till kurs) · Använt 0/3 · Utgår 18 aug 2026`. ✓
+2. Click the row → dialog shows full details + "Gå till medlem" button. ✓
+3. Toggle "Visa endast okopplade" → Sofia is gone (she has a ticket row). ✓
+4. Click `/admin/members/{Sofia}` from the dialog → her 3 unused tickets visible. ✓
+5. Hover the `Klippkort` badge → tooltip explains what it means. ✓
+
+## Question
+
+Should I **also surface this enrichment on the member detail page** (showing "Bought 3 tickets via Swish on 18 May, 0/3 used, expires 18 Aug" right under her name), or is fixing the Payments page enough for now?

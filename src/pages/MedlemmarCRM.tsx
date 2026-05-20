@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguageStore } from '@/store/languageStore';
@@ -51,6 +52,13 @@ export default function MedlemmarCRM() {
   const [danceRoleFilter, setDanceRoleFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('revenue');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const m = searchParams.get('member');
+    if (m && m !== selectedMemberId) setSelectedMemberId(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [newMember, setNewMember] = useState({
     email: '',
