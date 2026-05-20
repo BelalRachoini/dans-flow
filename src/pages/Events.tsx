@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EventTicketPurchaseDialog } from '@/components/EventTicketPurchaseDialog';
 import { ImageUploader } from '@/components/ImageUploader';
+import { EventAttendeesDialog } from '@/components/EventAttendeesDialog';
 
 type EventData = Tables<'events'>;
 type EventBooking = Tables<'event_bookings'> & {
