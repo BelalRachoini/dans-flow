@@ -92,6 +92,10 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
   const [eventTicketDateId, setEventTicketDateId] = useState<string>('__all__');
   const [eventTicketCount, setEventTicketCount] = useState<string>('1');
   const [compCodePercent, setCompCodePercent] = useState<string>('100');
+  // Unified target selector for give/remove
+  const [ticketTarget, setTicketTarget] = useState<'dropin' | 'course' | 'event'>('dropin');
+  const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
+
 
   // Fetch member profile
   const { data: profile } = useQuery({
