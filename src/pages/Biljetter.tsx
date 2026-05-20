@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { 
   Ticket, Calendar, MapPin, Clock, QrCode, 
   PartyPopper, ShoppingCart, Search, X, Info, Check,
-  Users, GraduationCap, ChevronDown, AlertCircle, CalendarDays
+  Users, GraduationCap, ChevronDown, AlertCircle, CalendarDays, Download
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
