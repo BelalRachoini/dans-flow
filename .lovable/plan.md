@@ -1,58 +1,35 @@
-## What's already there (probably hidden by stale preview)
+## What's actually happening
 
-The Member drawer's *Quick actions* already has more than your screenshot shows. In the current code:
+The price change is **not** the cause. Your purchase went through correctly — your ticket package is in the database. The problem is the **attendance view** for package courses only counts two narrow sources:
 
-- **Give Tickets** has a "Tie to course" dropdown listing every course (semester, new beginner, etc.) plus a "Generic / drop-in" option, and an expiry-date picker. Picking a course writes to `tickets.source_course_id`, so the gifted clip is tied to that specific class.
-- **Give Event Ticket** is a separate block right next to it: pick an event → pick a date (if multi-date) → number of attendees → "Create free booking". Uses `admin_create_free_event_booking`.
+1. Members who picked classes via the package class selector (`course_class_selections` table)
+2. Auto-enrollments tagged `package_auto` in `lesson_bookings`
 
-So *giving* tickets for semester classes, new beginner classes, and events is supported today — the panel just looks cramped and the screenshot you sent is the older simpler layout. The real gaps are on the **Remove / take away** side and **UX clarity**.
+When someone with a package ticket books individual lessons through the normal lesson flow (e.g. picking Salsa #1 and Bachata #1 from the calendar), those bookings are tagged `existing`, not `package_auto`, and they are **never matched to a class**. So they don't appear under Salsa, Bachata, or the totals — even though they did book and will check in there.
 
-## What I want to add / fix
+That's exactly what's happening on the screen you shared: Salsa shows "2 anmälda" (Fidan + Gejoe, who used the selector) while a third member who booked Salsa + Bachata lessons directly is invisible.
 
-### 1. Unified "Target" selector for Give + Remove
+## The fix
 
-Rebuild the ticket area inside Quick actions as one tidy panel with a single picker on top:
+In `src/pages/Biljetter.tsx` → `loadPackageClassesAttendance`, treat every `lesson_bookings` row (regardless of `ticket_type`) as an enrollment for the class that owns its lesson:
 
-```text
-Target: ( ) Drop-in / generic   ( ) Course   ( ) Event
-        └── if Course: dropdown of courses
-        └── if Event:  dropdown of events  + date picker (if multi-date)
-Tickets: [ 1 ]   Expiry (course/drop-in only): [date]
-[ Give ]   [ Remove ]
-```
+1. Stop filtering `lessonBookingsData` down to just `package_auto`. Group **all** lesson_bookings by `class_id` (via the lesson → class mapping you already load).
+2. For each class, the member list = union of:
+   - `course_class_selections` for that class
+   - distinct `member_id`s from any lesson_booking whose lesson belongs to that class
+3. Keep the existing flags:
+   - `hasCheckedIn` = true when any of that member's lesson_bookings in the class has `checkins_used > 0` (or they were auto-enrolled)
+   - `isAutoEnrolled` stays driven by `package_auto` bookings only
+4. Recompute the per-class counts and the overall totals from this combined set. Profile fields come from the `profiles` join already present on lesson_bookings.
 
-Both the Give and Remove actions use the same target context, so admins can't mismatch.
+No DB migration is needed. No change to purchase or pricing logic. Just a corrected read in this one function.
 
-### 2. Course-scoped removal
+## About the price change
 
-Today `admin_remove_tickets` deducts FIFO from any of the member's valid ticket packages, regardless of which course they belong to. I'll extend the RPC with an optional `p_source_course_id`:
-- when set, FIFO only across `tickets` rows where `source_course_id = p_source_course_id`.
-- when null, current behaviour.
-
-### 3. Event booking removal
-
-There is no admin RPC to cancel an event booking today. I'll add `admin_cancel_event_booking(p_booking_id)`:
-- requires `is_admin()`
-- sets `event_bookings.status = 'cancelled'`, `payment_status = 'refunded'` (label only — no Stripe refund triggered)
-- decrements `events.sold_count` by `ticket_count`
-- returns `{ success, event_title, ticket_count }`
-
-When the Target is Event, the Remove side shows the member's bookings for that event (with date + attendee names) so the admin clicks the specific one to cancel, instead of a blind FIFO count.
-
-### 4. Show what they already have
-
-Above the panel, surface a small summary so the admin doesn't fly blind:
-- Valid clips per source: e.g. *Drop-in: 4*, *Salsa Beginner Semester: 3*, *Bachata Open Level: 2*.
-- Upcoming event bookings: *Konpa Night – 23 May (2 attendees)*.
-
-These already come from existing queries; just need to group `member-tickets` by `source_course_id` and reuse `member-event-bookings`.
+Toggling the price up and back down has no effect on past purchases — tickets store their own `total_tickets` and `expires_at` at purchase time and aren't recalculated from the current course price. You can rule that out.
 
 ## Out of scope
-- No Stripe refund call when cancelling an event booking — admin handles money separately.
-- No new permissions or RLS changes (everything stays inside SECURITY DEFINER RPCs gated by `is_admin()`).
-- No changes to drop-in / standalone ticket purchase flows for members.
 
-## Files & migration
-- **Migration**: extend `public.admin_remove_tickets(...)` with `p_source_course_id uuid default null`; create `public.admin_cancel_event_booking(p_booking_id uuid)`.
-- **`src/components/MemberDetailDrawer.tsx`**: rebuild Quick actions ticket section (target selector, grouped summary, unified Give/Remove for course / drop-in / event).
-- **`src/locales/{sv,en,es}.ts`**: add new labels (target, dropIn, course, event, cancelBooking, ticketsByCourse, etc.).
+- No changes to the purchase flow, Stripe, or `tickets` data.
+- No changes to the regular (non-package) course attendance view.
+- No changes to how check-ins are recorded.
