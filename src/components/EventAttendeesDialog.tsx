@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, CheckCircle2, AlertCircle, XCircle, Download, CreditCard, Smartphone, ChevronDown, ChevronRight, TrendingUp, Ticket as TicketIcon, BarChart3, Search, AlertTriangle, Loader2 } from 'lucide-react';
+import { Users, CheckCircle2, AlertCircle, XCircle, Download, CreditCard, Smartphone, ChevronDown, ChevronRight, TrendingUp, Ticket as TicketIcon, BarChart3, Search, AlertTriangle, Loader2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -46,6 +47,65 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [unreconciled, setUnreconciled] = useState<any[]>([]);
   const [reconciling, setReconciling] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    name: '',
+    email: '',
+    ticket_count: 1,
+    event_date_id: '' as string,
+    payment_reference: '',
+    amount_kr: '' as string,
+    payment_method: 'swish' as 'swish' | 'stripe' | 'cash' | 'other',
+  });
+
+  const refreshAll = async () => {
+    if (!event) return;
+    const [bkRes, drift] = await Promise.all([
+      supabase
+        .from('event_bookings')
+        .select('*, profiles:member_id(id, full_name, email, avatar_url)')
+        .eq('event_id', event.id)
+        .order('booked_at', { ascending: false }),
+      supabase.rpc('admin_list_unreconciled_swish_for_event', { p_event_id: event.id }),
+    ]);
+    setBookings((bkRes.data || []) as BookingRow[]);
+    setUnreconciled((drift.data as any[]) || []);
+  };
+
+  const submitManual = async () => {
+    if (!event) return;
+    if (!manualForm.name.trim()) {
+      toast.error('Ange minst ett namn');
+      return;
+    }
+    setManualSaving(true);
+    try {
+      const amountCents = manualForm.amount_kr
+        ? Math.round(parseFloat(manualForm.amount_kr.replace(',', '.')) * 100)
+        : 0;
+      const { data, error } = await supabase.rpc('admin_create_manual_event_booking', {
+        p_event_id: event.id,
+        p_event_date_id: manualForm.event_date_id || null,
+        p_attendee_email: manualForm.email.trim() || null,
+        p_attendee_name: manualForm.name.trim(),
+        p_ticket_count: manualForm.ticket_count,
+        p_payment_reference: manualForm.payment_reference.trim() || null,
+        p_amount_cents: isNaN(amountCents) ? 0 : amountCents,
+        p_payment_method: manualForm.payment_method,
+      });
+      if (error) throw error;
+      const res = data as any;
+      toast.success(`${res?.bookings_created ?? manualForm.ticket_count} bokning(ar) skapad(e)`);
+      setManualOpen(false);
+      setManualForm({ name: '', email: '', ticket_count: 1, event_date_id: '', payment_reference: '', amount_kr: '', payment_method: 'swish' });
+      await refreshAll();
+    } catch (e: any) {
+      toast.error(`Misslyckades: ${e?.message ?? 'okänt fel'}`);
+    } finally {
+      setManualSaving(false);
+    }
+  };
 
   const isPast = event?.end_at ? new Date(event.end_at) < new Date() : event?.start_at ? new Date(event.start_at) < new Date() : false;
 
@@ -364,6 +424,10 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
               </SelectContent>
             </Select>
           )}
+          <Button variant="outline" onClick={() => setManualOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-1" />
+            Manuell bokning
+          </Button>
           <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
             <Download className="h-4 w-4 mr-1" />
             Exportera CSV
@@ -490,7 +554,80 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
           )}
         </div>
       </DialogContent>
+
+      {/* Manual booking dialog */}
+      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Lägg till manuell bokning</DialogTitle>
+            <DialogDescription>
+              Använd när någon har betalat utanför systemet (t.ex. Swish via WordPress) men bokningen inte registrerades automatiskt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="m-name">Namn *</Label>
+              <Input id="m-name" value={manualForm.name} onChange={(e) => setManualForm((f) => ({ ...f, name: e.target.value }))} placeholder="Förnamn Efternamn" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-email">E-post (valfri)</Label>
+              <Input id="m-email" type="email" value={manualForm.email} onChange={(e) => setManualForm((f) => ({ ...f, email: e.target.value }))} placeholder="namn@example.com" />
+              <p className="text-xs text-muted-foreground">Om medlemmen finns kopplas bokningen till deras konto.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="m-count">Antal biljetter</Label>
+                <Input id="m-count" type="number" min={1} max={20} value={manualForm.ticket_count} onChange={(e) => setManualForm((f) => ({ ...f, ticket_count: Math.max(1, parseInt(e.target.value || '1', 10)) }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="m-amount">Belopp (kr)</Label>
+                <Input id="m-amount" inputMode="decimal" value={manualForm.amount_kr} onChange={(e) => setManualForm((f) => ({ ...f, amount_kr: e.target.value }))} placeholder="0" />
+              </div>
+            </div>
+            {dates.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Datum (valfritt)</Label>
+                <Select value={manualForm.event_date_id || 'none'} onValueChange={(v) => setManualForm((f) => ({ ...f, event_date_id: v === 'none' ? '' : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Alla datum" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Alla / inget specifikt datum</SelectItem>
+                    {dates.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>{format(new Date(d.start_at), 'd MMM HH:mm')}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Betalmetod</Label>
+                <Select value={manualForm.payment_method} onValueChange={(v: any) => setManualForm((f) => ({ ...f, payment_method: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="swish">Swish</SelectItem>
+                    <SelectItem value="stripe">Stripe / kort</SelectItem>
+                    <SelectItem value="cash">Kontant</SelectItem>
+                    <SelectItem value="other">Övrigt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="m-ref">Referens (valfri)</Label>
+                <Input id="m-ref" value={manualForm.payment_reference} onChange={(e) => setManualForm((f) => ({ ...f, payment_reference: e.target.value }))} placeholder="Swish # / ordernr" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualOpen(false)} disabled={manualSaving}>Avbryt</Button>
+            <Button onClick={submitManual} disabled={manualSaving || !manualForm.name.trim()}>
+              {manualSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Skapa bokning
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
+
   );
 }
 
