@@ -1749,6 +1749,9 @@ export default function Biljetter() {
                                   <span>{lesson.venue}</span>
                                 </div>
                               )}
+                              <div className="text-xs text-muted-foreground">
+                                {t.tickets.purchasedOn}: {new Date(booking.purchased_at).toLocaleDateString('sv-SE')}
+                              </div>
                             </div>
                             
                             <div className="flex flex-wrap gap-2 pt-2">
