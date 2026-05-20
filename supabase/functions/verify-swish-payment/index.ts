@@ -117,6 +117,40 @@ serve(async (req) => {
       attendeeNamesArr = [];
     }
 
+    // ── ALWAYS record the Swish payment first (source of truth). ──
+    // Even if the booking/email branch fails later, admin will see this row
+    // in EventAttendeesDialog's "Paid but not booked" section and can reconcile in one click.
+    const swishRequestId = wp_order_id
+      ? `wp:${wp_order_id}`
+      : `auto:${user_id}:${item_type}:${item_id ?? 'na'}:${amount_cents}`;
+    try {
+      const { error: spErr } = await supabaseClient
+        .from('swish_payments')
+        .upsert({
+          payment_request_id: swishRequestId,
+          member_id: user_id,
+          amount_cents,
+          currency: 'SEK',
+          status: 'paid',
+          payment_type: item_type,
+          metadata: {
+            item_id: item_id ?? null,
+            item_type,
+            quantity: quantity ?? 1,
+            wp_order_id: wp_order_id ?? null,
+            customer_email,
+            customer_name,
+            attendee_names: attendeeNamesArr,
+            recorded_via: 'verify-swish-payment',
+            recorded_at: new Date().toISOString(),
+          },
+        }, { onConflict: 'payment_request_id' });
+      if (spErr) console.error('[verify-swish-payment] swish_payments upsert failed:', spErr);
+      else console.log(`[verify-swish-payment] swish_payments recorded req=${swishRequestId}`);
+    } catch (e) {
+      console.error('[verify-swish-payment] swish_payments exception (non-fatal):', e);
+    }
+
     // ── EVENT ──
     if (item_type === "event") {
       if (!item_id) throw new Error("Missing item_id for event");
