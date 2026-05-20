@@ -1,35 +1,63 @@
-## What's actually happening
+## Goal
 
-The price change is **not** the cause. Your purchase went through correctly — your ticket package is in the database. The problem is the **attendance view** for package courses only counts two narrow sources:
+Give admins one-click CSV exports of attendee lists (for printing at the door) and accountant-ready financial breakdowns, for both **courses** (incl. package classes) and **events**.
 
-1. Members who picked classes via the package class selector (`course_class_selections` table)
-2. Auto-enrollments tagged `package_auto` in `lesson_bookings`
+## What exists today
 
-When someone with a package ticket books individual lessons through the normal lesson flow (e.g. picking Salsa #1 and Bachata #1 from the calendar), those bookings are tagged `existing`, not `package_auto`, and they are **never matched to a class**. So they don't appear under Salsa, Bachata, or the totals — even though they did book and will check in there.
+- `EventAttendeesDialog` already has an "Exportera CSV" button — but it's missing **phone** and doesn't include the event date.
+- `Betalningar` and `MedlemmarCRM` already export their own CSVs.
+- `Biljetter` (admin "View Attendance") has **no export** for courses or package classes — only on-screen lists.
 
-That's exactly what's happening on the screen you shared: Salsa shows "2 anmälda" (Fidan + Gejoe, who used the selector) while a third member who booked Salsa + Bachata lessons directly is invisible.
+## What to add
 
-## The fix
+### 1. Course attendees export (Biljetter → Courses tab)
 
-In `src/pages/Biljetter.tsx` → `loadPackageClassesAttendance`, treat every `lesson_bookings` row (regardless of `ticket_type`) as an enrollment for the class that owns its lesson:
+Add an **Export CSV** button next to the stats row whenever a course is selected.
 
-1. Stop filtering `lessonBookingsData` down to just `package_auto`. Group **all** lesson_bookings by `class_id` (via the lesson → class mapping you already load).
-2. For each class, the member list = union of:
-   - `course_class_selections` for that class
-   - distinct `member_id`s from any lesson_booking whose lesson belongs to that class
-3. Keep the existing flags:
-   - `hasCheckedIn` = true when any of that member's lesson_bookings in the class has `checkins_used > 0` (or they were auto-enrolled)
-   - `isAutoEnrolled` stays driven by `package_auto` bookings only
-4. Recompute the per-class counts and the overall totals from this combined set. Profile fields come from the `profiles` join already present on lesson_bookings.
+- **Regular courses:** one row per attendee (unique member) with: Name, Email, Phone, Dance role, Tickets remaining, Total check-ins, First purchase date, Amount paid (SEK), Payment method.
+- **Package courses:** the same row format, plus a **Class** column listing which package class(es) the member is enrolled in (e.g. "Salsa, Bachata"). Also add a per-class export button on each class card so an instructor can print just one class's roster.
 
-No DB migration is needed. No change to purchase or pricing logic. Just a corrected read in this one function.
+Source data: `tickets` (with profiles) joined to `payments` (via `member_id` + `source_course_id` reference in `description`/`order_id`) — we'll match the most recent successful payment for the course. For package classes we use the same union we just fixed in `loadPackageClassesAttendance` (course_class_selections ∪ lesson_bookings).
 
-## About the price change
+### 2. Event attendees export (extend existing)
 
-Toggling the price up and back down has no effect on past purchases — tickets store their own `total_tickets` and `expires_at` at purchase time and aren't recalculated from the current course price. You can rule that out.
+In `EventAttendeesDialog.exportCsv` add columns:
+- **Telefon** (from `profiles.phone`)
+- **Event datum** (from the selected `event_date` or event start)
+
+Keep the existing columns. Filename stays the same.
+
+### 3. Accountant export (new section in Betalningar)
+
+A second button next to the existing "Exportera CSV" called **"Export för bokföring"** that produces a finance-friendly CSV with:
+- Date (paid_at)
+- Order ID
+- Payment method (stripe / swish / comp / manual)
+- Type (course / event / drop-in / package / standalone)
+- Item title (course or event name)
+- Buyer name + email
+- Gross amount (SEK), Currency
+- Status
+
+This pulls straight from `payments` (already admin-readable), enriched with course/event titles via two cheap lookups. Sorted by date desc; honours the existing date-range filter on the page.
 
 ## Out of scope
 
-- No changes to the purchase flow, Stripe, or `tickets` data.
-- No changes to the regular (non-package) course attendance view.
-- No changes to how check-ins are recorded.
+- No PDF generation — CSV opens cleanly in Excel/Numbers, prints from there.
+- No new tables or migrations.
+- No changes to the attendance-counting logic.
+- No bulk email/SMS to the exported list.
+
+## Technical notes
+
+- All exports use the same UTF-8 BOM + quoted-CSV pattern already in `MedlemmarCRM.exportToCSV` (Excel-friendly).
+- Filenames: `course-<slug>-attendees-YYYYMMDD.csv`, `package-<slug>-<class>-YYYYMMDD.csv`, `event-<slug>-attendees-YYYYMMDD.csv`, `bokforing-YYYYMMDD.csv`.
+- Phone is read from `profiles.phone` (already joined in the attendee queries; just need to add to the select in the event dialog).
+- Amount-paid lookup for courses: `payments` rows where `member_id = attendee` and `description ILIKE '%<course title>%'` OR `order_id` matches the ticket's `order_id` — prefer the latter when present, fall back to title match, leave blank if no payment row (e.g. admin-gifted tickets).
+
+## Files touched
+
+- `src/pages/Biljetter.tsx` — add export buttons + helpers for course / package / per-class CSV
+- `src/components/EventAttendeesDialog.tsx` — add phone + event date columns
+- `src/pages/Betalningar.tsx` — add second "Export för bokföring" button + helper
+- `src/locales/sv.ts`, `en.ts`, `es.ts` — new button/toast labels
