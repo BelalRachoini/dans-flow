@@ -353,6 +353,12 @@ export default function MemberDashboard() {
                   {t.dashboard.noBookings}
                 </p>
               )}
+              <div className="mt-3 text-right">
+                <Link to="/biljetter" className="text-xs text-muted-foreground hover:text-primary underline-offset-4 hover:underline">
+                  {t.dashboard.viewHistory || 'View history →'}
+                </Link>
+              </div>
+
             </CardContent>
           </Card>
 
