@@ -72,6 +72,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
   const [ticketExpiry, setTicketExpiry] = useState<Date | undefined>(
     new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months from now
   );
+  const [ticketSourceCourseId, setTicketSourceCourseId] = useState<string>('__none__');
   const [removeTicketCount, setRemoveTicketCount] = useState<string>('1');
   const [newRole, setNewRole] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -86,6 +87,11 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     course_id: '',
     note: '',
   });
+  // Event ticket state
+  const [eventTicketEventId, setEventTicketEventId] = useState<string>('');
+  const [eventTicketDateId, setEventTicketDateId] = useState<string>('__all__');
+  const [eventTicketCount, setEventTicketCount] = useState<string>('1');
+  const [compCodePercent, setCompCodePercent] = useState<string>('100');
 
   // Fetch member profile
   const { data: profile } = useQuery({
