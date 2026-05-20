@@ -128,6 +128,7 @@ export const en = {
     myBookings: 'My Bookings',
     myBookingsDescription: 'Your booked lessons',
     noBookings: 'No booked lessons',
+    viewHistory: 'View history →',
     bookNow: 'Book Now',
     myEvents: 'My Events',
     myEventsDescription: 'Events you have tickets for',

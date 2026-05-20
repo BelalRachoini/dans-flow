@@ -1,50 +1,35 @@
-## Context
+## What's wrong on the Overview
 
-Swish payments are processed on the WordPress site, not in this app. The only signal this app currently gets is when WP redirects the buyer's browser back to `/payment/confirmation`. If the browser never returns (closed tab, lost connection, app switch), the booking is silently lost — which is exactly what happened with Konpa.
+Looking at the screenshot of `/` (Overview / MemberDashboard):
 
-Since WordPress can't be modified right now, we'll harden the **in-app safety net** so a paid attendee can always be recovered without WP cooperation.
+1. **"Salsa - 1"** in *Upcoming*: lesson titles like `"Salsa - 1"` come straight from `course_lessons.title`, which is auto-generated as `"<class name> - <lesson number>"` for package courses. Looks like a typo to the user.
+2. **My Bookings** is filled with 5 cards that all say *Lektion / Invalid Date Invalid Date*: `fetchMyBookings()` only filters by `status='valid'`, never by date. Old `lesson_bookings` whose `course_lessons` were deleted (or whose `starts_at` is in the past) keep showing forever; the deleted lesson means `course_lessons` is `null`, so the date renders as `Invalid Date`. The user wants these gone from Overview (a "Biljetthistorik" already exists on `/biljetter`, so they'll still be accessible there).
 
-## What will change
+## Fix (UI-only, no schema change)
 
-### 1. Drop the unused server-to-server webhook
-- Delete the `swish-reconcile` edge function (created last turn). It only helps if WP calls it, and that won't happen.
-- Drop the `SWISH_RECONCILE_TOKEN` secret request.
+### `src/pages/MemberDashboard.tsx`
 
-### 2. Keep & finish the verify-on-return hardening (already done last turn)
-- `verify-swish-payment` writes to `swish_payments` **before** anything else, so even if booking insert or email fails, the payment is logged.
-- `Confirmation.tsx` removed the 8s spinner cap and retries the verify call once.
+**A. Upcoming section — friendlier titles**
+In `fetchUpcomingItems`, when building the lesson item title, strip the auto-generated `" - N"` suffix and prefer the course title:
+- If `lesson.title` matches `^<course.title>\s*[-–]\s*\d+$` → show `course.title` only.
+- Otherwise show `lesson.title || course.title`.
+- Show a small subtitle like `Lektion N` when a number suffix was stripped (optional, keeps useful info without looking like a typo).
 
-### 3. Admin recovery UI in `EventAttendeesDialog.tsx` (already done last turn — keep)
-- "Betalt men ej bokat" section listing `swish_payments` rows with no matching `event_bookings.payment_reference`.
-- One-click "Skapa bokning" button → `admin_reconcile_swish_event_booking` RPC.
+**B. My Bookings — hide stale/past bookings**
+Tighten `fetchMyBookings()`:
+- Fetch with the same join, but
+  - Skip rows where `course_lessons` is `null` (lesson deleted).
+  - Skip rows where `course_lessons.starts_at` is in the past (a small grace window of 2h so a class in progress still shows its QR).
+  - Keep the existing `status = 'valid'` filter.
+- Sort by `course_lessons.starts_at` ascending (next-up first) instead of `purchased_at` desc.
+- Add a small footer link "Visa historik →" that routes to `/biljetter` so users can find old bookings.
 
-### 4. NEW — Manual admin entry for fully-missing payments
-The above only helps if `swish_payments` has a row. For Konpa, **swish_payments is empty**, because WP never told us about those payments. Add a manual entry path:
-
-- In `EventAttendeesDialog.tsx`, add a "Lägg till manuell bokning" button (admin only).
-- Opens a small form: name, email (optional), Swish reference (optional), date (if multi-date), ticket count.
-- Calls a new RPC `admin_create_manual_event_booking(p_event_id, p_event_date_id, p_member_id_or_null, p_attendee_name, p_ticket_count, p_payment_reference)` which:
-  - Creates/finds a profile by email if provided, else stores attendee as a guest in `attendee_names`.
-  - Inserts an `event_bookings` row with `payment_status='paid'`, `payment_reference='manual:<ref>'`.
-  - Increments `events.sold_count`.
-  - Returns the new booking id.
-- No email sent automatically (admin handles communication).
-
-### 5. Keep the daily drift detector (already done last turn)
-- `swish-bookings-drift` runs daily, emails `info@tropicalstudios.se` if any `swish_payments` row lacks a booking.
-- Add this function to `supabase/config.toml` with a cron schedule (`0 8 * * *` — 08:00 UTC daily).
-
-### 6. Konpa backfill — deferred
-User didn't provide the missing attendee data. Once they paste names/emails into chat, I'll insert the rows via the new manual-entry UI (or a one-off migration if it's many).
+**C. Empty-state copy**
+When all bookings are filtered out, the existing `t.dashboard.noBookings` translation already handles it — no change needed.
 
 ## Out of scope
-- Any WordPress-side changes (webhook, callback). Revisit if/when WP can be modified.
-- Stripe path (already reliable via session_id verification).
-- Refunds.
+- No database changes. No new history page (the `/biljetter` Biljetthistorik panel already covers it).
+- No changes to event bookings, ticket packages, or payments sections — those already look correct in the screenshot.
 
 ## Files touched
-- **Delete:** `supabase/functions/swish-reconcile/index.ts`
-- **Edit:** `supabase/config.toml` (add cron for `swish-bookings-drift`, remove swish-reconcile)
-- **Edit:** `src/components/EventAttendeesDialog.tsx` (add manual-entry button + dialog)
-- **New migration:** `admin_create_manual_event_booking` RPC
-- **Edit:** `src/locales/{sv,en,es}.ts` (strings for the new button/dialog)
+- `src/pages/MemberDashboard.tsx` (only)

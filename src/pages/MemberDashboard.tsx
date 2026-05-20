@@ -70,12 +70,28 @@ export default function MemberDashboard() {
       .limit(5);
 
     const combinedItems = [
-      ...(lessonsData || []).map(l => ({
-        ...l,
-        type: 'lesson',
-        date: l.starts_at,
-        title: l.title || l.courses?.title,
-      })),
+      ...(lessonsData || []).map(l => {
+        const courseTitle = l.courses?.title || '';
+        const rawTitle = l.title || courseTitle;
+        // Strip auto-generated " - N" suffix when it matches "<course> - <number>"
+        const suffixMatch = rawTitle.match(/^(.*?)\s*[-–]\s*(\d+)\s*$/);
+        let displayTitle = rawTitle;
+        let lessonNumber: number | null = null;
+        if (suffixMatch) {
+          const base = suffixMatch[1].trim();
+          lessonNumber = parseInt(suffixMatch[2], 10);
+          if (!courseTitle || base.toLowerCase() === courseTitle.toLowerCase() || !l.title) {
+            displayTitle = courseTitle || base;
+          }
+        }
+        return {
+          ...l,
+          type: 'lesson',
+          date: l.starts_at,
+          title: displayTitle,
+          lessonNumber,
+        };
+      }),
       ...(eventsData || []).map(e => ({
         ...e,
         type: 'event',
@@ -91,13 +107,17 @@ export default function MemberDashboard() {
     if (!userId) return;
     const { data } = await supabase
       .from('lesson_bookings')
-      .select(`*, course_lessons (id, title, starts_at, ends_at, venue)`)
+      .select(`*, course_lessons!inner (id, title, starts_at, ends_at, venue)`)
       .eq('member_id', userId)
       .eq('status', 'valid')
-      .order('purchased_at', { ascending: false })
+      // 2h grace so an in-progress class still shows its QR
+      .gte('course_lessons.starts_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+      .order('starts_at', { ascending: true, foreignTable: 'course_lessons' })
       .limit(5);
-    setMyBookings(data || []);
+    setMyBookings((data || []).filter((b: any) => b.course_lessons));
   };
+
+
 
   const fetchMyEventBookings = async () => {
     if (!userId) return;
@@ -333,6 +353,12 @@ export default function MemberDashboard() {
                   {t.dashboard.noBookings}
                 </p>
               )}
+              <div className="mt-3 text-right">
+                <Link to="/biljetter" className="text-xs text-muted-foreground hover:text-primary underline-offset-4 hover:underline">
+                  {t.dashboard.viewHistory}
+                </Link>
+              </div>
+
             </CardContent>
           </Card>
 
