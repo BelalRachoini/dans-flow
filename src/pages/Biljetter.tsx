@@ -1001,11 +1001,12 @@ export default function Biljetter() {
   const packageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto' && _isLessonInFuture(b));
   const pastPackageAutoBookings = lessonBookings.filter(b => b.ticket_type === 'package_auto' && !_isLessonInFuture(b));
   const historyLessonBookings = lessonBookings.filter(b =>
-    b.ticket_type !== 'package_auto' && (
+    (b.ticket_type !== 'package_auto' && (
       b.status === 'used' ||
       b.checkins_used >= b.checkins_allowed ||
       !_isLessonInFuture(b)
-    )
+    )) ||
+    (b.ticket_type === 'package_auto' && !_isLessonInFuture(b))
   );
 
   // Event tickets (with type discriminator)
