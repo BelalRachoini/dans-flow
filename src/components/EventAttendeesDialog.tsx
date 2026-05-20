@@ -64,7 +64,7 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
     const [bkRes, drift] = await Promise.all([
       supabase
         .from('event_bookings')
-        .select('*, profiles:member_id(id, full_name, email, avatar_url)')
+        .select('*, profiles:member_id(id, full_name, email, phone, avatar_url)')
         .eq('event_id', event.id)
         .order('booked_at', { ascending: false }),
       supabase.rpc('admin_list_unreconciled_swish_for_event', { p_event_id: event.id }),
@@ -288,16 +288,22 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
 
   const exportCsv = () => {
     if (!event) return;
-    const headers = ['Köpare', 'E-post', 'Antal biljetter', 'Deltagare', 'Betalat (kr)', 'Metod', 'Bokad', 'Status', 'Incheckningar'];
+    const headers = ['Köpare', 'E-post', 'Telefon', 'Antal biljetter', 'Deltagare', 'Event datum', 'Betalat (kr)', 'Metod', 'Bokad', 'Status', 'Incheckningar'];
     const lines = [headers.join(',')];
+    const dateById = new Map(dates.map((d: any) => [d.id, d.start_at]));
     for (const r of rows) {
       const b = r.booking;
       const attendees = ((b.attendee_names as any[] | null) || []).join(' / ');
+      const eventDate = b.event_date_id
+        ? (dateById.get(b.event_date_id) ? format(new Date(dateById.get(b.event_date_id) as string), 'yyyy-MM-dd HH:mm') : '')
+        : (event?.start_at ? format(new Date(event.start_at), 'yyyy-MM-dd HH:mm') : '');
       const row = [
         b.profiles?.full_name || '',
         b.profiles?.email || '',
+        (b.profiles as any)?.phone || '',
         String(b.ticket_count || 1),
         attendees,
+        eventDate,
         r.paidCents != null ? (r.paidCents / 100).toFixed(2) : '',
         r.method || '',
         format(new Date(b.booked_at), 'yyyy-MM-dd HH:mm'),
