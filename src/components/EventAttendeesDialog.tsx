@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, CheckCircle2, AlertCircle, XCircle, Download, CreditCard, Smartphone, ChevronDown, ChevronRight, TrendingUp, Ticket as TicketIcon, BarChart3, Search, AlertTriangle, Loader2 } from 'lucide-react';
+import { Users, CheckCircle2, AlertCircle, XCircle, Download, CreditCard, Smartphone, ChevronDown, ChevronRight, TrendingUp, Ticket as TicketIcon, BarChart3, Search, AlertTriangle, Loader2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -46,6 +47,65 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [unreconciled, setUnreconciled] = useState<any[]>([]);
   const [reconciling, setReconciling] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    name: '',
+    email: '',
+    ticket_count: 1,
+    event_date_id: '' as string,
+    payment_reference: '',
+    amount_kr: '' as string,
+    payment_method: 'swish' as 'swish' | 'stripe' | 'cash' | 'other',
+  });
+
+  const refreshAll = async () => {
+    if (!event) return;
+    const [bkRes, drift] = await Promise.all([
+      supabase
+        .from('event_bookings')
+        .select('*, profiles:member_id(id, full_name, email, avatar_url)')
+        .eq('event_id', event.id)
+        .order('booked_at', { ascending: false }),
+      supabase.rpc('admin_list_unreconciled_swish_for_event', { p_event_id: event.id }),
+    ]);
+    setBookings((bkRes.data || []) as BookingRow[]);
+    setUnreconciled((drift.data as any[]) || []);
+  };
+
+  const submitManual = async () => {
+    if (!event) return;
+    if (!manualForm.name.trim()) {
+      toast.error('Ange minst ett namn');
+      return;
+    }
+    setManualSaving(true);
+    try {
+      const amountCents = manualForm.amount_kr
+        ? Math.round(parseFloat(manualForm.amount_kr.replace(',', '.')) * 100)
+        : 0;
+      const { data, error } = await supabase.rpc('admin_create_manual_event_booking', {
+        p_event_id: event.id,
+        p_event_date_id: manualForm.event_date_id || null,
+        p_attendee_email: manualForm.email.trim() || null,
+        p_attendee_name: manualForm.name.trim(),
+        p_ticket_count: manualForm.ticket_count,
+        p_payment_reference: manualForm.payment_reference.trim() || null,
+        p_amount_cents: isNaN(amountCents) ? 0 : amountCents,
+        p_payment_method: manualForm.payment_method,
+      });
+      if (error) throw error;
+      const res = data as any;
+      toast.success(`${res?.bookings_created ?? manualForm.ticket_count} bokning(ar) skapad(e)`);
+      setManualOpen(false);
+      setManualForm({ name: '', email: '', ticket_count: 1, event_date_id: '', payment_reference: '', amount_kr: '', payment_method: 'swish' });
+      await refreshAll();
+    } catch (e: any) {
+      toast.error(`Misslyckades: ${e?.message ?? 'okänt fel'}`);
+    } finally {
+      setManualSaving(false);
+    }
+  };
 
   const isPast = event?.end_at ? new Date(event.end_at) < new Date() : event?.start_at ? new Date(event.start_at) < new Date() : false;
 
