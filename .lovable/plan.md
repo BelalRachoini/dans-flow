@@ -1,73 +1,78 @@
 ## Goal
-Make the admin "Attendees" view on `/event` a proper event report: list of buyers + attendees, payment totals, and live attendance stats (registered / checked in / no-show), useful both before and after the event.
 
-## Where
-Everything is centered on the existing **Attendees Dialog** in `src/pages/Events.tsx` (`handleViewAttendees` + `<Dialog>` block, lines ~502 and ~1138). Triggered from the existing "Visa deltagare" buttons on each admin event card.
+Make the member drawer's **Quick actions** panel more useful:
 
-No DB changes, no edge functions. All data already exists in `event_bookings`, `event_checkins`, `event_dates`, `events`, `profiles`.
+1. Remove the unused **Change Level** dropdown.
+2. Replace it with a **Course picker** for the ticket-gift action (currently generic only).
+3. Add a new **Event ticket** action: give a free event booking OR generate a comp/discount code for an event.
 
 ## Changes
 
-### 1. New component `src/components/EventAttendeesDialog.tsx`
-Extract and rebuild the dialog as a dedicated component that takes `event` and renders three sections:
+### 1. `MemberDetailDrawer.tsx` — Quick actions redesign
 
-**A. Header stats strip (4 cards, gold tinted)**
-- **Sålda biljetter** — sum of `ticket_count` across confirmed bookings
-- **Intäkt** — sum of `payments.amount_cents` for related bookings + Swish payments for the event (joined via `metadata.event_id` / `order_id`), formatted as `1 250 kr`
-- **Incheckade** — sum of `checkins_used` (or distinct people via `event_checkins`)
-- **No-show** — `tickets_sold − checked_in`, shown as count + percentage
+Remove the Change Level block (lines 591-615). New grid layout (2 columns):
 
-For multi-date events, the strip switches to a date picker: stats can be filtered per `event_date_id` or shown as "Alla datum".
+- **Give Tickets (class)**
+  - Existing input + expiry date
+  - **New**: optional `Select` "Tie to course (optional)" listing all courses (`title`, sorted by `starts_at desc`). Default "Generic – any class".
+  - Selection sets `p_source_course_id` on the RPC.
+- **Remove Tickets** — unchanged
+- **Give Event Ticket** *(new)*
+  - `Select` event (published events sorted by `start_at desc`, future first)
+  - If event has multiple `event_dates`, second `Select` for date (or "All dates")
+  - Number of attendees (default 1)
+  - Two action buttons:
+    - **Create free booking** → calls new edge function `admin-create-event-booking`
+    - **Generate comp code** → calls new edge function `admin-create-event-comp-code`
+- **Change Role** — unchanged
+- **Manual Check-in** — unchanged
 
-**B. Buyer table**
-Columns:
-- Köpare (avatar + `profiles.full_name`)
-- Antal biljetter (`ticket_count`)
-- Deltagare (expandable list from `attendee_names`)
-- Betalat (resolved amount from `payments` / `swish_payments` joined by `member_id` ± booking time)
-- Metod (Kort / Swish badge)
-- Bokad (`booked_at` short date)
-- Status badge: `confirmed` / `checked_in` / `cancelled` / `refunded`
-- Incheckning: `checkins_used / checkins_allowed` with a green check when fully attended, orange dot when partial, red dot when 0 (no-show after event start)
+### 2. DB migration
 
-Row click expands to show each individual attendee name and the per-date check-in (using `event_checkins.event_id` + booking_id × `event_dates`) for multi-day events.
+a. Extend `admin_give_free_tickets` RPC with `p_source_course_id uuid default null` parameter, persisted to `tickets.source_course_id`.
 
-**C. Empty / past-event affordances**
-- After event end time → header reads "Eventrapport" instead of "Deltagarlista", and a small "Closeout" line: "X av Y dök upp (Z%)".
-- Search input filtering buyer names/emails.
-- "Exportera CSV" button → builds a CSV client-side (no backend) with all columns above, downloads as `attendees-{event-title}-{date}.csv`.
+b. New RPC `admin_create_free_event_booking(p_member_id uuid, p_event_id uuid, p_event_date_id uuid, p_ticket_count int, p_attendee_names jsonb)`:
+- Admin-only check
+- Inserts into `event_bookings` with `status='confirmed'`, `payment_status='comp'`, `payment_reference='admin_gift:<admin_uid>'`
+- Returns booking id + qr_payload
 
-### 2. Data loading
-Replace the current single query with a parallel batch in the new component:
-```ts
-const [bookingsRes, checkinsRes, paymentsRes, swishRes, datesRes] = await Promise.all([...]);
+c. New table `event_comp_codes` (admin-issued discount codes):
 ```
-- `event_bookings` joined with `profiles` (same query, but also include `cancelled`/`refunded` for the report)
-- `event_checkins` filtered by `event_id`
-- `payments` filtered by `member_id IN (buyers)` with description containing event title OR `order_id` matching the booking — keep simple: heuristic `created_at` within 24h of `booked_at`
-- `swish_payments` same heuristic
-- `event_dates` for multi-day breakdown
+id uuid pk, code text unique, event_id uuid, percent_off int,
+max_uses int default 1, uses int default 0,
+created_by uuid, created_for uuid (member, optional),
+expires_at timestamptz, created_at timestamptz
+```
+With RLS: admin manage all; anyone can SELECT a row by code (used at checkout validation).
 
-Compute stats client-side. Memoize per-event so closing/reopening is instant.
+d. Update `create-event-checkout` edge function (separate scope — note only) to accept `comp_code` query param. *Out of scope for this plan if user wants comp-code redemption later; we'll just generate codes now and surface them as copyable text.*
 
-### 3. Events.tsx
-- Replace inline dialog state/JSX with `<EventAttendeesDialog event={selectedEventForReport} open onOpenChange />`.
-- Keep the existing trigger buttons.
-- Tweak the "Visa deltagare" button label: for past events show "Visa rapport", for upcoming "Visa deltagare" (uses `event.end_at < now()` check).
+### 3. Translations (`sv/en/es.ts`)
 
-### 4. Translations
-Add to `src/locales/{sv,en,es}.ts` under `events`:
-- `report`, `ticketsSold`, `revenue`, `checkedIn`, `noShow`, `attendanceRate`, `paymentMethod`, `cardLabel`, `swishLabel`, `exportCsv`, `searchAttendees`, `allDates`, `perDate`, `confirmedStatus`, `checkedInStatus`, `cancelledStatus`, `refundedStatus`, `closeoutLine` ("{checked} av {sold} dök upp ({pct}%)").
+Add under `crm.actions`:
+- `giveEventTicket`, `selectEvent`, `selectEventDate`, `allDates`, `tieToCourse`, `genericCourse`
+- `createFreeBooking`, `generateCompCode`
+- `compCodeCreated` (toast: "Code {code} created – copy and share")
+
+### 4. Edge function: `admin-create-event-booking`
+
+Validates admin via JWT + `is_admin()`, calls new RPC. Triggers confirmation email reusing existing `send-email` pattern.
+
+### 5. Wire-up
+
+- `MemberDetailDrawer` fetches courses + events via `useQuery` (cached, only when drawer open).
+- New mutations: `giveEventTicketMutation`, `generateCompCodeMutation`.
+- Toasts in user's language; refetch `tickets`/`event_bookings` after success.
 
 ## Out of scope
-- No edits to event creation / payment flows.
-- No new DB tables or triggers.
-- No changes to QR-scanner check-in logic.
-- Instructor view (`InstructorEventAttendees.tsx`) stays as-is for now.
 
-## Verification
-1. Open an upcoming event → dialog shows live "Sålda / Intäkt / Incheckade / No-show", buyer list with paid amounts.
-2. Open a past event → header says "Eventrapport", closeout line shows correct attendance %.
-3. Multi-date event → date picker filters stats and the per-row check-in chips.
-4. Click "Exportera CSV" → file downloads with all columns and opens cleanly in Excel/Numbers.
-5. Cancelled / refunded buyers visible but excluded from sold/revenue counters.
+- Comp-code redemption at Stripe checkout (separate follow-up).
+- Editing existing event bookings.
+- Email customization for admin-gifted bookings (uses existing template).
+
+## Files touched
+
+- `src/components/MemberDetailDrawer.tsx`
+- `src/locales/{sv,en,es}.ts`
+- `supabase/functions/admin-create-event-booking/index.ts` (new)
+- Migration: alter `admin_give_free_tickets`, add `admin_create_free_event_booking`, add `event_comp_codes` table + RLS

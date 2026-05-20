@@ -664,6 +664,45 @@ export type Database = {
           },
         ]
       }
+      event_comp_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          created_for: string | null
+          event_id: string | null
+          expires_at: string | null
+          id: string
+          max_uses: number
+          percent_off: number
+          uses: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          created_for?: string | null
+          event_id?: string | null
+          expires_at?: string | null
+          id?: string
+          max_uses?: number
+          percent_off?: number
+          uses?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          created_for?: string | null
+          event_id?: string | null
+          expires_at?: string | null
+          id?: string
+          max_uses?: number
+          percent_off?: number
+          uses?: number
+        }
+        Relationships: []
+      }
       event_dates: {
         Row: {
           created_at: string
@@ -1281,6 +1320,16 @@ export type Database = {
       }
     }
     Functions: {
+      admin_create_free_event_booking: {
+        Args: {
+          p_attendee_names?: Json
+          p_event_date_id?: string
+          p_event_id: string
+          p_member_id: string
+          p_ticket_count?: number
+        }
+        Returns: Json
+      }
       admin_create_member: {
         Args: {
           p_email: string
@@ -1293,14 +1342,24 @@ export type Database = {
         Returns: Json
       }
       admin_delete_member: { Args: { target_user_id: string }; Returns: Json }
-      admin_give_free_tickets: {
-        Args: {
-          p_expires_at?: string
-          p_member_id: string
-          p_ticket_count: number
-        }
-        Returns: Json
-      }
+      admin_give_free_tickets:
+        | {
+            Args: {
+              p_expires_at?: string
+              p_member_id: string
+              p_ticket_count: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_expires_at?: string
+              p_member_id: string
+              p_source_course_id?: string
+              p_ticket_count: number
+            }
+            Returns: Json
+          }
       admin_manual_checkin: {
         Args: { p_course_id: string; p_member_id: string; p_note?: string }
         Returns: Json

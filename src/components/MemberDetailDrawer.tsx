@@ -72,6 +72,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
   const [ticketExpiry, setTicketExpiry] = useState<Date | undefined>(
     new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months from now
   );
+  const [ticketSourceCourseId, setTicketSourceCourseId] = useState<string>('__none__');
   const [removeTicketCount, setRemoveTicketCount] = useState<string>('1');
   const [newRole, setNewRole] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -86,6 +87,11 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     course_id: '',
     note: '',
   });
+  // Event ticket state
+  const [eventTicketEventId, setEventTicketEventId] = useState<string>('');
+  const [eventTicketDateId, setEventTicketDateId] = useState<string>('__all__');
+  const [eventTicketCount, setEventTicketCount] = useState<string>('1');
+  const [compCodePercent, setCompCodePercent] = useState<string>('100');
 
   // Fetch member profile
   const { data: profile } = useQuery({
@@ -120,20 +126,41 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     enabled: open,
   });
 
-  // Fetch courses for check-in
+  // Fetch courses (used in quick actions: course picker & manual check-in)
   const { data: courses = [] } = useQuery({
-    queryKey: ['courses-for-checkin'],
+    queryKey: ['courses-for-admin-actions'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, title')
-        .order('created_at', { ascending: false })
-        .limit(20);
+        .select('id, title, starts_at')
+        .order('starts_at', { ascending: false, nullsFirst: false })
+        .limit(100);
       if (error) throw error;
       return data;
     },
-    enabled: open && checkinDialogOpen,
+    enabled: open,
   });
+
+  // Fetch events + dates for event ticket gifting
+  const { data: events = [] } = useQuery({
+    queryKey: ['events-for-admin-actions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, title, start_at, status, event_dates(id, start_at)')
+        .eq('status', 'published')
+        .order('start_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: open,
+  });
+
+  const selectedEvent = events.find((e: any) => e.id === eventTicketEventId);
+  const eventDates: any[] = (selectedEvent?.event_dates || []).slice().sort(
+    (a: any, b: any) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+  );
 
   // Fetch Stripe payments for this member
   const { data: stripePayments = [] } = useQuery({
@@ -242,11 +269,12 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
 
   // Give free tickets mutation
   const giveTicketsMutation = useMutation({
-    mutationFn: async (data: { ticketCount: number; expiresAt?: string }) => {
-      const { data: result, error } = await supabase.rpc("admin_give_free_tickets", {
+    mutationFn: async (data: { ticketCount: number; expiresAt?: string; sourceCourseId?: string | null }) => {
+      const { data: result, error } = await supabase.rpc("admin_give_free_tickets" as any, {
         p_member_id: memberId,
         p_ticket_count: data.ticketCount,
         p_expires_at: data.expiresAt,
+        p_source_course_id: data.sourceCourseId ?? null,
       });
 
       if (error) throw error;
@@ -255,11 +283,64 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     onSuccess: (result: any) => {
       toast.success(t.common.ticketsGiven.replace("{count}", result.tickets.toString()));
       setTicketCount("1");
+      setTicketSourceCourseId("__none__");
       queryClient.invalidateQueries({ queryKey: ["member-tickets", memberId] });
     },
     onError: (error: any) => {
       console.error("Give tickets error:", error);
       toast.error("Kunde inte ge klipp: " + error.message);
+    },
+  });
+
+  // Give free event booking
+  const giveEventTicketMutation = useMutation({
+    mutationFn: async (data: { eventId: string; eventDateId: string | null; ticketCount: number }) => {
+      const { data: result, error } = await supabase.rpc("admin_create_free_event_booking" as any, {
+        p_member_id: memberId,
+        p_event_id: data.eventId,
+        p_event_date_id: data.eventDateId,
+        p_ticket_count: data.ticketCount,
+        p_attendee_names: [],
+      });
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (result: any) => {
+      toast.success(
+        (t.crm.actions as any).eventBookingCreated.replace("{event}", result.event_title || "")
+      );
+      setEventTicketCount("1");
+      queryClient.invalidateQueries({ queryKey: ["member-event-bookings", memberId] });
+    },
+    onError: (error: any) => {
+      console.error("Event booking error:", error);
+      toast.error(error.message || t.crm.error);
+    },
+  });
+
+  // Generate event comp code
+  const generateCompCodeMutation = useMutation({
+    mutationFn: async (data: { eventId: string | null; percentOff: number }) => {
+      const code = `COMP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const { error } = await supabase.from("event_comp_codes" as any).insert({
+        code,
+        event_id: data.eventId,
+        percent_off: data.percentOff,
+        max_uses: 1,
+        created_by: userId!,
+        created_for: memberId,
+        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      if (error) throw error;
+      return code;
+    },
+    onSuccess: async (code: string) => {
+      try { await navigator.clipboard.writeText(code); } catch {}
+      toast.success((t.crm.actions as any).compCodeCreated.replace("{code}", code));
+    },
+    onError: (error: any) => {
+      console.error("Comp code error:", error);
+      toast.error(error.message || t.crm.error);
     },
   });
 
@@ -588,33 +669,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Change level */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">{t.crm.actions.changeLevel}</label>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                            <Select value={newLevel} onValueChange={setNewLevel}>
-                              <SelectTrigger>
-                                <SelectValue placeholder={t.crm.selectLevel} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="bronze">{t.crm.level.bronze}</SelectItem>
-                                <SelectItem value="silver">{t.crm.level.silver}</SelectItem>
-                                <SelectItem value="gold">{t.crm.level.gold}</SelectItem>
-                                <SelectItem value="platinum">{t.crm.level.platinum}</SelectItem>
-                                <SelectItem value="vip">{t.crm.level.vip}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              className="w-full sm:w-auto"
-                              onClick={() => updateMemberMutation.mutate({ new_level: newLevel })}
-                              disabled={!newLevel || updateMemberMutation.isPending}
-                            >
-                              {t.common.save}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Give Free Tickets */}
+                        {/* Give Free Tickets (class) */}
                         <div className="space-y-2">
                           <label className="text-sm font-medium">{t.common.giveTickets}</label>
                           <div className="flex flex-col sm:flex-row gap-2">
@@ -625,7 +680,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                               placeholder={t.common.ticketCount}
                               value={ticketCount}
                               onChange={(e) => setTicketCount(e.target.value)}
-                              className="w-full sm:w-auto"
+                              className="w-full sm:w-32"
                             />
                             <Button
                               className="w-full sm:w-auto"
@@ -633,6 +688,10 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                                 giveTicketsMutation.mutate({
                                   ticketCount: parseInt(ticketCount),
                                   expiresAt: ticketExpiry?.toISOString(),
+                                  sourceCourseId:
+                                    ticketSourceCourseId && ticketSourceCourseId !== '__none__'
+                                      ? ticketSourceCourseId
+                                      : null,
                                 })
                               }
                               disabled={
@@ -641,8 +700,24 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                                 giveTicketsMutation.isPending
                               }
                             >
-                              {giveTicketsMutation.isPending ? 'Ger...' : t.common.giveTickets}
+                              {giveTicketsMutation.isPending ? '...' : t.common.giveTickets}
                             </Button>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">
+                              {(t.crm.actions as any).tieToCourse}
+                            </Label>
+                            <Select value={ticketSourceCourseId} onValueChange={setTicketSourceCourseId}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">{(t.crm.actions as any).genericCourse}</SelectItem>
+                                {courses.map((c: any) => (
+                                  <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">
@@ -655,11 +730,7 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                                   className="w-full justify-start text-left font-normal"
                                 >
                                   <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {ticketExpiry ? (
-                                    format(ticketExpiry, "PPP")
-                                  ) : (
-                                    <span>Välj datum</span>
-                                  )}
+                                  {ticketExpiry ? format(ticketExpiry, "PPP") : <span>—</span>}
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-0">
@@ -668,11 +739,97 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
                                   selected={ticketExpiry}
                                   onSelect={setTicketExpiry}
                                   initialFocus
+                                  className="p-3 pointer-events-auto"
                                 />
                               </PopoverContent>
                             </Popover>
                           </div>
                         </div>
+
+                        {/* Give Event Ticket */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">{(t.crm.actions as any).giveEventTicket}</label>
+                          <Select value={eventTicketEventId} onValueChange={(v) => { setEventTicketEventId(v); setEventTicketDateId('__all__'); }}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={(t.crm.actions as any).giveEventTicket} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {events.map((e: any) => (
+                                <SelectItem key={e.id} value={e.id}>
+                                  {e.title}{e.start_at ? ` – ${format(new Date(e.start_at), 'yyyy-MM-dd')}` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {eventDates.length > 1 && (
+                            <Select value={eventTicketDateId} onValueChange={setEventTicketDateId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={(t.crm.actions as any).selectEventDate} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__all__">{(t.crm.actions as any).allDates}</SelectItem>
+                                {eventDates.map((d: any) => (
+                                  <SelectItem key={d.id} value={d.id}>
+                                    {format(new Date(d.start_at), 'yyyy-MM-dd HH:mm')}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              max="20"
+                              placeholder={(t.crm.actions as any).attendees}
+                              value={eventTicketCount}
+                              onChange={(e) => setEventTicketCount(e.target.value)}
+                              className="w-full sm:w-32"
+                            />
+                            <Button
+                              className="flex-1"
+                              onClick={() =>
+                                giveEventTicketMutation.mutate({
+                                  eventId: eventTicketEventId,
+                                  eventDateId: eventTicketDateId !== '__all__' ? eventTicketDateId : null,
+                                  ticketCount: parseInt(eventTicketCount) || 1,
+                                })
+                              }
+                              disabled={
+                                !eventTicketEventId ||
+                                giveEventTicketMutation.isPending
+                              }
+                            >
+                              <Gift className="h-4 w-4 mr-2" />
+                              {(t.crm.actions as any).createFreeBooking}
+                            </Button>
+                          </div>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              max="100"
+                              placeholder="%"
+                              value={compCodePercent}
+                              onChange={(e) => setCompCodePercent(e.target.value)}
+                              className="w-full sm:w-24"
+                            />
+                            <Button
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() =>
+                                generateCompCodeMutation.mutate({
+                                  eventId: eventTicketEventId || null,
+                                  percentOff: Math.min(100, Math.max(1, parseInt(compCodePercent) || 100)),
+                                })
+                              }
+                              disabled={generateCompCodeMutation.isPending}
+                            >
+                              {(t.crm.actions as any).generateCompCode}
+                            </Button>
+                          </div>
+                        </div>
+
 
                         {/* Remove Tickets */}
                         <div className="space-y-2">
