@@ -1511,10 +1511,15 @@ export default function Biljetter() {
                               const isExpiringSoon = daysUntilExpiry <= 30;
                               
                               return (
-                                <div key={pkg.id} className="flex items-center gap-2 text-sm">
-                                  {isExpiringSoon && <AlertCircle className="h-4 w-4 text-orange-500 shrink-0" />}
-                                  <span className={isExpiringSoon ? 'text-orange-600 font-medium' : ''}>
-                                    {remaining} klipp utgår {expiryDate.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                <div key={pkg.id} className="flex flex-col gap-0.5 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    {isExpiringSoon && <AlertCircle className="h-4 w-4 text-orange-500 shrink-0" />}
+                                    <span className={isExpiringSoon ? 'text-orange-600 font-medium' : ''}>
+                                      {remaining} klipp utgår {expiryDate.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground ml-6">
+                                    {t.tickets.purchasedOn}: {new Date(pkg.purchased_at).toLocaleDateString('sv-SE')}
                                   </span>
                                 </div>
                               );
@@ -1744,6 +1749,9 @@ export default function Biljetter() {
                                   <span>{lesson.venue}</span>
                                 </div>
                               )}
+                              <div className="text-xs text-muted-foreground">
+                                {t.tickets.purchasedOn}: {new Date(booking.purchased_at).toLocaleDateString('sv-SE')}
+                              </div>
                             </div>
                             
                             <div className="flex flex-wrap gap-2 pt-2">
@@ -1884,6 +1892,9 @@ export default function Biljetter() {
                                       ) + 1} av {new Set(eventTickets.filter(t => t.event_date_id).map(t => t.event_dates?.start_at)).size}
                                     </p>
                                   )}
+                                  <p className="text-xs text-muted-foreground">
+                                    {t.tickets.purchasedOn}: {new Date(ticket.booked_at).toLocaleDateString('sv-SE')}
+                                  </p>
                                 </div>
                                 
                                 {/* QR Code Preview */}
@@ -1994,6 +2005,9 @@ export default function Biljetter() {
                                       <p className="text-xs text-muted-foreground">
                                         {formatDate(ticketDate)} • {formatTime(ticketDate)}
                                       </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {t.tickets.purchasedOn}: {new Date(ticket.booked_at).toLocaleDateString('sv-SE')}
+                                      </p>
                                     </div>
                                   </div>
                                 );
@@ -2034,6 +2048,9 @@ export default function Biljetter() {
                               <p className="text-muted-foreground text-xs">
                                 {formatDate(lesson.starts_at)}
                               </p>
+                              <p className="text-muted-foreground text-xs">
+                                {t.tickets.purchasedOn}: {new Date(booking.purchased_at).toLocaleDateString('sv-SE')}
+                              </p>
                             </div>
                             <Badge variant="outline" className="shrink-0">Använd</Badge>
                           </div>
@@ -2053,6 +2070,9 @@ export default function Biljetter() {
                               </p>
                               <p className="text-muted-foreground text-xs">
                                 {pkg.total_tickets} klipp - {isExpired ? 'Utgått' : 'Använt'}
+                              </p>
+                              <p className="text-muted-foreground text-xs">
+                                {t.tickets.purchasedOn}: {new Date(pkg.purchased_at).toLocaleDateString('sv-SE')}
                               </p>
                             </div>
                             <Badge variant="outline" className="shrink-0">
