@@ -240,8 +240,9 @@ export default function Scan() {
   };
 
   const handleScan = async (qrPayload: string) => {
-    // Skip if already processing, on cooldown, or same code as last scan
+    // Skip if already processing, on cooldown, success dialog open, or same code as last scan
     if (processing || scanCooldown) return;
+    if (showSuccessDialog) return; // hard guard: previous result not dismissed yet
     if (!qrPayload || !qrPayload.trim()) return;
     if (lastScannedCode === qrPayload.trim()) return;
     
@@ -258,29 +259,40 @@ export default function Scan() {
       if (error) throw error;
 
       const result = data as unknown as CheckinResult;
-      setLastResult(result);
 
       if (result.success) {
-        // Pause the scanner
+        setLastResult(result);
         scannerRef.current?.pause();
         setShowSuccessDialog(true);
         loadRecentCheckins();
       } else {
+        // Ensure no stale success dialog remains visible
+        setShowSuccessDialog(false);
+        setLastResult(result);
         toast({
           title: 'Fel vid incheckning',
           description: result.message || 'Något gick fel',
           variant: 'destructive',
         });
-        // Allow scanning again after error
-        setLastScannedCode(null);
+        // Cooldown so the same QR in front of the camera doesn't re-fire instantly
+        setScanCooldown(true);
+        setTimeout(() => {
+          setScanCooldown(false);
+          setLastScannedCode(null);
+        }, 2500);
       }
     } catch (error: any) {
+      setShowSuccessDialog(false);
       toast({
         title: 'Fel',
         description: error.message || 'Kunde inte checka in',
         variant: 'destructive',
       });
-      setLastScannedCode(null);
+      setScanCooldown(true);
+      setTimeout(() => {
+        setScanCooldown(false);
+        setLastScannedCode(null);
+      }, 2500);
     } finally {
       setProcessing(false);
     }
@@ -289,13 +301,14 @@ export default function Scan() {
   const handleSuccessConfirm = () => {
     setShowSuccessDialog(false);
     setLastResult(null);
-    setLastScannedCode(null);
     
-    // Start cooldown to prevent immediate re-scan
+    // Cooldown prevents the same QR (still in frame) from re-firing
     setScanCooldown(true);
-    setTimeout(() => setScanCooldown(false), 1500);
+    setTimeout(() => {
+      setScanCooldown(false);
+      setLastScannedCode(null);
+    }, 2500);
     
-    // Resume scanner
     scannerRef.current?.start();
   };
 
