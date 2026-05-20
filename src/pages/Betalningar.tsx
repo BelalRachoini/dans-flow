@@ -671,6 +671,12 @@ export default function Betalningar() {
           </div>
         </CardContent>
       </Card>
+
+      <PaymentDetailDialog
+        payment={selectedPayment}
+        open={!!selectedPayment}
+        onOpenChange={(o) => { if (!o) setSelectedPayment(null); }}
+      />
     </div>
   );
 }
