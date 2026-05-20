@@ -154,8 +154,8 @@ export function EventTicketPurchaseDialog({
 
   const ticketOptions = [
     { count: 1 as TicketOption, label: t.eventTickets?.singleTicket || '1 Ticket', price: singlePrice, originalPrice: hasDiscount ? baseSinglePrice : null, savings: 0, icon: User },
-    { count: 2 as TicketOption, label: t.eventTickets?.coupleTickets || '2 Tickets (Couple)', price: couplePrice, originalPrice: null, savings: coupleSavings, icon: Users },
-    { count: 3 as TicketOption, label: t.eventTickets?.trioTickets || '3 Tickets', price: trioPrice, originalPrice: null, savings: trioSavings, icon: Users },
+    { count: 2 as TicketOption, label: t.eventTickets?.coupleTickets || '2 Tickets (Couple)', price: couplePrice, originalPrice: hasDiscount ? baseCouplePrice : null, savings: coupleSavings, icon: Users },
+    { count: 3 as TicketOption, label: t.eventTickets?.trioTickets || '3 Tickets', price: trioPrice, originalPrice: hasDiscount ? baseTrioPrice : null, savings: trioSavings, icon: Users },
   ];
 
   return (
