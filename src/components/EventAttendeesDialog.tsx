@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, CheckCircle2, AlertCircle, XCircle, Download, CreditCard, Smartphone, ChevronDown, ChevronRight, TrendingUp, Ticket as TicketIcon, BarChart3, Search } from 'lucide-react';
+import { Users, CheckCircle2, AlertCircle, XCircle, Download, CreditCard, Smartphone, ChevronDown, ChevronRight, TrendingUp, Ticket as TicketIcon, BarChart3, Search, AlertTriangle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
@@ -43,6 +44,8 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [unreconciled, setUnreconciled] = useState<any[]>([]);
+  const [reconciling, setReconciling] = useState<string | null>(null);
 
   const isPast = event?.end_at ? new Date(event.end_at) < new Date() : event?.start_at ? new Date(event.start_at) < new Date() : false;
 
@@ -109,12 +112,53 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
       }
 
       setPaymentsByMember(map);
+
+      // Load any Swish payments for this event with no matching booking (drift detector)
+      const { data: drift } = await supabase.rpc('admin_list_unreconciled_swish_for_event', {
+        p_event_id: event.id,
+      });
+      if (!cancelled) setUnreconciled((drift as any[]) || []);
+
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [open, event]);
+
+  const reconcileOne = async (swishPaymentId: string) => {
+    setReconciling(swishPaymentId);
+    try {
+      const { data, error } = await supabase.rpc('admin_reconcile_swish_event_booking', {
+        p_swish_payment_id: swishPaymentId,
+        p_attendee_names: [],
+      });
+      if (error) throw error;
+      const res = data as any;
+      toast.success(
+        res?.already_existed
+          ? 'Redan bokad'
+          : `Bokning skapad (${res?.bookings_created ?? 0} st)`
+      );
+      // Refresh
+      if (event) {
+        const [bkRes, drift] = await Promise.all([
+          supabase
+            .from('event_bookings')
+            .select('*, profiles:member_id(id, full_name, email, avatar_url)')
+            .eq('event_id', event.id)
+            .order('booked_at', { ascending: false }),
+          supabase.rpc('admin_list_unreconciled_swish_for_event', { p_event_id: event.id }),
+        ]);
+        setBookings((bkRes.data || []) as BookingRow[]);
+        setUnreconciled((drift.data as any[]) || []);
+      }
+    } catch (e: any) {
+      toast.error(`Reconcile failed: ${e?.message ?? 'unknown'}`);
+    } finally {
+      setReconciling(null);
+    }
+  };
 
   // Filter check-ins by selected date
   const filteredCheckins = useMemo(() => {
@@ -255,6 +299,44 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
           <StatCard icon={<CheckCircle2 className="h-4 w-4" />} label="Incheckade" value={String(stats.checkedIn)} sub={`${stats.pct}% närvaro`} tone="success" />
           <StatCard icon={<AlertCircle className="h-4 w-4" />} label="No-show" value={String(stats.noShow)} sub={stats.expected > 0 ? `${100 - stats.pct}% av sålda` : undefined} tone={stats.noShow > 0 && isPast ? 'warn' : 'default'} />
         </div>
+
+        {/* Unreconciled Swish payments (paid but no booking) */}
+        {unreconciled.length > 0 && (
+          <div className="mt-4 border border-amber-500/40 bg-amber-500/10 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-4 w-4 text-amber-700" />
+              <p className="text-sm font-semibold text-amber-900">
+                Betalt men ej bokat ({unreconciled.length})
+              </p>
+            </div>
+            <p className="text-xs text-amber-900/80 mb-3">
+              Dessa medlemmar har betalat via Swish men deras bokning skapades aldrig (t.ex. webbläsaren stängdes innan bekräftelsesidan laddades). Klicka för att skapa bokningen manuellt — QR-kod genereras automatiskt.
+            </p>
+            <div className="space-y-2">
+              {unreconciled.map((u) => (
+                <div key={u.swish_payment_id} className="flex items-center gap-3 bg-background rounded-md p-2 text-sm">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{u.member_name || u.customer_name || 'Okänd medlem'}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {u.member_email || '—'} · {fmtKr(u.amount_cents)} · {u.quantity} biljett(er) · Swish #{u.wp_order_id || '—'} · {format(new Date(u.created_at), 'd MMM HH:mm')}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => reconcileOne(u.swish_payment_id)}
+                    disabled={reconciling === u.swish_payment_id}
+                  >
+                    {reconciling === u.swish_payment_id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Skapa bokning'
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row gap-2 mt-4">

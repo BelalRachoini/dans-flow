@@ -1360,8 +1360,27 @@ export type Database = {
             }
             Returns: Json
           }
+      admin_list_unreconciled_swish_for_event: {
+        Args: { p_event_id: string }
+        Returns: {
+          amount_cents: number
+          attendee_names: Json
+          created_at: string
+          customer_name: string
+          member_email: string
+          member_id: string
+          member_name: string
+          quantity: number
+          swish_payment_id: string
+          wp_order_id: string
+        }[]
+      }
       admin_manual_checkin: {
         Args: { p_course_id: string; p_member_id: string; p_note?: string }
+        Returns: Json
+      }
+      admin_reconcile_swish_event_booking: {
+        Args: { p_attendee_names?: Json; p_swish_payment_id: string }
         Returns: Json
       }
       admin_remove_tickets: {
