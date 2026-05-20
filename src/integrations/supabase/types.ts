@@ -1330,6 +1330,20 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_create_manual_event_booking: {
+        Args: {
+          p_amount_cents?: number
+          p_attendee_email?: string
+          p_attendee_name?: string
+          p_event_date_id?: string
+          p_event_id: string
+          p_member_id?: string
+          p_payment_method?: string
+          p_payment_reference?: string
+          p_ticket_count?: number
+        }
+        Returns: Json
+      }
       admin_create_member: {
         Args: {
           p_email: string
