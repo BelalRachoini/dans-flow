@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'npm:pdf-lib@1.17.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,10 +17,13 @@ interface ReceiptData {
   customerName: string;
   customerEmail: string;
   date: string;
+  paymentMethod: string;
+  status: string;
   items: ReceiptItem[];
   totalAmount: number;
   currency: string;
   orderId: string;
+  receiptNumber: string;
   companyInfo: {
     name: string;
     address: string;
@@ -31,132 +35,191 @@ interface ReceiptData {
   };
 }
 
-// ASCII-safe transliteration for Helvetica Type1 (no UTF-8 glyphs)
-function ascii(s: string): string {
-  return s
-    .replace(/[åä]/g, 'a').replace(/[ÅÄ]/g, 'A')
-    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
-    .replace(/é/g, 'e').replace(/É/g, 'E')
-    .replace(/[^\x20-\x7E]/g, '');
+function fmt(cents: number, currency: string): string {
+  const v = (cents / 100).toLocaleString('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${v} ${currency.toUpperCase()}`;
 }
 
-function pdfStr(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-}
+// Gold brand color (#c59333 -> 0.773, 0.576, 0.2)
+const GOLD = rgb(0.773, 0.576, 0.2);
+const GOLD_TINT = rgb(0.98, 0.95, 0.87);
+const TEXT = rgb(0.12, 0.12, 0.14);
+const MUTED = rgb(0.42, 0.42, 0.46);
+const BORDER = rgb(0.88, 0.86, 0.82);
+const ZEBRA = rgb(0.985, 0.98, 0.97);
+const WHITE = rgb(1, 1, 1);
 
-function formatAmount(cents: number, currency: string): string {
-  return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
-}
+async function generateReceiptPdf(receipt: ReceiptData): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle(`Kvitto ${receipt.receiptNumber}`);
+  pdfDoc.setAuthor(receipt.companyInfo.company || receipt.companyInfo.name);
+  pdfDoc.setProducer('Tropical Studios');
 
-function generateReceiptPdf(receipt: ReceiptData): Uint8Array {
-  const lineHeight = 16;
-  const pageWidth = 595;
-  const pageHeight = 842;
-  const marginLeft = 50;
-  const contentWidth = pageWidth - 100;
+  const page: PDFPage = pdfDoc.addPage([595, 842]); // A4
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  const lines: { x: number; y: number; text: string; fontSize?: number; bold?: boolean }[] = [];
-  let y = pageHeight - 60;
+  const W = 595;
+  const H = 842;
+  const M = 50;
 
-  lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.name), fontSize: 18, bold: true });
-  y -= 18;
-  if (receipt.companyInfo.company) {
-    lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.company), fontSize: 11, bold: true });
-    y -= 14;
+  const draw = (text: string, x: number, y: number, opts: { size?: number; bold?: boolean; color?: any; align?: 'left' | 'right' | 'center'; maxWidth?: number } = {}) => {
+    const size = opts.size ?? 10;
+    const f = opts.bold ? fontBold : font;
+    const color = opts.color ?? TEXT;
+    let str = text ?? '';
+    if (opts.maxWidth) {
+      while (str.length > 4 && f.widthOfTextAtSize(str, size) > opts.maxWidth) str = str.slice(0, -1);
+      if (str !== text) str = str.slice(0, -1) + '…';
+    }
+    let drawX = x;
+    if (opts.align === 'right') drawX = x - f.widthOfTextAtSize(str, size);
+    else if (opts.align === 'center') drawX = x - f.widthOfTextAtSize(str, size) / 2;
+    page.drawText(str, { x: drawX, y, size, font: f, color });
+  };
+
+  // ===== Header band =====
+  page.drawRectangle({ x: 0, y: H - 90, width: W, height: 90, color: GOLD });
+  draw((receipt.companyInfo.company || receipt.companyInfo.name).toUpperCase(), M, H - 40, { size: 18, bold: true, color: WHITE });
+  draw('Dansstudio · Göteborg', M, H - 58, { size: 9, color: WHITE });
+  draw('KVITTO', W - M, H - 40, { size: 22, bold: true, color: WHITE, align: 'right' });
+  draw(`Nr ${receipt.receiptNumber}`, W - M, H - 60, { size: 9, color: WHITE, align: 'right' });
+
+  let y = H - 130;
+
+  // ===== Two columns: Från / Kvitto till =====
+  draw('FRÅN', M, y, { size: 8, bold: true, color: MUTED });
+  draw('KVITTO TILL', W / 2 + 10, y, { size: 8, bold: true, color: MUTED });
+  y -= 16;
+
+  const leftLines = [
+    receipt.companyInfo.company || receipt.companyInfo.name,
+    receipt.companyInfo.address,
+    receipt.companyInfo.orgNumber ? `Org.nr ${receipt.companyInfo.orgNumber}` : '',
+    receipt.companyInfo.vatNumber ? `VAT ${receipt.companyInfo.vatNumber}` : '',
+    receipt.companyInfo.email ? receipt.companyInfo.email : '',
+    receipt.companyInfo.phone ? `Tel ${receipt.companyInfo.phone}` : '',
+  ].filter(Boolean);
+
+  const rightLines = [
+    receipt.customerName || 'Medlem',
+    receipt.customerEmail || '',
+  ].filter(Boolean);
+
+  const maxRows = Math.max(leftLines.length, rightLines.length);
+  let blockY = y;
+  for (let i = 0; i < maxRows; i++) {
+    if (leftLines[i]) draw(leftLines[i], M, blockY, { size: 9.5, color: i === 0 ? TEXT : MUTED, bold: i === 0, maxWidth: W / 2 - M - 10 });
+    if (rightLines[i]) draw(rightLines[i], W / 2 + 10, blockY, { size: 9.5, color: i === 0 ? TEXT : MUTED, bold: i === 0, maxWidth: W / 2 - M - 10 });
+    blockY -= 13;
   }
-  lines.push({ x: marginLeft, y, text: ascii(receipt.companyInfo.address), fontSize: 9 });
-  y -= 12;
-  lines.push({ x: marginLeft, y, text: `Tel: ${ascii(receipt.companyInfo.phone)}`, fontSize: 9 });
-  y -= 12;
-  if (receipt.companyInfo.email) {
-    lines.push({ x: marginLeft, y, text: `E-post: ${ascii(receipt.companyInfo.email)}`, fontSize: 9 });
-    y -= 12;
-  }
-  if (receipt.companyInfo.orgNumber) {
-    lines.push({ x: marginLeft, y, text: `Org.nr: ${ascii(receipt.companyInfo.orgNumber)}`, fontSize: 9 });
-    y -= 12;
-  }
-  if (receipt.companyInfo.vatNumber) {
-    lines.push({ x: marginLeft, y, text: `VAT: ${ascii(receipt.companyInfo.vatNumber)}`, fontSize: 9 });
-    y -= 12;
-  }
-  y -= 18;
-  lines.push({ x: marginLeft, y, text: 'KVITTO / RECEIPT', fontSize: 16, bold: true });
-  y -= 28;
-  lines.push({ x: marginLeft, y, text: `Kund / Customer: ${receipt.customerName}`, fontSize: 10 });
-  y -= lineHeight;
-  lines.push({ x: marginLeft, y, text: `E-post / Email: ${receipt.customerEmail}`, fontSize: 10 });
-  y -= lineHeight;
-  lines.push({ x: marginLeft, y, text: `Datum / Date: ${receipt.date}`, fontSize: 10 });
-  y -= lineHeight;
-  lines.push({ x: marginLeft, y, text: `Order: ${receipt.orderId}`, fontSize: 10 });
-  y -= 28;
+  y = blockY - 16;
 
-  lines.push({ x: marginLeft, y, text: 'Beskrivning / Description', fontSize: 9, bold: true });
-  lines.push({ x: 340, y, text: 'Antal', fontSize: 9, bold: true });
-  lines.push({ x: 400, y, text: 'Styckpris', fontSize: 9, bold: true });
-  lines.push({ x: 480, y, text: 'Summa', fontSize: 9, bold: true });
-  y -= 14;
+  // ===== Metadata strip =====
+  page.drawRectangle({ x: M, y: y - 32, width: W - 2 * M, height: 38, color: GOLD_TINT });
+  const metaCols = [
+    { label: 'DATUM', value: receipt.date },
+    { label: 'METOD', value: receipt.paymentMethod },
+    { label: 'STATUS', value: receipt.status },
+    { label: 'REFERENS', value: receipt.orderId.slice(0, 14) },
+  ];
+  const colW = (W - 2 * M) / metaCols.length;
+  metaCols.forEach((c, i) => {
+    const cx = M + i * colW + 12;
+    draw(c.label, cx, y - 8, { size: 7.5, color: MUTED, bold: true });
+    draw(c.value, cx, y - 22, { size: 10.5, bold: true, color: TEXT });
+  });
+  y -= 56;
 
-  for (const item of receipt.items) {
+  // ===== Items table =====
+  const colX = { desc: M + 8, qty: W - M - 230, unit: W - M - 130, sum: W - M - 8 };
+  const headerY = y;
+  page.drawRectangle({ x: M, y: y - 6, width: W - 2 * M, height: 22, color: TEXT });
+  draw('BESKRIVNING', colX.desc, y, { size: 8.5, bold: true, color: WHITE });
+  draw('ANTAL', colX.qty + 30, y, { size: 8.5, bold: true, color: WHITE, align: 'right' });
+  draw('À-PRIS', colX.unit + 60, y, { size: 8.5, bold: true, color: WHITE, align: 'right' });
+  draw('SUMMA', colX.sum, y, { size: 8.5, bold: true, color: WHITE, align: 'right' });
+  y -= 22;
+
+  receipt.items.forEach((item, idx) => {
+    const rowH = 26;
+    if (idx % 2 === 0) {
+      page.drawRectangle({ x: M, y: y - 8, width: W - 2 * M, height: rowH - 4, color: ZEBRA });
+    }
     const lineTotal = item.quantity * item.unitPrice;
-    lines.push({ x: marginLeft, y, text: item.description, fontSize: 10 });
-    lines.push({ x: 350, y, text: String(item.quantity), fontSize: 10 });
-    lines.push({ x: 400, y, text: formatAmount(item.unitPrice, receipt.currency), fontSize: 10 });
-    lines.push({ x: 480, y, text: formatAmount(lineTotal, receipt.currency), fontSize: 10 });
-    y -= lineHeight + 2;
+    draw(item.description, colX.desc, y, { size: 10, maxWidth: colX.qty - colX.desc - 10 });
+    draw(String(item.quantity), colX.qty + 30, y, { size: 10, align: 'right' });
+    draw(fmt(item.unitPrice, item.currency), colX.unit + 60, y, { size: 10, align: 'right' });
+    draw(fmt(lineTotal, item.currency), colX.sum, y, { size: 10, bold: true, align: 'right' });
+    y -= rowH;
+  });
+
+  // Bottom border
+  page.drawLine({ start: { x: M, y: y + 14 }, end: { x: W - M, y: y + 14 }, thickness: 0.5, color: BORDER });
+  y -= 6;
+
+  // ===== Totals block =====
+  const totalsX = W - M;
+  draw('Subtotal', totalsX - 100, y, { size: 9.5, color: MUTED });
+  draw(fmt(receipt.totalAmount, receipt.currency), totalsX, y, { size: 9.5, align: 'right' });
+  y -= 16;
+  draw('Moms', totalsX - 100, y, { size: 9.5, color: MUTED });
+  draw('0,00 ' + receipt.currency.toUpperCase(), totalsX, y, { size: 9.5, align: 'right' });
+  y -= 18;
+
+  page.drawLine({ start: { x: totalsX - 180, y: y + 12 }, end: { x: totalsX, y: y + 12 }, thickness: 0.5, color: BORDER });
+  draw('TOTALT', totalsX - 100, y - 4, { size: 13, bold: true, color: TEXT });
+  draw(fmt(receipt.totalAmount, receipt.currency), totalsX, y - 4, { size: 14, bold: true, color: GOLD, align: 'right' });
+  y -= 50;
+
+  // ===== Footer =====
+  page.drawLine({ start: { x: M, y: 90 }, end: { x: W - M, y: 90 }, thickness: 0.5, color: BORDER });
+  draw('Tack för att du dansar med oss!', M, 70, { size: 11, bold: true, color: GOLD });
+  draw('Detta kvitto är genererat automatiskt och är giltigt utan underskrift.', M, 54, { size: 8.5, color: MUTED });
+  draw(`${receipt.companyInfo.company || receipt.companyInfo.name} · ${receipt.companyInfo.email ?? ''}`, M, 40, { size: 8.5, color: MUTED });
+  draw('Sida 1 / 1', W - M, 40, { size: 8.5, color: MUTED, align: 'right' });
+
+  return await pdfDoc.save();
+}
+
+async function resolveSwishDescription(adminClient: any, payment: any): Promise<string> {
+  const meta = (payment.metadata || {}) as any;
+  if (meta.description) return String(meta.description);
+
+  const created = new Date(payment.created_at).getTime();
+  const lo = new Date(created - 30 * 60 * 1000).toISOString();
+  const hi = new Date(created + 30 * 60 * 1000).toISOString();
+
+  if (payment.payment_type === 'event' || meta.event_id) {
+    const { data: bk } = await adminClient
+      .from('event_bookings')
+      .select('ticket_count, events!event_bookings_event_id_fkey(title)')
+      .eq('member_id', payment.member_id)
+      .gte('created_at', lo)
+      .lte('created_at', hi)
+      .limit(1)
+      .maybeSingle();
+    if (bk) {
+      const title = (bk.events as any)?.title || 'Event';
+      const count = bk.ticket_count || 1;
+      return `Eventbiljett: ${title} — ${count} biljett${count > 1 ? 'er' : ''}`;
+    }
+    if (meta.event_title) return `Eventbiljett: ${meta.event_title}`;
   }
 
-  y -= 8;
-  lines.push({ x: 400, y, text: 'TOTALT / TOTAL:', fontSize: 11, bold: true });
-  lines.push({ x: 480, y, text: formatAmount(receipt.totalAmount, receipt.currency), fontSize: 11, bold: true });
-  y -= 30;
-  lines.push({ x: marginLeft, y, text: 'Tack for ditt kop! / Thank you for your purchase!', fontSize: 10 });
-  y -= lineHeight;
-  lines.push({ x: marginLeft, y, text: ascii(`${receipt.companyInfo.company || receipt.companyInfo.name} - ${receipt.companyInfo.address}`), fontSize: 8 });
-
-  let stream = '';
-  const separatorY = lines.find(l => l.text === 'Beskrivning / Description')?.y;
-  if (separatorY) {
-    stream += `${marginLeft} ${separatorY - 6} m ${marginLeft + contentWidth} ${separatorY - 6} l S\n`;
-  }
-  const totalLine = lines.find(l => l.text === 'TOTALT / TOTAL:');
-  if (totalLine) {
-    stream += `380 ${totalLine.y + 14} m ${marginLeft + contentWidth} ${totalLine.y + 14} l S\n`;
-  }
-  for (const line of lines) {
-    const fontSize = line.fontSize || 10;
-    const font = line.bold ? '/F2' : '/F1';
-    stream += `BT ${font} ${fontSize} Tf ${line.x} ${line.y} Td (${pdfStr(line.text)}) Tj ET\n`;
+  if (payment.payment_type === 'tickets' || payment.payment_type === 'klippkort') {
+    const { data: tk } = await adminClient
+      .from('tickets')
+      .select('total_tickets')
+      .eq('member_id', payment.member_id)
+      .gte('purchased_at', lo)
+      .lte('purchased_at', hi)
+      .limit(1)
+      .maybeSingle();
+    if (tk) return `Klippkort: ${tk.total_tickets} klipp`;
   }
 
-  const streamBytes = new TextEncoder().encode(stream);
-  const objects: string[] = [];
-  let objCount = 0;
-  function addObj(content: string) { objCount++; objects.push(`${objCount} 0 obj\n${content}\nendobj\n`); }
-
-  addObj('<< /Type /Catalog /Pages 2 0 R >>');
-  addObj('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  addObj(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>`);
-  addObj(`<< /Length ${streamBytes.length} >>\nstream\n${stream}endstream`);
-  addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
-
-  let pdf = '%PDF-1.4\n';
-  const actualOffsets: number[] = [];
-  for (let i = 0; i < objects.length; i++) { actualOffsets.push(pdf.length); pdf += objects[i]; }
-  const xrefOffset = pdf.length;
-  pdf += 'xref\n';
-  pdf += `0 ${objCount + 1}\n`;
-  pdf += '0000000000 65535 f \n';
-  for (const offset of actualOffsets) { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; }
-  pdf += 'trailer\n';
-  pdf += `<< /Size ${objCount + 1} /Root 1 0 R >>\n`;
-  pdf += 'startxref\n';
-  pdf += `${xrefOffset}\n`;
-  pdf += '%%EOF';
-
-  return new TextEncoder().encode(pdf);
+  return meta.event_title || meta.course_title || payment.payment_type || 'Betalning';
 }
 
 Deno.serve(async (req) => {
@@ -167,7 +230,6 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Auth check
     const authHeader = req.headers.get('Authorization') ?? '';
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -186,12 +248,11 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    // Check if user is admin
     const { data: roleData } = await adminClient.from('user_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle();
     const isAdmin = !!roleData;
 
     const companyInfo = {
-      name: 'DANCE VIDA - Fabian Vallejos',
+      name: 'Dance Vida',
       company: 'Tropical Studios AB',
       orgNumber: '559326-1778',
       vatNumber: 'SE559326177801',
@@ -200,85 +261,74 @@ Deno.serve(async (req) => {
       email: 'info@tropicalstudios.se',
     };
 
+    let receipt: ReceiptData;
+    let filenameId: string;
+
     if (payment_source === 'swish') {
       const { data: payment, error } = await adminClient
         .from('swish_payments')
         .select('*, profiles!swish_payments_member_id_fkey(full_name, email)')
         .eq('id', payment_id)
         .single();
-
-      if (error || !payment) {
-        return new Response(JSON.stringify({ error: 'NOT_FOUND' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      if (payment.member_id !== userId && !isAdmin) {
-        return new Response(JSON.stringify({ error: 'FORBIDDEN' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
+      if (error || !payment) return new Response(JSON.stringify({ error: 'NOT_FOUND' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (payment.member_id !== userId && !isAdmin) return new Response(JSON.stringify({ error: 'FORBIDDEN' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
       const profile = payment.profiles as any;
-      const metadata = payment.metadata as any;
-      const description = metadata?.description || metadata?.event_title || metadata?.course_title || payment.payment_type || 'Betalning';
+      const description = await resolveSwishDescription(adminClient, payment);
 
-      const receipt: ReceiptData = {
+      receipt = {
         customerName: profile?.full_name || 'Medlem',
         customerEmail: profile?.email || '',
         date: new Date(payment.created_at).toLocaleDateString('sv-SE'),
+        paymentMethod: 'Swish',
+        status: (payment.status || '').toLowerCase() === 'paid' ? 'Betald' : payment.status,
         items: [{ description, quantity: 1, unitPrice: payment.amount_cents, currency: payment.currency }],
         totalAmount: payment.amount_cents,
         currency: payment.currency,
         orderId: payment.payment_request_id || payment.id,
+        receiptNumber: payment.id.slice(0, 8).toUpperCase(),
         companyInfo,
       };
-
-      const pdfBytes = generateReceiptPdf(receipt);
-      return new Response(pdfBytes, {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="kvitto-${payment.id.slice(0, 8)}.pdf"`,
-        },
-      });
-    }
-
-    // For Stripe, we query payments table
-    if (payment_source === 'stripe') {
+      filenameId = payment.id.slice(0, 8);
+    } else if (payment_source === 'stripe') {
       const { data: payment, error } = await adminClient
         .from('payments')
         .select('*, profiles!payments_member_id_fkey(full_name, email)')
         .eq('id', payment_id)
         .single();
-
-      if (error || !payment) {
-        return new Response(JSON.stringify({ error: 'NOT_FOUND' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      if (payment.member_id !== userId && !isAdmin) {
-        return new Response(JSON.stringify({ error: 'FORBIDDEN' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
+      if (error || !payment) return new Response(JSON.stringify({ error: 'NOT_FOUND' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (payment.member_id !== userId && !isAdmin) return new Response(JSON.stringify({ error: 'FORBIDDEN' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
       const profile = payment.profiles as any;
-      const receipt: ReceiptData = {
+      const statusLower = (payment.status || '').toLowerCase();
+      receipt = {
         customerName: profile?.full_name || 'Medlem',
         customerEmail: profile?.email || '',
         date: new Date(payment.created_at).toLocaleDateString('sv-SE'),
+        paymentMethod: 'Kort (Stripe)',
+        status: statusLower === 'paid' || statusLower === 'succeeded' || statusLower === 'complete' ? 'Betald' : payment.status,
         items: [{ description: payment.description || 'Betalning', quantity: 1, unitPrice: payment.amount_cents, currency: payment.currency }],
         totalAmount: payment.amount_cents,
         currency: payment.currency,
-        orderId: payment.id,
+        orderId: payment.order_id || payment.id,
+        receiptNumber: payment.id.slice(0, 8).toUpperCase(),
         companyInfo,
       };
-
-      const pdfBytes = generateReceiptPdf(receipt);
-      return new Response(pdfBytes, {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="kvitto-${payment.id.slice(0, 8)}.pdf"`,
-        },
-      });
+      filenameId = payment.id.slice(0, 8);
+    } else {
+      return new Response(JSON.stringify({ error: 'INVALID_SOURCE' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    return new Response(JSON.stringify({ error: 'INVALID_SOURCE' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const pdfBytes = await generateReceiptPdf(receipt);
+    return new Response(pdfBytes, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="kvitto-${filenameId}.pdf"`,
+      },
+    });
   } catch (e) {
     console.error('generate-receipt error:', e);
-    return new Response(JSON.stringify({ error: 'INTERNAL_ERROR' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'INTERNAL_ERROR', message: String((e as any)?.message || e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });

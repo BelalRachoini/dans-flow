@@ -5,18 +5,21 @@ import { useLanguageStore } from '@/store/languageStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, CreditCard, Loader2 } from 'lucide-react';
+import { Download, CreditCard, Smartphone, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
 interface PaymentRow {
   id: string;
+  source: 'stripe' | 'swish';
   amount_cents: number;
   currency: string;
   status: string;
   created_at: string;
   description: string;
 }
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 const MyPayments = () => {
   const { userId } = useAuthStore();
@@ -31,14 +34,22 @@ const MyPayments = () => {
     const fetchPayments = async () => {
       setLoading(true);
 
-      const { data: stripe } = await supabase
-        .from('payments')
-        .select('id, amount_cents, currency, status, created_at, description')
-        .eq('member_id', userId)
-        .order('created_at', { ascending: false });
+      const [stripeRes, swishRes] = await Promise.all([
+        supabase
+          .from('payments')
+          .select('id, amount_cents, currency, status, created_at, description')
+          .eq('member_id', userId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('swish_payments')
+          .select('id, amount_cents, currency, status, created_at, payment_type, metadata')
+          .eq('member_id', userId)
+          .order('created_at', { ascending: false }),
+      ]);
 
-      const results: PaymentRow[] = (stripe || []).map((p) => ({
+      const stripeRows: PaymentRow[] = (stripeRes.data || []).map((p) => ({
         id: p.id,
+        source: 'stripe',
         amount_cents: p.amount_cents,
         currency: p.currency,
         status: p.status,
@@ -46,7 +57,32 @@ const MyPayments = () => {
         description: p.description || 'Kortbetalning',
       }));
 
-      setPayments(results);
+      const swishRows: PaymentRow[] = (swishRes.data || []).map((p) => {
+        const meta = (p.metadata as any) || {};
+        const desc =
+          meta.description ||
+          meta.event_title ||
+          meta.course_title ||
+          (p.payment_type === 'event'
+            ? 'Eventbiljett'
+            : p.payment_type === 'tickets'
+            ? 'Klippkort'
+            : 'Swish-betalning');
+        return {
+          id: p.id,
+          source: 'swish',
+          amount_cents: p.amount_cents,
+          currency: p.currency,
+          status: p.status,
+          created_at: p.created_at,
+          description: desc,
+        };
+      });
+
+      const merged = [...stripeRows, ...swishRows].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setPayments(merged);
       setLoading(false);
     };
 
@@ -56,23 +92,38 @@ const MyPayments = () => {
   const handleDownloadReceipt = async (payment: PaymentRow) => {
     setDownloadingId(payment.id);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-receipt', {
-        body: { payment_id: payment.id, payment_source: 'stripe' },
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('No session');
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-receipt`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ payment_id: payment.id, payment_source: payment.source }),
       });
 
-      if (error) throw error;
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
 
-      const blob = new Blob([data], { type: 'application/pdf' });
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `kvitto-${payment.id.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err: any) {
       console.error('Receipt download error:', err);
       toast({
         title: t.myPayments.downloadError,
+        description: err?.message,
         variant: 'destructive',
       });
     } finally {
@@ -81,12 +132,12 @@ const MyPayments = () => {
   };
 
   const isPaid = (status: string) => {
-    const s = status.toLowerCase();
+    const s = (status || '').toLowerCase();
     return s === 'paid' || s === 'succeeded' || s === 'complete';
   };
 
   const getStatusBadge = (status: string) => {
-    const s = status.toLowerCase();
+    const s = (status || '').toLowerCase();
     if (isPaid(s)) return <Badge className="bg-primary text-primary-foreground">{t.myPayments.statusPaid}</Badge>;
     if (s === 'created' || s === 'pending') return <Badge variant="secondary">{t.myPayments.statusPending}</Badge>;
     return <Badge variant="destructive">{status}</Badge>;
@@ -115,46 +166,53 @@ const MyPayments = () => {
         </Card>
       ) : (
         <div className="space-y-3">
-          {payments.map((payment) => (
-            <Card key={payment.id}>
-              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="shrink-0 rounded-full bg-muted p-2">
-                    <CreditCard className="h-4 w-4" />
+          {payments.map((payment) => {
+            const Icon = payment.source === 'swish' ? Smartphone : CreditCard;
+            const methodLabel = payment.source === 'swish' ? 'Swish' : 'Kort';
+            return (
+              <Card key={`${payment.source}-${payment.id}`}>
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="shrink-0 rounded-full bg-muted p-2">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{payment.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(payment.created_at), 'yyyy-MM-dd HH:mm')}
+                        {' · '}
+                        {methodLabel}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{payment.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(payment.created_at), 'yyyy-MM-dd HH:mm')}
-                      {' · Kort'}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-3 justify-between sm:justify-end">
-                  <div className="text-right">
-                    <p className="font-semibold">{(payment.amount_cents / 100).toFixed(0)} {payment.currency}</p>
-                    {getStatusBadge(payment.status)}
+                  <div className="flex items-center gap-3 justify-between sm:justify-end">
+                    <div className="text-right">
+                      <p className="font-semibold">
+                        {(payment.amount_cents / 100).toFixed(0)} {payment.currency}
+                      </p>
+                      {getStatusBadge(payment.status)}
+                    </div>
+                    {isPaid(payment.status) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadReceipt(payment)}
+                        disabled={downloadingId === payment.id}
+                      >
+                        {downloadingId === payment.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                        <span className="hidden sm:inline ml-1">{t.myPayments.downloadReceipt}</span>
+                      </Button>
+                    )}
                   </div>
-                  {isPaid(payment.status) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownloadReceipt(payment)}
-                      disabled={downloadingId === payment.id}
-                    >
-                      {downloadingId === payment.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4" />
-                      )}
-                      <span className="hidden sm:inline ml-1">{t.myPayments.downloadReceipt}</span>
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
