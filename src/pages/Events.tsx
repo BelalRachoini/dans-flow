@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { EventTicketPurchaseDialog } from '@/components/EventTicketPurchaseDialog';
 import { ImageUploader } from '@/components/ImageUploader';
+import { EventAttendeesDialog } from '@/components/EventAttendeesDialog';
 
 type EventData = Tables<'events'>;
 type EventBooking = Tables<'event_bookings'> & {
@@ -67,8 +68,7 @@ export default function EventsPage() {
   const [eventToDelete, setEventToDelete] = useState<EventData | null>(null);
   const [discountEnabled, setDiscountEnabled] = useState(false);
   const [attendeesDialogOpen, setAttendeesDialogOpen] = useState(false);
-  const [selectedEventAttendees, setSelectedEventAttendees] = useState<EventBooking[]>([]);
-  const [loadingAttendees, setLoadingAttendees] = useState(false);
+  const [selectedEventForReport, setSelectedEventForReport] = useState<EventData | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [eventDates, setEventDates] = useState<EventDate[]>([{ date: '', time: '', endTime: '' }]);
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
@@ -499,33 +499,10 @@ export default function EventsPage() {
     }
   };
 
-  const handleViewAttendees = async (eventId: string) => {
-    setLoadingAttendees(true);
+  const handleViewAttendees = (eventId: string) => {
+    const ev = events.find((e) => e.id === eventId) || null;
+    setSelectedEventForReport(ev);
     setAttendeesDialogOpen(true);
-    
-    try {
-      const { data, error } = await supabase
-        .from('event_bookings')
-        .select(`
-          *,
-          profiles:member_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('event_id', eventId)
-        .eq('status', 'confirmed')
-        .order('booked_at', { ascending: false });
-
-      if (error) throw error;
-      setSelectedEventAttendees(data as any || []);
-    } catch (error: any) {
-      console.error('Error loading attendees:', error);
-      toast.error(error.message || t.common.error);
-    } finally {
-      setLoadingAttendees(false);
-    }
   };
 
   const formatDateTime = (dateStr: string) => {
@@ -1135,58 +1112,13 @@ export default function EventsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Attendees Dialog */}
-      <Dialog open={attendeesDialogOpen} onOpenChange={setAttendeesDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {t.events.attendeesList}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedEventAttendees.length} {t.events.attendees.toLowerCase()}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {loadingAttendees ? (
-            <div className="text-center py-8">{t.common.loading}</div>
-          ) : selectedEventAttendees.length > 0 ? (
-            <div className="space-y-3">
-              {selectedEventAttendees.map((booking) => (
-                <Card key={booking.id} className="shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-semibold text-primary">
-                            {booking.profiles?.full_name?.charAt(0) || '?'}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{booking.profiles?.full_name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {t.events.bookedAt}: {formatDateTime(booking.booked_at)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={booking.payment_status === 'paid' ? 'default' : 'secondary'}>
-                          {booking.payment_status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">{t.events.noAttendees}</p>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Attendees / Event Report Dialog */}
+      <EventAttendeesDialog
+        event={selectedEventForReport}
+        open={attendeesDialogOpen}
+        onOpenChange={setAttendeesDialogOpen}
+      />
+
 
       {/* Ticket Purchase Dialog */}
       {selectedEventForPurchase && (

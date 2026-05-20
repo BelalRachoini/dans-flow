@@ -1,53 +1,73 @@
 ## Goal
-Customers can view all their payments (Stripe + Swish) on **Mina betalningar** and download a clean, professional-looking PDF receipt/kvitto.
+Make the admin "Attendees" view on `/event` a proper event report: list of buyers + attendees, payment totals, and live attendance stats (registered / checked in / no-show), useful both before and after the event.
 
-## Current state
-- `/mina-betalningar` page already exists (`src/pages/MyPayments.tsx`) and is linked in the sidebar for the MEDLEM role.
-- It currently only reads from `payments` (Stripe) — **Swish payments are missing**.
-- The `generate-receipt` edge function supports both `stripe` and `swish`, but produces a very plain ASCII-only PDF (Swedish characters like å/ä/ö stripped, no styling, no logo, no table layout) — does not look good.
-- `supabase.functions.invoke` returns the binary as `Blob`/`ArrayBuffer`; the current `new Blob([data])` works inconsistently for PDFs.
+## Where
+Everything is centered on the existing **Attendees Dialog** in `src/pages/Events.tsx` (`handleViewAttendees` + `<Dialog>` block, lines ~502 and ~1138). Triggered from the existing "Visa deltagare" buttons on each admin event card.
+
+No DB changes, no edge functions. All data already exists in `event_bookings`, `event_checkins`, `event_dates`, `events`, `profiles`.
 
 ## Changes
 
-### 1. `src/pages/MyPayments.tsx` — show all payments
-- Query both `payments` (Stripe) and `swish_payments` for the logged-in member.
-- Normalize into a unified list with `source: 'stripe' | 'swish'`, description (use `metadata.description` / `payment_type` / event/course title fallback for Swish), amount, date, status.
-- Sort combined list by `created_at` desc.
-- Show a small badge per row indicating the payment method (Kort / Swish) instead of the hardcoded "· Kort".
-- Pass the correct `payment_source` when calling `generate-receipt`.
-- Fix the download: request the PDF via `fetch` against the function URL (with the user's access token) so we get a real binary `Blob`. Trigger download via object URL. Keep loading spinner.
+### 1. New component `src/components/EventAttendeesDialog.tsx`
+Extract and rebuild the dialog as a dedicated component that takes `event` and renders three sections:
 
-### 2. `supabase/functions/generate-receipt/index.ts` — make the PDF look good
-Rewrite the PDF generator using a small in-edge library that supports proper Unicode + layout. Use **pdf-lib** (`npm:pdf-lib`) with the bundled **StandardFonts.Helvetica** plus an embedded TTF for Swedish characters (e.g. Inter or Noto Sans via a fetched font file cached per cold start). This removes the ascii() transliteration.
+**A. Header stats strip (4 cards, gold tinted)**
+- **Sålda biljetter** — sum of `ticket_count` across confirmed bookings
+- **Intäkt** — sum of `payments.amount_cents` for related bookings + Swish payments for the event (joined via `metadata.event_id` / `order_id`), formatted as `1 250 kr`
+- **Incheckade** — sum of `checkins_used` (or distinct people via `event_checkins`)
+- **No-show** — `tickets_sold − checked_in`, shown as count + percentage
 
-Layout (A4 portrait, 595×842):
-- Header band in brand gold (`#c59333`) with company name "Tropical Studios" left-aligned and the word **KVITTO / RECEIPT** right-aligned, both in white.
-- Below header, two columns:
-  - Left: **Från** — company name, address, org.nr, VAT, e-mail, phone.
-  - Right: **Kvitto till** — customer full name, e-mail.
-- Metadata row: Kvittonummer (short id), Datum, Betalningsmetod (Kort/Swish), Status.
-- Items table with header row (light gold tint background, gray border):
-  - Columns: Beskrivning · Antal · À-pris · Summa.
-  - Right-aligned numeric columns, padding and zebra-striping.
-- Totals block right-aligned: Subtotal, (no VAT line — no VAT registration assumed; show "Moms ingår: 0%" only if a flag is set), **Totalt** in bold gold.
-- Footer: thank-you line in Swedish + small print "Detta kvitto är genererat automatiskt av Tropical Studios."
-- Page margins 50px, consistent line-height, generous whitespace.
+For multi-date events, the strip switches to a date picker: stats can be filtered per `event_date_id` or shown as "Alla datum".
 
-Other function changes:
-- Resolve a richer description for Swish receipts using related `event_bookings` / `tickets` (heuristic match by member + ±30 min window) so the line item reads e.g. *"Eventbiljett: Golden Knight Party — 2 biljetter"* instead of generic "Betalning".
-- Keep CORS, auth and ownership checks unchanged.
+**B. Buyer table**
+Columns:
+- Köpare (avatar + `profiles.full_name`)
+- Antal biljetter (`ticket_count`)
+- Deltagare (expandable list from `attendee_names`)
+- Betalat (resolved amount from `payments` / `swish_payments` joined by `member_id` ± booking time)
+- Metod (Kort / Swish badge)
+- Bokad (`booked_at` short date)
+- Status badge: `confirmed` / `checked_in` / `cancelled` / `refunded`
+- Incheckning: `checkins_used / checkins_allowed` with a green check when fully attended, orange dot when partial, red dot when 0 (no-show after event start)
 
-### 3. Translations
-Add the new strings (method labels, "Kort", "Swish", empty-state copy, etc.) to `src/locales/sv.ts`, `en.ts`, `es.ts` under the existing `myPayments` key.
+Row click expands to show each individual attendee name and the per-date check-in (using `event_checkins.event_id` + booking_id × `event_dates`) for multi-day events.
+
+**C. Empty / past-event affordances**
+- After event end time → header reads "Eventrapport" instead of "Deltagarlista", and a small "Closeout" line: "X av Y dök upp (Z%)".
+- Search input filtering buyer names/emails.
+- "Exportera CSV" button → builds a CSV client-side (no backend) with all columns above, downloads as `attendees-{event-title}-{date}.csv`.
+
+### 2. Data loading
+Replace the current single query with a parallel batch in the new component:
+```ts
+const [bookingsRes, checkinsRes, paymentsRes, swishRes, datesRes] = await Promise.all([...]);
+```
+- `event_bookings` joined with `profiles` (same query, but also include `cancelled`/`refunded` for the report)
+- `event_checkins` filtered by `event_id`
+- `payments` filtered by `member_id IN (buyers)` with description containing event title OR `order_id` matching the booking — keep simple: heuristic `created_at` within 24h of `booked_at`
+- `swish_payments` same heuristic
+- `event_dates` for multi-day breakdown
+
+Compute stats client-side. Memoize per-event so closing/reopening is instant.
+
+### 3. Events.tsx
+- Replace inline dialog state/JSX with `<EventAttendeesDialog event={selectedEventForReport} open onOpenChange />`.
+- Keep the existing trigger buttons.
+- Tweak the "Visa deltagare" button label: for past events show "Visa rapport", for upcoming "Visa deltagare" (uses `event.end_at < now()` check).
+
+### 4. Translations
+Add to `src/locales/{sv,en,es}.ts` under `events`:
+- `report`, `ticketsSold`, `revenue`, `checkedIn`, `noShow`, `attendanceRate`, `paymentMethod`, `cardLabel`, `swishLabel`, `exportCsv`, `searchAttendees`, `allDates`, `perDate`, `confirmedStatus`, `checkedInStatus`, `cancelledStatus`, `refundedStatus`, `closeoutLine` ("{checked} av {sold} dök upp ({pct}%)").
 
 ## Out of scope
-- No DB migrations.
-- No changes to the admin Betalningar page.
-- No changes to checkout / payment creation flows.
+- No edits to event creation / payment flows.
+- No new DB tables or triggers.
+- No changes to QR-scanner check-in logic.
+- Instructor view (`InstructorEventAttendees.tsx`) stays as-is for now.
 
 ## Verification
-1. Log in as a member who has both a Stripe payment and a Swish payment → both appear on `/mina-betalningar`, correctly labelled.
-2. Click **Ladda ner kvitto** on a Stripe row → A4 PDF opens with the new branded layout, Swedish characters intact.
-3. Same for a Swish row → line item shows the resolved event/ticket description.
-4. Empty-state still renders when no payments exist.
-5. Non-owner cannot download (403 still enforced by edge function).
+1. Open an upcoming event → dialog shows live "Sålda / Intäkt / Incheckade / No-show", buyer list with paid amounts.
+2. Open a past event → header says "Eventrapport", closeout line shows correct attendance %.
+3. Multi-date event → date picker filters stats and the per-row check-in chips.
+4. Click "Exportera CSV" → file downloads with all columns and opens cleanly in Excel/Numbers.
+5. Cancelled / refunded buyers visible but excluded from sold/revenue counters.
