@@ -112,12 +112,53 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
       }
 
       setPaymentsByMember(map);
+
+      // Load any Swish payments for this event with no matching booking (drift detector)
+      const { data: drift } = await supabase.rpc('admin_list_unreconciled_swish_for_event', {
+        p_event_id: event.id,
+      });
+      if (!cancelled) setUnreconciled((drift as any[]) || []);
+
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [open, event]);
+
+  const reconcileOne = async (swishPaymentId: string) => {
+    setReconciling(swishPaymentId);
+    try {
+      const { data, error } = await supabase.rpc('admin_reconcile_swish_event_booking', {
+        p_swish_payment_id: swishPaymentId,
+        p_attendee_names: [],
+      });
+      if (error) throw error;
+      const res = data as any;
+      toast.success(
+        res?.already_existed
+          ? 'Redan bokad'
+          : `Bokning skapad (${res?.bookings_created ?? 0} st)`
+      );
+      // Refresh
+      if (event) {
+        const [bkRes, drift] = await Promise.all([
+          supabase
+            .from('event_bookings')
+            .select('*, profiles:member_id(id, full_name, email, avatar_url)')
+            .eq('event_id', event.id)
+            .order('booked_at', { ascending: false }),
+          supabase.rpc('admin_list_unreconciled_swish_for_event', { p_event_id: event.id }),
+        ]);
+        setBookings((bkRes.data || []) as BookingRow[]);
+        setUnreconciled((drift.data as any[]) || []);
+      }
+    } catch (e: any) {
+      toast.error(`Reconcile failed: ${e?.message ?? 'unknown'}`);
+    } finally {
+      setReconciling(null);
+    }
+  };
 
   // Filter check-ins by selected date
   const filteredCheckins = useMemo(() => {
