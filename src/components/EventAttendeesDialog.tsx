@@ -554,7 +554,80 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
           )}
         </div>
       </DialogContent>
+
+      {/* Manual booking dialog */}
+      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Lägg till manuell bokning</DialogTitle>
+            <DialogDescription>
+              Använd när någon har betalat utanför systemet (t.ex. Swish via WordPress) men bokningen inte registrerades automatiskt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="m-name">Namn *</Label>
+              <Input id="m-name" value={manualForm.name} onChange={(e) => setManualForm((f) => ({ ...f, name: e.target.value }))} placeholder="Förnamn Efternamn" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-email">E-post (valfri)</Label>
+              <Input id="m-email" type="email" value={manualForm.email} onChange={(e) => setManualForm((f) => ({ ...f, email: e.target.value }))} placeholder="namn@example.com" />
+              <p className="text-xs text-muted-foreground">Om medlemmen finns kopplas bokningen till deras konto.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="m-count">Antal biljetter</Label>
+                <Input id="m-count" type="number" min={1} max={20} value={manualForm.ticket_count} onChange={(e) => setManualForm((f) => ({ ...f, ticket_count: Math.max(1, parseInt(e.target.value || '1', 10)) }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="m-amount">Belopp (kr)</Label>
+                <Input id="m-amount" inputMode="decimal" value={manualForm.amount_kr} onChange={(e) => setManualForm((f) => ({ ...f, amount_kr: e.target.value }))} placeholder="0" />
+              </div>
+            </div>
+            {dates.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Datum (valfritt)</Label>
+                <Select value={manualForm.event_date_id || 'none'} onValueChange={(v) => setManualForm((f) => ({ ...f, event_date_id: v === 'none' ? '' : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Alla datum" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Alla / inget specifikt datum</SelectItem>
+                    {dates.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>{format(new Date(d.start_at), 'd MMM HH:mm')}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Betalmetod</Label>
+                <Select value={manualForm.payment_method} onValueChange={(v: any) => setManualForm((f) => ({ ...f, payment_method: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="swish">Swish</SelectItem>
+                    <SelectItem value="stripe">Stripe / kort</SelectItem>
+                    <SelectItem value="cash">Kontant</SelectItem>
+                    <SelectItem value="other">Övrigt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="m-ref">Referens (valfri)</Label>
+                <Input id="m-ref" value={manualForm.payment_reference} onChange={(e) => setManualForm((f) => ({ ...f, payment_reference: e.target.value }))} placeholder="Swish # / ordernr" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualOpen(false)} disabled={manualSaving}>Avbryt</Button>
+            <Button onClick={submitManual} disabled={manualSaving || !manualForm.name.trim()}>
+              {manualSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Skapa bokning
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
+
   );
 }
 
