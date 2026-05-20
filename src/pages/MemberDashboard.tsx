@@ -70,12 +70,28 @@ export default function MemberDashboard() {
       .limit(5);
 
     const combinedItems = [
-      ...(lessonsData || []).map(l => ({
-        ...l,
-        type: 'lesson',
-        date: l.starts_at,
-        title: l.title || l.courses?.title,
-      })),
+      ...(lessonsData || []).map(l => {
+        const courseTitle = l.courses?.title || '';
+        const rawTitle = l.title || courseTitle;
+        // Strip auto-generated " - N" suffix when it matches "<course> - <number>"
+        const suffixMatch = rawTitle.match(/^(.*?)\s*[-–]\s*(\d+)\s*$/);
+        let displayTitle = rawTitle;
+        let lessonNumber: number | null = null;
+        if (suffixMatch) {
+          const base = suffixMatch[1].trim();
+          lessonNumber = parseInt(suffixMatch[2], 10);
+          if (!courseTitle || base.toLowerCase() === courseTitle.toLowerCase() || !l.title) {
+            displayTitle = courseTitle || base;
+          }
+        }
+        return {
+          ...l,
+          type: 'lesson',
+          date: l.starts_at,
+          title: displayTitle,
+          lessonNumber,
+        };
+      }),
       ...(eventsData || []).map(e => ({
         ...e,
         type: 'event',
@@ -86,6 +102,21 @@ export default function MemberDashboard() {
 
     setUpcomingItems(combinedItems);
   };
+
+  const fetchMyBookings = async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from('lesson_bookings')
+      .select(`*, course_lessons!inner (id, title, starts_at, ends_at, venue)`)
+      .eq('member_id', userId)
+      .eq('status', 'valid')
+      // 2h grace so an in-progress class still shows its QR
+      .gte('course_lessons.starts_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+      .order('starts_at', { ascending: true, foreignTable: 'course_lessons' })
+      .limit(5);
+    setMyBookings((data || []).filter((b: any) => b.course_lessons));
+  };
+
 
   const fetchMyBookings = async () => {
     if (!userId) return;
