@@ -64,7 +64,7 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
     const [bkRes, drift] = await Promise.all([
       supabase
         .from('event_bookings')
-        .select('*, profiles:member_id(id, full_name, email, avatar_url)')
+        .select('*, profiles:member_id(id, full_name, email, phone, avatar_url)')
         .eq('event_id', event.id)
         .order('booked_at', { ascending: false }),
       supabase.rpc('admin_list_unreconciled_swish_for_event', { p_event_id: event.id }),
