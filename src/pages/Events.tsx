@@ -499,33 +499,10 @@ export default function EventsPage() {
     }
   };
 
-  const handleViewAttendees = async (eventId: string) => {
-    setLoadingAttendees(true);
+  const handleViewAttendees = (eventId: string) => {
+    const ev = events.find((e) => e.id === eventId) || null;
+    setSelectedEventForReport(ev);
     setAttendeesDialogOpen(true);
-    
-    try {
-      const { data, error } = await supabase
-        .from('event_bookings')
-        .select(`
-          *,
-          profiles:member_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('event_id', eventId)
-        .eq('status', 'confirmed')
-        .order('booked_at', { ascending: false });
-
-      if (error) throw error;
-      setSelectedEventAttendees(data as any || []);
-    } catch (error: any) {
-      console.error('Error loading attendees:', error);
-      toast.error(error.message || t.common.error);
-    } finally {
-      setLoadingAttendees(false);
-    }
   };
 
   const formatDateTime = (dateStr: string) => {
