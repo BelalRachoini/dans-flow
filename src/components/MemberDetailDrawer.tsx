@@ -269,11 +269,12 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
 
   // Give free tickets mutation
   const giveTicketsMutation = useMutation({
-    mutationFn: async (data: { ticketCount: number; expiresAt?: string }) => {
-      const { data: result, error } = await supabase.rpc("admin_give_free_tickets", {
+    mutationFn: async (data: { ticketCount: number; expiresAt?: string; sourceCourseId?: string | null }) => {
+      const { data: result, error } = await supabase.rpc("admin_give_free_tickets" as any, {
         p_member_id: memberId,
         p_ticket_count: data.ticketCount,
         p_expires_at: data.expiresAt,
+        p_source_course_id: data.sourceCourseId ?? null,
       });
 
       if (error) throw error;
@@ -282,11 +283,64 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     onSuccess: (result: any) => {
       toast.success(t.common.ticketsGiven.replace("{count}", result.tickets.toString()));
       setTicketCount("1");
+      setTicketSourceCourseId("__none__");
       queryClient.invalidateQueries({ queryKey: ["member-tickets", memberId] });
     },
     onError: (error: any) => {
       console.error("Give tickets error:", error);
       toast.error("Kunde inte ge klipp: " + error.message);
+    },
+  });
+
+  // Give free event booking
+  const giveEventTicketMutation = useMutation({
+    mutationFn: async (data: { eventId: string; eventDateId: string | null; ticketCount: number }) => {
+      const { data: result, error } = await supabase.rpc("admin_create_free_event_booking" as any, {
+        p_member_id: memberId,
+        p_event_id: data.eventId,
+        p_event_date_id: data.eventDateId,
+        p_ticket_count: data.ticketCount,
+        p_attendee_names: [],
+      });
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (result: any) => {
+      toast.success(
+        (t.crm.actions as any).eventBookingCreated.replace("{event}", result.event_title || "")
+      );
+      setEventTicketCount("1");
+      queryClient.invalidateQueries({ queryKey: ["member-event-bookings", memberId] });
+    },
+    onError: (error: any) => {
+      console.error("Event booking error:", error);
+      toast.error(error.message || t.crm.error);
+    },
+  });
+
+  // Generate event comp code
+  const generateCompCodeMutation = useMutation({
+    mutationFn: async (data: { eventId: string | null; percentOff: number }) => {
+      const code = `COMP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const { error } = await supabase.from("event_comp_codes" as any).insert({
+        code,
+        event_id: data.eventId,
+        percent_off: data.percentOff,
+        max_uses: 1,
+        created_by: userId!,
+        created_for: memberId,
+        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      if (error) throw error;
+      return code;
+    },
+    onSuccess: async (code: string) => {
+      try { await navigator.clipboard.writeText(code); } catch {}
+      toast.success((t.crm.actions as any).compCodeCreated.replace("{code}", code));
+    },
+    onError: (error: any) => {
+      console.error("Comp code error:", error);
+      toast.error(error.message || t.crm.error);
     },
   });
 
