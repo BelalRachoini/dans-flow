@@ -223,6 +223,24 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     enabled: open,
   });
 
+  // Fetch member's active event bookings (for cancellation UI)
+  const { data: memberEventBookings = [] } = useQuery({
+    queryKey: ['member-event-bookings', memberId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('event_bookings')
+        .select('id, event_id, event_date_id, ticket_count, status, attendee_names, events(title, start_at), event_dates(start_at)')
+        .eq('member_id', memberId)
+        .in('status', ['confirmed', 'checked_in'])
+        .order('booked_at', { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: open,
+  });
+
+
+
   // Fetch subscriptions
   const { data: subscriptions = [] } = useQuery({
     queryKey: ['member-subs', memberId],
