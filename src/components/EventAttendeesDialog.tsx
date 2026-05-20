@@ -424,6 +424,10 @@ export function EventAttendeesDialog({ event, open, onOpenChange }: Props) {
               </SelectContent>
             </Select>
           )}
+          <Button variant="outline" onClick={() => setManualOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-1" />
+            Manuell bokning
+          </Button>
           <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
             <Download className="h-4 w-4 mr-1" />
             Exportera CSV
