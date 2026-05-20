@@ -2048,6 +2048,9 @@ export default function Biljetter() {
                               <p className="text-muted-foreground text-xs">
                                 {formatDate(lesson.starts_at)}
                               </p>
+                              <p className="text-muted-foreground text-xs">
+                                {t.tickets.purchasedOn}: {new Date(booking.purchased_at).toLocaleDateString('sv-SE')}
+                              </p>
                             </div>
                             <Badge variant="outline" className="shrink-0">Använd</Badge>
                           </div>
