@@ -610,7 +610,11 @@ export default function Betalningar() {
                   </TableRow>
                 ) : (
                   filteredPayments.map((payment) => (
-                    <TableRow key={payment.id} className="hover:bg-muted/50 transition-colors">
+                    <TableRow
+                      key={payment.id}
+                      className="hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedPayment(payment)}
+                    >
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDate(payment.createdAt)}
                       </TableCell>
@@ -622,9 +626,31 @@ export default function Betalningar() {
                       </TableCell>
                       <TableCell className="max-w-xs">
                         <p className="truncate">{payment.description}</p>
+                        {payment.type === 'tickets' && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Flexibla klipp · klicka för detaljer
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{getTypeLabel(payment.type)}</Badge>
+                        {payment.type === 'tickets' ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="cursor-help inline-flex items-center gap-1">
+                                  {getTypeLabel(payment.type)}
+                                  <Info className="h-3 w-3" />
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                Flexibelt klippkort som kan användas på valfri drop-in-klass inom giltighetstiden.
+                                Inte kopplat till någon specifik kurs eller event.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Badge variant="outline">{getTypeLabel(payment.type)}</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={payment.method === 'swish' ? 'default' : 'secondary'} className="capitalize">
