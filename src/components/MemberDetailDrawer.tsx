@@ -126,20 +126,41 @@ export function MemberDetailDrawer({ memberId, open, onOpenChange }: MemberDetai
     enabled: open,
   });
 
-  // Fetch courses for check-in
+  // Fetch courses (used in quick actions: course picker & manual check-in)
   const { data: courses = [] } = useQuery({
-    queryKey: ['courses-for-checkin'],
+    queryKey: ['courses-for-admin-actions'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, title')
-        .order('created_at', { ascending: false })
-        .limit(20);
+        .select('id, title, starts_at')
+        .order('starts_at', { ascending: false, nullsFirst: false })
+        .limit(100);
       if (error) throw error;
       return data;
     },
-    enabled: open && checkinDialogOpen,
+    enabled: open,
   });
+
+  // Fetch events + dates for event ticket gifting
+  const { data: events = [] } = useQuery({
+    queryKey: ['events-for-admin-actions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, title, start_at, status, event_dates(id, start_at)')
+        .eq('status', 'published')
+        .order('start_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: open,
+  });
+
+  const selectedEvent = events.find((e: any) => e.id === eventTicketEventId);
+  const eventDates: any[] = (selectedEvent?.event_dates || []).slice().sort(
+    (a: any, b: any) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+  );
 
   // Fetch Stripe payments for this member
   const { data: stripePayments = [] } = useQuery({
