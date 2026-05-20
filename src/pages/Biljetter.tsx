@@ -1350,6 +1350,17 @@ export default function Biljetter() {
               {/* Statistics Display */}
               {(selectedCourse || selectedEvent) && (
                 <>
+                  <div className="flex items-center justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => adminView === 'events' ? exportEventAttendeesCsv() : exportCourseAttendeesCsv()}
+                      disabled={attendanceStats.totalAttendees === 0}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Exportera CSV
+                    </Button>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <Card>
                       <CardContent className="pt-6">
