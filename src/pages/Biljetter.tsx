@@ -1892,6 +1892,9 @@ export default function Biljetter() {
                                       ) + 1} av {new Set(eventTickets.filter(t => t.event_date_id).map(t => t.event_dates?.start_at)).size}
                                     </p>
                                   )}
+                                  <p className="text-xs text-muted-foreground">
+                                    {t.tickets.purchasedOn}: {new Date(ticket.booked_at).toLocaleDateString('sv-SE')}
+                                  </p>
                                 </div>
                                 
                                 {/* QR Code Preview */}
